@@ -3,10 +3,8 @@ language: "en-GB"
 early_access: false
 
 tone_instructions: >-
-  Reviewing a benchmark harness for the Vera programming language. Focus on
-  correctness of problem definitions, test case validity, and harness reliability.
-  The project uses subprocess calls to the vera compiler — review for proper
-  error handling and timeouts.
+  Vera language benchmark harness. Focus on problem correctness, test validity,
+  subprocess error handling, and timeouts.
 
 knowledge_base:
   opt_out: false
