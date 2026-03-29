@@ -1,6 +1,6 @@
 # VeraBench
 
-A benchmark for evaluating LLM code generation in [Vera](https://github.com/aallan/vera), a programming language designed for LLMs to write.
+A benchmark for evaluating LLM code generation in [Vera](https://github.com/aallan/vera), a programming language designed for large language models (LLMs) to write.
 
 ## Overview
 
@@ -27,8 +27,8 @@ The same problems are also run in Python and TypeScript as baselines.
 
 ## Prerequisites
 
-- Python 3.11+
-- Git
+* Python 3.11+
+* Git
 
 ## Installation
 
@@ -44,17 +44,28 @@ The `[llm]` extra installs the Anthropic and OpenAI SDKs. Use `pip install -e .`
 
 ### Install the Vera compiler
 
-The `vera` command must be available on PATH. Install it anywhere into the same virtual environment:
+The `vera` command must be available on `$PATH`. Install it anywhere into the same environment, either from a local clone,
 
 ```bash
-pip install -e /path/to/vera          # from a local clone
-# or
-pip install git+https://github.com/aallan/vera.git   # directly from GitHub
-
-vera version   # should print vera 0.0.104 or later
+pip install -e /path/to/vera          
 ```
 
+or directly from GitHub.
+
+```bash
+pip install git+https://github.com/aallan/vera.git   
+```
+Afterwards you should be able to print the Vera version from the terminal,
+
+```bash
+vera version   
+```
+
+this should return v0.0.104 or later.
+
 ## Quick start
+
+Once Vera is installed you can run the benchmark from the terminal,
 
 ```bash
 # Validate all 50 problems and canonical solutions

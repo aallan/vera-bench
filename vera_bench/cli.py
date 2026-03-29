@@ -119,6 +119,10 @@ def run(
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{model}.jsonl"
 
+    # Truncate stale results from previous runs
+    if output_path.exists():
+        output_path.unlink()
+
     # Create clients
     client = create_client(model)
     vera = VeraRunner()
@@ -188,3 +192,62 @@ def report(results_dir: Path):
     summary = results_dir / "summary.md"
     if summary.exists():
         console.print(f"\nReport written to {summary}")
+
+
+@main.command()
+@click.option(
+    "--language",
+    type=click.Choice(["python"]),
+    default="python",
+    help="Baseline language to run",
+)
+@click.option(
+    "--output-dir",
+    type=click.Path(path_type=Path),
+    default=None,
+)
+def baselines(language: str, output_dir: Path | None):
+    """Run baseline solutions against test cases."""
+    from vera_bench.baseline_runner import run_all_baselines
+    from vera_bench.metrics import compute_metrics
+
+    root = _repo_root()
+
+    # Load all problems
+    problems_dir = root / "problems"
+    problem_files = sorted(problems_dir.rglob("VB_*.json"))
+    problems = []
+    for pf in problem_files:
+        with open(pf, encoding="utf-8") as f:
+            problems.append(json.load(f))
+
+    console.print(f"Found {len(problems)} problems.\n")
+
+    # Set up output
+    solutions_dir = root / "solutions"
+    if output_dir is None:
+        output_dir = root / "results"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{language}-baseline.jsonl"
+
+    # Truncate stale results from previous runs
+    if output_path.exists():
+        output_path.unlink()
+
+    console.print(f"Language: {language}")
+    console.print(f"Output:   {output_path}\n")
+
+    # Run baselines
+    results = run_all_baselines(
+        problems=problems,
+        solutions_dir=solutions_dir,
+        output_path=output_path,
+        language=language,
+    )
+
+    # Print summary
+    if results:
+        metrics = compute_metrics([json.loads(r.to_jsonl()) for r in results])
+        _print_metrics(f"{language}-baseline", metrics)
+
+    console.print(f"\nResults written to {output_path}")
