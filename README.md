@@ -84,6 +84,9 @@ vera-bench run --model claude-sonnet-4-20250514 --problem VB-T1-001
 # Spec-from-NL mode (agent writes its own contracts)
 vera-bench run --model claude-sonnet-4-20250514 --mode spec-from-nl
 
+# Run Python baselines for comparison
+vera-bench baselines
+
 # Generate a report from results
 vera-bench report results/
 ```
