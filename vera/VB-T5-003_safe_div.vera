@@ -1,0 +1,35 @@
+-- VeraBench VB-T5-003: Safe Division with Exceptions
+-- Division that throws on zero, with a handler that catches and returns -1.
+-- Tests: Exn<Int> effect, handle[Exn<Int>], pure/effectful boundary.
+effect Exn<E> {
+  op throw(E -> Never);
+}
+
+-- Effectful: division that throws on zero divisor
+-- Parameters: checked_div(a, b) computes a / b
+-- @Int.0 = b (rightmost, divisor), @Int.1 = a (leftmost, dividend)
+private fn checked_div(@Int, @Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(<Exn<Int>>)
+{
+  if @Int.1 == 0 then {
+    throw(0 - 1)
+  } else {
+    @Int.0 / @Int.1
+  }
+}
+
+-- Pure: handle the exception, return -1 on division by zero
+-- Parameters: safe_div(dividend, divisor)
+public fn safe_div(@Int, @Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  handle[Exn<Int>] {
+    throw(@Int) -> { @Int.0 }
+  } in {
+    checked_div(@Int.0, @Int.1)
+  }
+}

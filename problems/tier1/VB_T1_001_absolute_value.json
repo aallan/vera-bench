@@ -1,0 +1,59 @@
+{
+  "id": "VB-T1-001",
+  "tier": 1,
+  "title": "Absolute Value",
+  "description": "Write a Vera function that computes the absolute value of an integer. The function should take a single Int parameter and return a Nat (non-negative integer). The postcondition should guarantee the result is non-negative and equals either the input or its negation.",
+  "signature": "public fn absolute_value(@Int -> @Nat)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 0",
+      "@Nat.result == @Int.0 || @Nat.result == -@Int.0"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "absolute_value",
+  "tags": [
+    "arithmetic",
+    "conditional",
+    "postcondition",
+    "Nat-return"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        0
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        42
+      ],
+      "expected": 42
+    },
+    {
+      "args": [
+        -42
+      ],
+      "expected": 42
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        -1
+      ],
+      "expected": 1
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Nat is a refinement of Int (non-negative). Tests basic conditional and slot references. Both ensures clauses verify at Tier 1."
+}

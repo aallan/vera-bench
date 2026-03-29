@@ -1,0 +1,18 @@
+-- VeraBench VB-T4-001: Fibonacci
+-- Compute the nth Fibonacci number.
+public fn fibonacci(@Nat -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 0)
+  decreases(@Nat.0)
+  effects(pure)
+{
+  if @Nat.0 == 0 then {
+    0
+  } else {
+    if @Nat.0 == 1 then {
+      1
+    } else {
+      fibonacci(@Nat.0 - 1) + fibonacci(@Nat.0 - 2)
+    }
+  }
+}

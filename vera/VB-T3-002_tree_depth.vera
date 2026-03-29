@@ -1,0 +1,22 @@
+-- VeraBench VB-T3-002: Tree Depth
+-- Compute the depth of a binary tree.
+private data Tree {
+  Leaf(Int),
+  Branch(Tree, Tree)
+}
+
+public fn tree_depth(@Tree -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 1)
+  decreases(@Tree.0)
+  effects(pure)
+{
+  match @Tree.0 {
+    Leaf(@Int) -> 1,
+    Branch(@Tree, @Tree) -> {
+      let @Nat = tree_depth(@Tree.1);
+      let @Nat = tree_depth(@Tree.0);
+      1 + max(@Nat.1, @Nat.0)
+    }
+  }
+}

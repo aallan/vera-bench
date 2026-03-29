@@ -1,0 +1,20 @@
+-- VeraBench VB-T3-003: Expression Evaluator
+-- Evaluate a simple arithmetic expression tree.
+private data Expr {
+  Lit(Int),
+  Add(Expr, Expr),
+  Neg(Expr)
+}
+
+public fn eval_expr(@Expr -> @Int)
+  requires(true)
+  ensures(true)
+  decreases(@Expr.0)
+  effects(pure)
+{
+  match @Expr.0 {
+    Lit(@Int) -> @Int.0,
+    Add(@Expr, @Expr) -> eval_expr(@Expr.1) + eval_expr(@Expr.0),
+    Neg(@Expr) -> 0 - eval_expr(@Expr.0)
+  }
+}

@@ -1,0 +1,18 @@
+-- VeraBench VB-T3-001: List Length
+-- Compute the length of a linked list.
+private data List {
+  Nil,
+  Cons(Int, List)
+}
+
+public fn list_length(@List -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 0)
+  decreases(@List.0)
+  effects(pure)
+{
+  match @List.0 {
+    Nil -> 0,
+    Cons(@Int, @List) -> 1 + list_length(@List.0)
+  }
+}

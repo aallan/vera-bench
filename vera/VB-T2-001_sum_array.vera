@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-001: Sum Array
+-- Sum all elements in an integer array using array_fold.
+public fn sum_array(@Array<Int> -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  array_fold(@Array<Int>.0, 0, fn(@Int, @Int -> @Int) effects(pure) { @Int.1 + @Int.0 })
+}

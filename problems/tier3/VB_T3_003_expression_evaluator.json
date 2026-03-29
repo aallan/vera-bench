@@ -1,0 +1,29 @@
+{
+  "id": "VB-T3-003",
+  "tier": 3,
+  "title": "Expression Evaluator",
+  "description": "Define an expression ADT with Lit(Int), Add(Expr, Expr), and Neg(Expr) constructors. Write a function that evaluates the expression to an Int. Add evaluates both sub-expressions and sums them. Neg negates the sub-expression.",
+  "signature": "public fn eval_expr(@Expr -> @Int)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "eval_expr",
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "recursion",
+    "decreases",
+    "three-variants",
+    "nested-adt"
+  ],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Three-variant ADT with recursion. Inside Add(@Expr, @Expr), @Expr.0 is the right sub-expr, @Expr.1 is the left. Agent must use 0 - eval_expr(@Expr.0) for negation (no unary minus on function calls)."
+}

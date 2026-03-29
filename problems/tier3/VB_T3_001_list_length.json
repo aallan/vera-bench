@@ -1,0 +1,28 @@
+{
+  "id": "VB-T3-001",
+  "tier": 3,
+  "title": "List Length",
+  "description": "Define a linked list ADT with Nil and Cons constructors, then write a function that computes its length. The function must be recursive with a decreases clause for termination.",
+  "signature": "public fn list_length(@List -> @Nat)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 0"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "list_length",
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "recursion",
+    "decreases",
+    "data-definition"
+  ],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "The agent must define data List { Nil, Cons(Int, List) } AND write the function. Inside match Cons(@Int, @List), @List.0 refers to the tail (matched binding), not the parameter. This is THE core De Bruijn test."
+}

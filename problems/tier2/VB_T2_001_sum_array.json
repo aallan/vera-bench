@@ -1,0 +1,27 @@
+{
+  "id": "VB-T2-001",
+  "tier": 2,
+  "title": "Sum Array",
+  "description": "Write a Vera function that sums all elements of an integer array. Use the array_fold built-in function with an accumulator starting at 0.",
+  "signature": "public fn sum_array(@Array<Int> -> @Int)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "sum_array",
+  "tags": [
+    "array",
+    "fold",
+    "higher-order",
+    "builtin-discovery"
+  ],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests whether the agent discovers array_fold and writes the correct closure syntax. The closure inside array_fold needs its own effects(pure) annotation."
+}

@@ -1,0 +1,29 @@
+-- VeraBench VB-T5-001: Counter
+-- A counter using State<Int> effect with inline state operations.
+
+-- Pure helper: compute the next count
+private fn next_count(@Int -> @Int)
+  requires(true)
+  ensures(@Int.result == @Int.0 + 1)
+  effects(pure)
+{
+  @Int.0 + 1
+}
+
+-- Pure: run three increments and return the final value.
+-- Demonstrates handle[State<Int>] with put/get, calling a pure helper.
+public fn count_three(@Unit -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  handle[State<Int>](@Int = 0) {
+    get(@Unit) -> { resume(@Int.0) },
+    put(@Int) -> { resume(()) } with @Int = @Int.0
+  } in {
+    put(next_count(get(())));
+    put(next_count(get(())));
+    put(next_count(get(())));
+    get(())
+  }
+}

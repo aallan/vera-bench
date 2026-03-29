@@ -1,0 +1,15 @@
+-- VeraBench VB-T4-002: Greatest Common Divisor
+-- Compute GCD using Euclid's algorithm.
+-- Parameters: gcd(a, b) where @Nat.0 = b, @Nat.1 = a
+public fn gcd(@Nat, @Nat -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 0)
+  decreases(@Nat.0)
+  effects(pure)
+{
+  if @Nat.0 == 0 then {
+    @Nat.1
+  } else {
+    gcd(@Nat.0, @Nat.1 % @Nat.0)
+  }
+}

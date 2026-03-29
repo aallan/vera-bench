@@ -1,0 +1,52 @@
+{
+  "id": "VB-T4-001",
+  "tier": 4,
+  "title": "Fibonacci",
+  "description": "Write a Vera function that computes the nth Fibonacci number. fib(0) = 0, fib(1) = 1, fib(n) = fib(n-1) + fib(n-2). The function must include a decreases clause proving termination.",
+  "signature": "public fn fibonacci(@Nat -> @Nat)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 0"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "fibonacci",
+  "tags": [
+    "recursion",
+    "decreases",
+    "termination",
+    "two-base-cases"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        0
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        5
+      ],
+      "expected": 5
+    },
+    {
+      "args": [
+        10
+      ],
+      "expected": 55
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Classic recursion with two base cases. decreases(@Nat.0) is straightforward. Tests whether the agent remembers to include it."
+}

@@ -1,0 +1,45 @@
+{
+  "id": "VB-T1-003",
+  "tier": 1,
+  "title": "Signum",
+  "description": "Write a Vera function that returns the sign of an integer: -1 for negative, 0 for zero, 1 for positive. The postcondition should guarantee the result is exactly one of {-1, 0, 1}.",
+  "signature": "public fn signum(@Int -> @Int)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Int.result == -1 || @Int.result == 0 || @Int.result == 1"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "signum",
+  "tags": [
+    "arithmetic",
+    "conditional",
+    "three-way-branch"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        42
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        -7
+      ],
+      "expected": -1
+    },
+    {
+      "args": [
+        0
+      ],
+      "expected": 0
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests nested if-then-else (Vera has no elif). Disjunctive postcondition verifiable at Tier 1."
+}

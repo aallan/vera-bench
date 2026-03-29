@@ -1,0 +1,57 @@
+{
+  "id": "VB-T4-002",
+  "tier": 4,
+  "title": "Greatest Common Divisor",
+  "description": "Write a Vera function that computes the GCD of two natural numbers using Euclid's algorithm: gcd(a, 0) = a, gcd(a, b) = gcd(b, a mod b). Include a decreases clause. Hint: the second parameter decreases on each call.",
+  "signature": "public fn gcd(@Nat, @Nat -> @Nat)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 0"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "gcd",
+  "tags": [
+    "recursion",
+    "decreases",
+    "termination",
+    "modulo",
+    "two-params"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        12,
+        8
+      ],
+      "expected": 4
+    },
+    {
+      "args": [
+        7,
+        0
+      ],
+      "expected": 7
+    },
+    {
+      "args": [
+        0,
+        5
+      ],
+      "expected": 5
+    },
+    {
+      "args": [
+        100,
+        75
+      ],
+      "expected": 25
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "gcd(a, b): @Nat.0=b, @Nat.1=a. decreases(@Nat.0) works because b decreases (a mod b < b). The recursive call gcd(@Nat.0, @Nat.1 % @Nat.0) swaps the argument order."
+}

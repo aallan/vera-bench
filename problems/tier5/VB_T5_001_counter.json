@@ -1,0 +1,33 @@
+{
+  "id": "VB-T5-001",
+  "tier": 5,
+  "title": "Counter",
+  "description": "Write a counter using Vera's State<Int> effect. Create a pure helper function next_count that adds 1 to an Int (with a postcondition ensuring the result equals input + 1). Then write a function count_three that uses handle[State<Int>] to run three increments and return the final count (should be 3). The handler should initialise state to 0.",
+  "signature": "public fn count_three(@Unit -> @Int)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "count_three",
+  "tags": [
+    "state-effect",
+    "handler",
+    "pure-helper",
+    "effect-boundary",
+    "get-put"
+  ],
+  "test_cases": [
+    {
+      "args": [],
+      "expected": 3
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": false,
+  "notes": "Tests handle[State<Int>] with get/put, calling a pure helper from within the handler body. State operations must be inlined in the handler body (calling a separate function with effects(<State<Int>>) from within the handler body causes a codegen issue). The handler uses 'with @Int = @Int.0' to update state on put."
+}

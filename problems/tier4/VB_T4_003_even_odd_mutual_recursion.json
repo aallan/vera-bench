@@ -1,0 +1,52 @@
+{
+  "id": "VB-T4-003",
+  "tier": 4,
+  "title": "Even/Odd (Mutual Recursion)",
+  "description": "Write a function is_even that determines if a natural number is even using mutual recursion with is_odd. Use a where block to define the mutually recursive helper. Both functions need decreases clauses.",
+  "signature": "public fn is_even(@Nat -> @Bool)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "is_even",
+  "tags": [
+    "mutual-recursion",
+    "where-block",
+    "decreases",
+    "Bool-return"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        0
+      ],
+      "expected": "true"
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": "false"
+    },
+    {
+      "args": [
+        4
+      ],
+      "expected": "true"
+    },
+    {
+      "args": [
+        7
+      ],
+      "expected": "false"
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests where block syntax for mutual recursion. Both is_even and is_odd need their own decreases(@Nat.0). The where block function has no visibility modifier."
+}

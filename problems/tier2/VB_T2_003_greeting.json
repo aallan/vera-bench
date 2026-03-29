@@ -1,0 +1,34 @@
+{
+  "id": "VB-T2-003",
+  "tier": 2,
+  "title": "Greeting",
+  "description": "Write a Vera function that builds a greeting string. Given a name, return 'Hello, <name>!'. Use string_concat to build the result. The precondition should require the name is non-empty. The postcondition should guarantee the result is longer than 7 characters.",
+  "signature": "public fn greet(@String -> @String)",
+  "contracts": {
+    "requires": [
+      "string_length(@String.0) > 0"
+    ],
+    "ensures": [
+      "string_length(@String.result) > 7"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "greet",
+  "tags": [
+    "string",
+    "concat",
+    "builtin-discovery",
+    "string-contracts"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        "Alice"
+      ],
+      "expected": "Hello, Alice!"
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": false,
+  "notes": "String contracts fall to Tier 3 (runtime). Tests string_concat discovery and the fact that string functions use string_ prefix."
+}

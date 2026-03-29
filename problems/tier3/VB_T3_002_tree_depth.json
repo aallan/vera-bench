@@ -1,0 +1,29 @@
+{
+  "id": "VB-T3-002",
+  "tier": 3,
+  "title": "Tree Depth",
+  "description": "Define a binary tree ADT with Leaf(Int) and Branch(Tree, Tree) constructors, then write a function that computes the depth (height). A leaf has depth 1. Use the max built-in for comparing branch depths.",
+  "signature": "public fn tree_depth(@Tree -> @Nat)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 1"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "tree_depth",
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "recursion",
+    "decreases",
+    "let-binding",
+    "max-builtin"
+  ],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Requires let bindings for intermediate results inside Branch arm. Tests that the agent discovers max() is a prefix-less builtin. Inside Branch(@Tree, @Tree), @Tree.0 is right child, @Tree.1 is left."
+}

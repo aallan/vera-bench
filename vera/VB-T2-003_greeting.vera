@@ -1,0 +1,10 @@
+-- VeraBench VB-T2-003: Greeting
+-- Build a greeting string from a name.
+-- greet("Alice") should return "Hello, Alice!"
+public fn greet(@String -> @String)
+  requires(string_length(@String.0) > 0)
+  ensures(string_length(@String.result) > 7)
+  effects(pure)
+{
+  string_concat(string_concat("Hello, ", @String.0), "!")
+}

@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-002: Filter Positives
+-- Return a new array containing only the positive elements.
+public fn filter_positives(@Array<Int> -> @Array<Int>)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  array_filter(@Array<Int>.0, fn(@Int -> @Bool) effects(pure) { @Int.0 > 0 })
+}

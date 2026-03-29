@@ -1,0 +1,48 @@
+-- VeraBench VB-T5-002: Greeter
+-- Pure function builds the greeting, IO function prints it.
+-- Tests the effect boundary: pure vs <IO>.
+effect IO {
+  op print(String -> Unit);
+}
+
+-- Pure: build the greeting string
+private fn build_greeting(@String -> @String)
+  requires(string_length(@String.0) > 0)
+  ensures(string_length(@String.result) > 0)
+  effects(pure)
+{
+  string_concat(string_concat("Hello, ", @String.0), "!\n")
+}
+
+-- IO: print the greeting
+public fn greet(@String -> @Unit)
+  requires(string_length(@String.0) > 0)
+  ensures(true)
+  effects(<IO>)
+{
+  IO.print(build_greeting(@String.0))
+}
+
+-- IO: greet multiple names
+private fn greet_all(@Array<String> -> @Unit)
+  requires(true)
+  ensures(true)
+  effects(<IO>)
+{
+  let @Nat = array_length(@Array<String>.0);
+  greet_loop(@Array<String>.0, 0, @Nat.0)
+}
+
+private fn greet_loop(@Array<String>, @Nat, @Nat -> @Unit)
+  requires(@Nat.1 <= @Nat.0)
+  ensures(true)
+  decreases(@Nat.0 - @Nat.1)
+  effects(<IO>)
+{
+  if @Nat.1 >= @Nat.0 then {
+    ()
+  } else {
+    greet(@Array<String>.0[@Nat.1]);
+    greet_loop(@Array<String>.0, @Nat.0, @Nat.1 + 1)
+  }
+}

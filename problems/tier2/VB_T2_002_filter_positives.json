@@ -1,0 +1,28 @@
+{
+  "id": "VB-T2-002",
+  "tier": 2,
+  "title": "Filter Positives",
+  "description": "Write a Vera function that returns a new array containing only the positive elements from an integer array. Use the array_filter built-in.",
+  "signature": "public fn filter_positives(@Array<Int> -> @Array<Int>)",
+  "contracts": {
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "filter_positives",
+  "tags": [
+    "array",
+    "filter",
+    "higher-order",
+    "builtin-discovery",
+    "closure"
+  ],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests array_filter with a predicate closure. The predicate closure fn(@Int -> @Bool) effects(pure) { @Int.0 > 0 } is the idiomatic pattern."
+}

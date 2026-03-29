@@ -1,0 +1,62 @@
+{
+  "id": "VB-T1-002",
+  "tier": 1,
+  "title": "Clamp",
+  "description": "Write a Vera function that clamps an integer to a range [lo, hi]. Takes three Int parameters: value, lo, hi. Precondition: lo <= hi. Postconditions: result is within [lo, hi].",
+  "signature": "public fn clamp(@Int, @Int, @Int -> @Int)",
+  "contracts": {
+    "requires": [
+      "@Int.1 <= @Int.0"
+    ],
+    "ensures": [
+      "@Int.result >= @Int.1",
+      "@Int.result <= @Int.0"
+    ],
+    "effects": "pure"
+  },
+  "entry_point": "clamp",
+  "tags": [
+    "arithmetic",
+    "conditional",
+    "precondition",
+    "three-params",
+    "slot-ordering"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        50,
+        0,
+        100
+      ],
+      "expected": 50
+    },
+    {
+      "args": [
+        -5,
+        0,
+        100
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        150,
+        0,
+        100
+      ],
+      "expected": 100
+    },
+    {
+      "args": [
+        0,
+        0,
+        0
+      ],
+      "expected": 0
+    }
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Three same-typed params make slot ordering tricky: clamp(value, lo, hi) gives @Int.0=hi, @Int.1=lo, @Int.2=value. Key test of De Bruijn understanding."
+}
