@@ -1,0 +1,14 @@
+-- VeraBench VB-T4-005: Sum to N
+-- Compute the sum 0 + 1 + 2 + ... + n.
+public fn sum_to_n(@Nat -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 0)
+  decreases(@Nat.0)
+  effects(pure)
+{
+  if @Nat.0 == 0 then {
+    0
+  } else {
+    @Nat.0 + sum_to_n(@Nat.0 - 1)
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "VB-T4-006",
+  "tier": 4,
+  "title": "List Reverse",
+  "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors. Write a function that reverses the list. Use an accumulator-based helper function with a where block. The helper should have its own decreases clause.",
+  "signature": "public fn list_reverse(@List -> @List)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "list_reverse",
+  "tags": ["recursion", "decreases", "termination", "adt", "where-block", "accumulator"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": false,
+  "notes": "Tests where blocks (helper functions). reverse_acc(acc, xs): @List.0=xs (rightmost), @List.1=acc (parameter indices). decreases(@List.1) because xs gets shorter. Inside Cons(@Int, @List) match arm: @Int.0=head, @List.0=tail (ADT field indices, distinct from parameter indices). The where-block termination metric has a Tier 3 runtime check."
+}

@@ -1,0 +1,18 @@
+{
+  "id": "VB-T5-010",
+  "tier": 5,
+  "title": "Safe Head",
+  "description": "Write a function that returns the first element of an array, or -1 if the array is empty. Define the Exn<E> effect with a throw operation. Write head_or_throw that throws -1 for empty arrays, and safe_head that handles the exception using handle[Exn<Int>]. safe_head should be pure.",
+  "signature": "public fn safe_head(@Array<Int> -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "safe_head",
+  "tags": ["exception-effect", "handler", "effect-discharge", "two-functions", "array-access", "empty-check"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests Exn<Int> for empty array handling. Similar to VB-T5-005 but simpler (single param, always index 0). The agent must use array_length for the empty check and array indexing with [0]."
+}

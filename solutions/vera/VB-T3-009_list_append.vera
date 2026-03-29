@@ -1,0 +1,20 @@
+-- VeraBench VB-T3-009: List Append
+-- Concatenate two linked lists.
+private data List {
+  Nil,
+  Cons(Int, List)
+}
+
+-- Parameters: list_append(xs, ys)
+-- @List.0 = ys, @List.1 = xs
+public fn list_append(@List, @List -> @List)
+  requires(true)
+  ensures(true)
+  decreases(@List.1)
+  effects(pure)
+{
+  match @List.1 {
+    Nil -> @List.0,
+    Cons(@Int, @List) -> Cons(@Int.0, list_append(@List.0, @List.1))
+  }
+}

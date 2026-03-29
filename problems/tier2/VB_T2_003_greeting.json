@@ -20,15 +20,8 @@
     "builtin-discovery",
     "string-contracts"
   ],
-  "test_cases": [
-    {
-      "args": [
-        "Alice"
-      ],
-      "expected": "Hello, Alice!"
-    }
-  ],
+  "test_cases": [],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "String contracts fall to Tier 3 (runtime). Tests string_concat discovery and the fact that string functions use string_ prefix."
+  "notes": "String contracts fall to Tier 3 (runtime). Tests string_concat discovery. test_cases is intentionally empty: vera run --fn returns an internal representation for String return types (not the string content), so runtime output comparison is not possible for string-returning functions."
 }

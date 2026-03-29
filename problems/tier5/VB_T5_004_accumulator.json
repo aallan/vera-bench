@@ -1,0 +1,23 @@
+{
+  "id": "VB-T5-004",
+  "tier": 5,
+  "title": "Accumulator",
+  "description": "Write a function that sums the integers from 1 to n using State<Int> effect. Create a pure helper function for addition. The main function should use handle[State<Int>] to manage state, with get and put operations inlined in the handler. Use a where block for the loop helper that has effects(<State<Int>>).",
+  "signature": "public fn sum_with_state(@Nat -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "sum_with_state",
+  "tags": ["state-effect", "handler", "pure-helper", "where-block", "loop", "get-put"],
+  "test_cases": [
+    {"args": [5], "expected": 15},
+    {"args": [0], "expected": 0},
+    {"args": [1], "expected": 1},
+    {"args": [10], "expected": 55}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests State<Int> handler pattern with a loop. State operations (get/put) must be inlined in the handler in-block, not called via a separate effectful function. The loop helper uses a where block with effects(<State<Int>>)."
+}

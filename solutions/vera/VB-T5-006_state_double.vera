@@ -1,0 +1,25 @@
+-- VeraBench VB-T5-006: State Double
+-- Use State<Int> to get a value, double it, and put it back.
+
+private fn double(@Int -> @Int)
+  requires(true)
+  ensures(@Int.result == @Int.0 * 2)
+  effects(pure)
+{
+  @Int.0 * 2
+}
+
+-- Pure: initialize state to n, double it, return the result.
+public fn state_double(@Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  handle[State<Int>](@Int = @Int.0) {
+    get(@Unit) -> { resume(@Int.0) },
+    put(@Int) -> { resume(()) } with @Int = @Int.0
+  } in {
+    put(double(get(())));
+    get(())
+  }
+}

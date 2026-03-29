@@ -1,0 +1,18 @@
+{
+  "id": "VB-T3-010",
+  "tier": 3,
+  "title": "List Last",
+  "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors, and an Option ADT with None and Some(Int). Write a function that returns the last element of the list as Some(Int), or None for an empty list.",
+  "signature": "public fn list_last(@List -> @Option)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "list_last",
+  "tags": ["adt", "pattern-matching", "recursion", "decreases", "two-adts", "option", "nested-match"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "The agent must define TWO ADTs (List and Option) and use nested match: first on the list, then on the tail to check if it's the last element. Inside the inner match, De Bruijn indices shift again."
+}

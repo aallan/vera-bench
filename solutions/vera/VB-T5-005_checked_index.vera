@@ -1,0 +1,31 @@
+-- VeraBench VB-T5-005: Checked Index
+-- Access an array element by index, throwing an exception on out-of-bounds.
+effect Exn<E> {
+  op throw(E -> Never);
+}
+
+-- Effectful: throws if index is out of bounds
+private fn checked_get(@Array<Int>, @Nat -> @Int)
+  requires(true)
+  ensures(true)
+  effects(<Exn<Int>>)
+{
+  if @Nat.0 >= array_length(@Array<Int>.0) then {
+    throw(0 - 1)
+  } else {
+    @Array<Int>.0[@Nat.0]
+  }
+}
+
+-- Pure: handle exception, return -1 on out-of-bounds
+public fn safe_index(@Array<Int>, @Nat -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  handle[Exn<Int>] {
+    throw(@Int) -> { @Int.0 }
+  } in {
+    checked_get(@Array<Int>.0, @Nat.0)
+  }
+}

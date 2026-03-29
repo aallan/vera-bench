@@ -1,0 +1,23 @@
+{
+  "id": "VB-T5-006",
+  "tier": 5,
+  "title": "State Double",
+  "description": "Write a function that initializes State<Int> with the input value, doubles the state using a pure helper, and returns the result. The main function should use handle[State<Int>] with get/put operations. Create a pure helper double that multiplies by 2.",
+  "signature": "public fn state_double(@Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "state_double",
+  "tags": ["state-effect", "handler", "pure-helper", "get-put", "initialization"],
+  "test_cases": [
+    {"args": [21], "expected": 42},
+    {"args": [0], "expected": 0},
+    {"args": [5], "expected": 10},
+    {"args": [-3], "expected": -6}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests State<Int> initialization with a parameter. The state starts at @Int.0, gets doubled via the pure helper, then returned via get. Simple but tests the handler initialization pattern."
+}

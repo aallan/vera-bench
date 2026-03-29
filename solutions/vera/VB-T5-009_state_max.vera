@@ -1,0 +1,44 @@
+-- VeraBench VB-T5-009: State Max
+-- Track the maximum value seen while iterating through numbers 1..n.
+
+private fn max_val(@Int, @Int -> @Int)
+  requires(true)
+  ensures(@Int.result >= @Int.1)
+  ensures(@Int.result >= @Int.0)
+  effects(pure)
+{
+  if @Int.1 >= @Int.0 then {
+    @Int.1
+  } else {
+    @Int.0
+  }
+}
+
+-- Pure: find the maximum of 1..n using State<Int> (trivially n, but tests the pattern).
+public fn state_max(@Nat -> @Int)
+  requires(@Nat.0 >= 1)
+  ensures(true)
+  effects(pure)
+{
+  handle[State<Int>](@Int = 0) {
+    get(@Unit) -> { resume(@Int.0) },
+    put(@Int) -> { resume(()) } with @Int = @Int.0
+  } in {
+    max_loop(@Nat.0, 1)
+  }
+}
+where {
+  fn max_loop(@Nat, @Nat -> @Int)
+    requires(true)
+    ensures(true)
+    decreases(@Nat.1 - @Nat.0 + 1)
+    effects(<State<Int>>)
+  {
+    if @Nat.0 > @Nat.1 then {
+      get(())
+    } else {
+      put(max_val(get(()), @Nat.0));
+      max_loop(@Nat.1, @Nat.0 + 1)
+    }
+  }
+}

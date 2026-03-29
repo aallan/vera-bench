@@ -1,0 +1,18 @@
+{
+  "id": "VB-T2-009",
+  "tier": 2,
+  "title": "To Upper Case",
+  "description": "Write a Vera function that converts a string to uppercase. Use the string_upper built-in function.",
+  "signature": "public fn to_upper(@String -> @String)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "to_upper",
+  "tags": ["string", "builtin-discovery", "string-upper", "case-conversion"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests discovery of string_upper. The naming convention is string_upper, not toUpperCase or upper()."
+}

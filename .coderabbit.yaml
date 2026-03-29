@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-GB"
+early_access: false
+
+tone_instructions: >-
+  Vera language benchmark harness. Focus on problem correctness, test validity,
+  subprocess error handling, and timeouts.
+
+knowledge_base:
+  opt_out: false
+  web_search:
+    enabled: true
+  learnings:
+    scope: auto
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "CLAUDE.md"
+      - "BRIEFING.md"
+
+chat:
+  auto_reply: true
+  art: false
+
+reviews:
+  profile: "assertive"
+  high_level_summary: true
+  high_level_summary_placeholder: "@coderabbitai summary"
+  poem: false
+  in_progress_fortune: false
+  collapse_walkthrough: true
+  sequence_diagrams: false
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_labels: true
+  suggested_reviewers: false
+  review_status: true
+  commit_status: true
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+
+  path_filters:
+    - "!**/*.vera"
+    - "!context/**"
+    - "!results/**/*.jsonl"
+    - "!solutions/python/**"
+    - "!solutions/typescript/**"
+
+  path_instructions:
+    - path: "vera_bench/**/*.py"
+      instructions: |
+        Benchmark harness code. Review for correctness, proper error handling
+        on subprocess calls, and timeout handling. All vera CLI calls must
+        have timeouts and exit code checks.
+
+    - path: "problems/**/*.json"
+      instructions: |
+        Problem definitions. Review for schema completeness, consistency
+        between contracts in JSON and the canonical solution, correct test
+        case expected outputs, and appropriate tier assignment.
+
+        De Bruijn index notes are critical documentation. The slot ordering
+        (@Int.0 = rightmost param) is the most common source of bugs.
+
+    - path: "scripts/**/*.py"
+      instructions: |
+        Validation and utility scripts. Allow sys.exit() and broad exception
+        handlers — operational tooling, not library code.
+
+    - path: "**/*.md"
+      instructions: |
+        Review for factual accuracy and broken links. Do not review for
+        grammar or prose style.
+
+  labeling_instructions:
+    - label: "problems"
+      instructions: "Apply when files under problems/ or solutions/ are changed."
+    - label: "harness"
+      instructions: "Apply when files under vera_bench/ are changed."
+    - label: "ci"
+      instructions: "Apply when files under .github/ or scripts/ are changed."
+    - label: "docs"
+      instructions: "Apply when README.md, BRIEFING.md, or CLAUDE.md are changed."
+
+  tools:
+    ruff:
+      enabled: true
+    markdownlint:
+      enabled: true
+    yamllint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+    eslint:
+      enabled: false
+    biome:
+      enabled: false
+    oxlint:
+      enabled: false
+    pylint:
+      enabled: false
+    flake8:
+      enabled: false
+    languagetool:
+      enabled: false
+    hadolint:
+      enabled: false
+    clippy:
+      enabled: false
+    golangci-lint:
+      enabled: false
+    rubocop:
+      enabled: false
+    phpstan:
+      enabled: false
+    swiftlint:
+      enabled: false
+    detekt:
+      enabled: false
+    cppcheck:
+      enabled: false
+    sqlfluff:
+      enabled: false
+    buf:
+      enabled: false
+    checkov:
+      enabled: false
+
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+    simplify:
+      enabled: false

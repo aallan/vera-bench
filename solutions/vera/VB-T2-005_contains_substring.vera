@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-005: Contains Substring
+-- Check if a string contains a given substring.
+public fn contains_substring(@String, @String -> @Bool)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_contains(@String.1, @String.0)
+}

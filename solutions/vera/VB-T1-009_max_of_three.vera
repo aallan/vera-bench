@@ -1,0 +1,25 @@
+-- VeraBench VB-T1-009: Maximum of Three
+-- Return the largest of three integers.
+-- Parameters: max_of_three(a, b, c) where @Int.0 = c, @Int.1 = b, @Int.2 = a
+public fn max_of_three(@Int, @Int, @Int -> @Int)
+  requires(true)
+  ensures(@Int.result >= @Int.2)
+  ensures(@Int.result >= @Int.1)
+  ensures(@Int.result >= @Int.0)
+  ensures(@Int.result == @Int.2 || @Int.result == @Int.1 || @Int.result == @Int.0)
+  effects(pure)
+{
+  if @Int.2 >= @Int.1 then {
+    if @Int.2 >= @Int.0 then {
+      @Int.2
+    } else {
+      @Int.0
+    }
+  } else {
+    if @Int.1 >= @Int.0 then {
+      @Int.1
+    } else {
+      @Int.0
+    }
+  }
+}

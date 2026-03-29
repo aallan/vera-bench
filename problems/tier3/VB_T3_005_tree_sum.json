@@ -1,0 +1,18 @@
+{
+  "id": "VB-T3-005",
+  "tier": 3,
+  "title": "Tree Sum",
+  "description": "Define a binary tree ADT with Leaf(Int) and Branch(Tree, Tree) constructors, then write a function that sums all leaf values. Leaf returns its value, Branch sums both subtrees.",
+  "signature": "public fn tree_sum(@Tree -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "tree_sum",
+  "tags": ["adt", "pattern-matching", "recursion", "decreases", "data-definition", "tree"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Inside Branch(@Tree, @Tree), @Tree.0 is the right subtree, @Tree.1 is the left. Both must be summed recursively."
+}

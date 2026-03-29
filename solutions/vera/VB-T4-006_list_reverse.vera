@@ -1,0 +1,27 @@
+-- VeraBench VB-T4-006: List Reverse
+-- Reverse a linked list using an accumulator helper.
+private data List {
+  Nil,
+  Cons(Int, List)
+}
+
+public fn list_reverse(@List -> @List)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  reverse_acc(@List.0, Nil)
+}
+where {
+  fn reverse_acc(@List, @List -> @List)
+    requires(true)
+    ensures(true)
+    decreases(@List.1)
+    effects(pure)
+  {
+    match @List.1 {
+      Nil -> @List.0,
+      Cons(@Int, @List) -> reverse_acc(Cons(@Int.0, @List.1), @List.0)
+    }
+  }
+}

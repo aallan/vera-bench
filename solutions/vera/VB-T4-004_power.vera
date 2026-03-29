@@ -1,0 +1,15 @@
+-- VeraBench VB-T4-004: Power
+-- Compute base raised to the power of exponent via repeated multiplication.
+-- Parameters: power(base, exp) where @Nat.0 = exp, @Nat.1 = base
+public fn power(@Nat, @Nat -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 0)
+  decreases(@Nat.0)
+  effects(pure)
+{
+  if @Nat.0 == 0 then {
+    1
+  } else {
+    @Nat.1 * power(@Nat.1, @Nat.0 - 1)
+  }
+}

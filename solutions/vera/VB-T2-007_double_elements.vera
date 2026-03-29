@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-007: Double Elements
+-- Double every element in an integer array using array_map.
+public fn double_elements(@Array<Int> -> @Array<Int>)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  array_map(@Array<Int>.0, fn(@Int -> @Int) effects(pure) { @Int.0 * 2 })
+}

@@ -1,0 +1,10 @@
+-- VeraBench VB-T1-007: Safe Modulo
+-- Compute a % b with a precondition that b != 0.
+-- Parameters: safe_modulo(a, b) where @Int.0 = b, @Int.1 = a
+public fn safe_modulo(@Int, @Int -> @Int)
+  requires(@Int.0 != 0)
+  ensures(@Int.result == @Int.1 % @Int.0)
+  effects(pure)
+{
+  @Int.1 % @Int.0
+}

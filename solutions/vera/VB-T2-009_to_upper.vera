@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-009: To Upper Case
+-- Convert a string to uppercase using string_upper.
+public fn to_upper(@String -> @String)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_upper(@String.0)
+}

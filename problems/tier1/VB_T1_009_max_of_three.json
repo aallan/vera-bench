@@ -1,0 +1,24 @@
+{
+  "id": "VB-T1-009",
+  "tier": 1,
+  "title": "Maximum of Three",
+  "description": "Write a Vera function that returns the largest of three integers. The postconditions should guarantee the result is greater than or equal to all three inputs.",
+  "signature": "public fn max_of_three(@Int, @Int, @Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Int.result >= @Int.2", "@Int.result >= @Int.1", "@Int.result >= @Int.0", "@Int.result == @Int.2 || @Int.result == @Int.1 || @Int.result == @Int.0"],
+    "effects": "pure"
+  },
+  "entry_point": "max_of_three",
+  "tags": ["arithmetic", "conditional", "three-params", "nested-if", "slot-ordering"],
+  "test_cases": [
+    {"args": [3, 7, 5], "expected": 7},
+    {"args": [9, 1, 4], "expected": 9},
+    {"args": [2, 2, 8], "expected": 8},
+    {"args": [5, 5, 5], "expected": 5},
+    {"args": [-1, -2, -3], "expected": -1}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Three same-typed params: max_of_three(a, b, c) gives @Int.0=c, @Int.1=b, @Int.2=a. Requires nested if-then-else (no elif). Key test of slot ordering with 3 params."
+}

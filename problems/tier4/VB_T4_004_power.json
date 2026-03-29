@@ -1,0 +1,24 @@
+{
+  "id": "VB-T4-004",
+  "tier": 4,
+  "title": "Power",
+  "description": "Write a Vera function that computes base raised to the power of exponent using repeated multiplication. Use a decreases clause on the exponent parameter. power(base, 0) = 1, power(base, n) = base * power(base, n-1).",
+  "signature": "public fn power(@Nat, @Nat -> @Nat)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Nat.result >= 0"],
+    "effects": "pure"
+  },
+  "entry_point": "power",
+  "tags": ["recursion", "decreases", "termination", "multiplication", "two-params"],
+  "test_cases": [
+    {"args": [2, 10], "expected": 1024},
+    {"args": [3, 0], "expected": 1},
+    {"args": [5, 1], "expected": 5},
+    {"args": [2, 0], "expected": 1},
+    {"args": [1, 100], "expected": 1}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "power(base, exp): @Nat.0=exp, @Nat.1=base. decreases(@Nat.0) because the exponent decreases. The agent must identify that the exponent (rightmost Nat) is the decreasing parameter."
+}

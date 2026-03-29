@@ -1,0 +1,18 @@
+{
+  "id": "VB-T2-007",
+  "tier": 2,
+  "title": "Double Elements",
+  "description": "Write a Vera function that doubles every element in an integer array. Use the array_map built-in function with an inline closure.",
+  "signature": "public fn double_elements(@Array<Int> -> @Array<Int>)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "double_elements",
+  "tags": ["array", "builtin-discovery", "array-map", "higher-order", "closure"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests array_map with a closure. The closure must have its own effects(pure) annotation: fn(@Int -> @Int) effects(pure) { @Int.0 * 2 }."
+}

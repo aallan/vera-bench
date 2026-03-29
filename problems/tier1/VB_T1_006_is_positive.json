@@ -1,0 +1,23 @@
+{
+  "id": "VB-T1-006",
+  "tier": 1,
+  "title": "Is Positive",
+  "description": "Write a Vera function that returns true if the integer is strictly positive (greater than zero). The postcondition should express logical equivalence between the result and the comparison.",
+  "signature": "public fn is_positive(@Int -> @Bool)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Bool.result == (@Int.0 > 0)"],
+    "effects": "pure"
+  },
+  "entry_point": "is_positive",
+  "tags": ["arithmetic", "boolean", "postcondition", "comparison"],
+  "test_cases": [
+    {"args": [5], "expected": 1},
+    {"args": [-3], "expected": 0},
+    {"args": [0], "expected": 0},
+    {"args": [1], "expected": 1}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests Bool return type. vera run outputs 1/0 for true/false. The postcondition uses == with a comparison expression."
+}

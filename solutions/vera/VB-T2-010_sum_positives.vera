@@ -1,0 +1,13 @@
+-- VeraBench VB-T2-010: Sum Positives
+-- Sum only the positive elements in an integer array.
+public fn sum_positives(@Array<Int> -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  array_fold(
+    array_filter(@Array<Int>.0, fn(@Int -> @Bool) effects(pure) { @Int.0 > 0 }),
+    0,
+    fn(@Int, @Int -> @Int) effects(pure) { @Int.1 + @Int.0 }
+  )
+}

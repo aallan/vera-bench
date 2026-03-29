@@ -1,0 +1,28 @@
+-- VeraBench VB-T3-010: List Last
+-- Return the last element of a linked list, or None if empty.
+private data List {
+  Nil,
+  Cons(Int, List)
+}
+
+private data Option {
+  None,
+  Some(Int)
+}
+
+public fn list_last(@List -> @Option)
+  requires(true)
+  ensures(true)
+  decreases(@List.0)
+  effects(pure)
+{
+  match @List.0 {
+    Nil -> None,
+    Cons(@Int, @List) -> {
+      match @List.0 {
+        Nil -> Some(@Int.0),
+        Cons(@Int, @List) -> list_last(Cons(@Int.0, @List.0))
+      }
+    }
+  }
+}

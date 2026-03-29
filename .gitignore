@@ -1,3 +1,21 @@
-# macOS
 .DS_Store
-
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.venv/
+venv/
+.idea/
+.vscode/
+.claude/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+*.wasm
+*.wat
+tmp/

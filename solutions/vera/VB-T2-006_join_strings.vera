@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-006: Join Strings
+-- Join an array of strings with a separator.
+public fn join_strings(@Array<String>, @String -> @String)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_join(@Array<String>.0, @String.0)
+}

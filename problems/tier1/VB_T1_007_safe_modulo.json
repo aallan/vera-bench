@@ -1,0 +1,23 @@
+{
+  "id": "VB-T1-007",
+  "tier": 1,
+  "title": "Safe Modulo",
+  "description": "Write a Vera function that computes a modulo b with a precondition that the divisor is non-zero. The postcondition should guarantee the result equals a % b.",
+  "signature": "public fn safe_modulo(@Int, @Int -> @Int)",
+  "contracts": {
+    "requires": ["@Int.0 != 0"],
+    "ensures": ["@Int.result == @Int.1 % @Int.0"],
+    "effects": "pure"
+  },
+  "entry_point": "safe_modulo",
+  "tags": ["arithmetic", "precondition", "modulo", "slot-ordering"],
+  "test_cases": [
+    {"args": [10, 3], "expected": 1},
+    {"args": [7, 2], "expected": 1},
+    {"args": [6, 3], "expected": 0},
+    {"args": [5, 7], "expected": 5}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "safe_modulo(a, b): @Int.0=b (divisor), @Int.1=a (dividend). The precondition guards against division by zero. Slot ordering on divisor is the key challenge."
+}

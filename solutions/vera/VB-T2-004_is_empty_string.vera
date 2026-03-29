@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-004: Is Empty String
+-- Check if a string is empty using string_length.
+public fn is_empty_string(@String -> @Bool)
+  requires(true)
+  ensures(@Bool.result == (string_length(@String.0) == 0))
+  effects(pure)
+{
+  string_length(@String.0) == 0
+}

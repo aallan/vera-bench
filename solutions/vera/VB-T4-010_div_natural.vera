@@ -1,0 +1,16 @@
+-- VeraBench VB-T4-010: Natural Division
+-- Integer division via repeated subtraction.
+-- Parameters: div_natural(a, b) where @Nat.0 = b, @Nat.1 = a
+-- The tricky part: decreases(@Nat.1) — the dividend decreases, not the divisor.
+public fn div_natural(@Nat, @Nat -> @Nat)
+  requires(@Nat.0 > 0)
+  ensures(@Nat.result >= 0)
+  decreases(@Nat.1)
+  effects(pure)
+{
+  if @Nat.1 < @Nat.0 then {
+    0
+  } else {
+    1 + div_natural(@Nat.1 - @Nat.0, @Nat.0)
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "VB-T3-007",
+  "tier": 3,
+  "title": "List Contains",
+  "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors. Write a function that returns true if the list contains a given target value. The function takes two parameters: the list and the target integer.",
+  "signature": "public fn list_contains(@List, @Int -> @Bool)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "list_contains",
+  "tags": ["adt", "pattern-matching", "recursion", "decreases", "data-definition", "search", "boolean"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Parameters: list_contains(lst, target). @Int.0=target, @List.0=lst. Inside Cons(@Int, @List), the matched head is @Int.0 and the target shifts to @Int.1. The agent must correctly reference @Int.1 for the target inside the match arm."
+}

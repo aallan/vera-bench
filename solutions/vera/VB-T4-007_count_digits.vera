@@ -1,0 +1,14 @@
+-- VeraBench VB-T4-007: Count Digits
+-- Count the number of digits in a natural number (0 has 1 digit).
+public fn count_digits(@Nat -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 1)
+  decreases(@Nat.0)
+  effects(pure)
+{
+  if @Nat.0 < 10 then {
+    1
+  } else {
+    1 + count_digits(@Nat.0 / 10)
+  }
+}

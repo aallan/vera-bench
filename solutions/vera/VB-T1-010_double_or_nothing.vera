@@ -1,0 +1,13 @@
+-- VeraBench VB-T1-010: Double or Nothing
+-- If the integer is positive, return its double. Otherwise return 0.
+public fn double_or_nothing(@Int -> @Int)
+  requires(true)
+  ensures(@Int.result >= 0)
+  effects(pure)
+{
+  if @Int.0 > 0 then {
+    @Int.0 * 2
+  } else {
+    0
+  }
+}

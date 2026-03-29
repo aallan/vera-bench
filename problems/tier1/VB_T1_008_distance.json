@@ -1,0 +1,23 @@
+{
+  "id": "VB-T1-008",
+  "tier": 1,
+  "title": "Distance",
+  "description": "Write a Vera function that computes the absolute difference between two integers, returning a Nat (non-negative integer). The postcondition should guarantee the result is non-negative.",
+  "signature": "public fn distance(@Int, @Int -> @Nat)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Nat.result >= 0"],
+    "effects": "pure"
+  },
+  "entry_point": "distance",
+  "tags": ["arithmetic", "conditional", "Nat-return", "absolute-difference"],
+  "test_cases": [
+    {"args": [3, 7], "expected": 4},
+    {"args": [7, 3], "expected": 4},
+    {"args": [5, 5], "expected": 0},
+    {"args": [-3, 3], "expected": 6}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "distance(a, b): @Int.0=b, @Int.1=a. Tests Nat return type (non-negative refinement) and conditional logic for absolute difference."
+}

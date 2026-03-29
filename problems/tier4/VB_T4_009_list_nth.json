@@ -1,0 +1,18 @@
+{
+  "id": "VB-T4-009",
+  "tier": 4,
+  "title": "List Nth",
+  "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors. Write a function that returns the nth element (0-indexed), or -1 if the index is out of bounds. The decreases clause should be on the list parameter.",
+  "signature": "public fn list_nth(@List, @Nat -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "list_nth",
+  "tags": ["recursion", "decreases", "termination", "adt", "indexing", "two-params"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "list_nth(lst, n): @Nat.0=n, @List.0=lst. decreases(@List.0) because the list gets shorter. Inside Cons(@Int, @List), the index @Nat.0 remains unchanged. The agent must use 0-1 for -1 since there's no unary minus on literals."
+}

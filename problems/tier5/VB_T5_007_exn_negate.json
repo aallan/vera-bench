@@ -1,0 +1,23 @@
+{
+  "id": "VB-T5-007",
+  "tier": 5,
+  "title": "Exception on Negative",
+  "description": "Write a function that throws an exception if the input is negative, with a handler that catches and returns 0. Define the Exn<E> effect. Write require_non_negative that throws the input value if negative, and safe_non_negative that handles the exception. The postcondition should guarantee the result is non-negative.",
+  "signature": "public fn safe_non_negative(@Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Int.result >= 0"],
+    "effects": "pure"
+  },
+  "entry_point": "safe_non_negative",
+  "tags": ["exception-effect", "handler", "effect-discharge", "two-functions", "postcondition"],
+  "test_cases": [
+    {"args": [5], "expected": 5},
+    {"args": [-3], "expected": 0},
+    {"args": [0], "expected": 0},
+    {"args": [100], "expected": 100}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": false,
+  "notes": "The ensures(@Int.result >= 0) has a Tier 3 runtime check because the handler return path makes it non-trivial for Z3. Tests that the agent understands exception handlers return a value that replaces the computation."
+}

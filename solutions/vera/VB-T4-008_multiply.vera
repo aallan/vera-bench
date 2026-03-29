@@ -1,0 +1,15 @@
+-- VeraBench VB-T4-008: Multiply
+-- Multiply two natural numbers via repeated addition.
+-- Parameters: multiply(a, b) where @Nat.0 = b, @Nat.1 = a
+public fn multiply(@Nat, @Nat -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 0)
+  decreases(@Nat.0)
+  effects(pure)
+{
+  if @Nat.0 == 0 then {
+    0
+  } else {
+    @Nat.1 + multiply(@Nat.1, @Nat.0 - 1)
+  }
+}

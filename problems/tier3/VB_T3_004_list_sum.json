@@ -1,0 +1,18 @@
+{
+  "id": "VB-T3-004",
+  "tier": 3,
+  "title": "List Sum",
+  "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors, then write a function that sums all elements. The base case (Nil) returns 0. The recursive case adds the head to the sum of the tail.",
+  "signature": "public fn list_sum(@List -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "list_sum",
+  "tags": ["adt", "pattern-matching", "recursion", "decreases", "data-definition", "arithmetic"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Inside Cons(@Int, @List), @Int.0 is the matched head, @List.0 is the matched tail. The agent must define the List ADT and use decreases(@List.0)."
+}

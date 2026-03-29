@@ -1,0 +1,18 @@
+{
+  "id": "VB-T2-006",
+  "tier": 2,
+  "title": "Join Strings",
+  "description": "Write a Vera function that joins an array of strings with a separator string. Use the string_join built-in function.",
+  "signature": "public fn join_strings(@Array<String>, @String -> @String)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "join_strings",
+  "tags": ["string", "array", "builtin-discovery", "string-join"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests discovery of string_join. The agent must pass the Array<String> and String in the correct order to string_join."
+}

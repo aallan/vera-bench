@@ -1,0 +1,18 @@
+{
+  "id": "VB-T2-004",
+  "tier": 2,
+  "title": "Is Empty String",
+  "description": "Write a Vera function that checks if a string is empty by comparing its length to zero. Use the string_length built-in function.",
+  "signature": "public fn is_empty_string(@String -> @Bool)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Bool.result == (string_length(@String.0) == 0)"],
+    "effects": "pure"
+  },
+  "entry_point": "is_empty_string",
+  "tags": ["string", "builtin-discovery", "string-length", "boolean"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": false,
+  "notes": "Tests discovery of string_length. The ensures clause uses string_length which falls to Tier 3 runtime."
+}

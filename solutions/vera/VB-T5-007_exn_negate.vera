@@ -1,0 +1,31 @@
+-- VeraBench VB-T5-007: Exception on Negative
+-- Throw an exception if the input is negative, returning 0 via the handler.
+effect Exn<E> {
+  op throw(E -> Never);
+}
+
+-- Effectful: throws the negative value as the exception
+private fn require_non_negative(@Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(<Exn<Int>>)
+{
+  if @Int.0 < 0 then {
+    throw(@Int.0)
+  } else {
+    @Int.0
+  }
+}
+
+-- Pure: handle the exception, return 0 on negative input
+public fn safe_non_negative(@Int -> @Int)
+  requires(true)
+  ensures(@Int.result >= 0)
+  effects(pure)
+{
+  handle[Exn<Int>] {
+    throw(@Int) -> { 0 }
+  } in {
+    require_non_negative(@Int.0)
+  }
+}

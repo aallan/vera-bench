@@ -1,0 +1,18 @@
+{
+  "id": "VB-T3-006",
+  "tier": 3,
+  "title": "Option Unwrap Or",
+  "description": "Define an Option ADT with None and Some(Int) constructors. Write a function that unwraps the Option, returning the contained value for Some and a provided default value for None. The function takes two parameters: the Option and the default Int.",
+  "signature": "public fn option_unwrap_or(@Option, @Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "option_unwrap_or",
+  "tags": ["adt", "pattern-matching", "option", "data-definition", "two-params"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Parameters: option_unwrap_or(opt, default). @Int.0=default, @Option.0=opt. Inside Some(@Int), @Int.0 refers to the unwrapped value — NOT the default parameter. This is the core De Bruijn test."
+}

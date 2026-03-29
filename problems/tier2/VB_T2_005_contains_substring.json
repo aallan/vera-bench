@@ -1,0 +1,18 @@
+{
+  "id": "VB-T2-005",
+  "tier": 2,
+  "title": "Contains Substring",
+  "description": "Write a Vera function that checks if the first string contains the second string as a substring. Use the string_contains built-in function. The first parameter is the haystack, the second is the needle.",
+  "signature": "public fn contains_substring(@String, @String -> @Bool)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "contains_substring",
+  "tags": ["string", "builtin-discovery", "string-contains", "two-string-params"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests discovery of string_contains. The slot ordering is: @String.0=needle, @String.1=haystack. But string_contains takes (haystack, needle), so the call must be string_contains(@String.1, @String.0)."
+}

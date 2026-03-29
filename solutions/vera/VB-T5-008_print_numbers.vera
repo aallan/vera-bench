@@ -1,0 +1,38 @@
+-- VeraBench VB-T5-008: Print Numbers
+-- Print numbers from 1 to n using IO effect.
+effect IO {
+  op print(String -> Unit);
+}
+
+-- Pure helper: convert a number to a string with newline
+private fn format_number(@Int -> @String)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_concat(to_string(@Int.0), "\n")
+}
+
+-- IO: print numbers 1..n
+public fn print_numbers(@Nat -> @Unit)
+  requires(@Nat.0 >= 0)
+  ensures(true)
+  effects(<IO>)
+{
+  print_loop(1, @Nat.0)
+}
+where {
+  fn print_loop(@Nat, @Nat -> @Unit)
+    requires(true)
+    ensures(true)
+    decreases(@Nat.0 - @Nat.1 + 1)
+    effects(<IO>)
+  {
+    if @Nat.1 > @Nat.0 then {
+      ()
+    } else {
+      IO.print(format_number(@Nat.1));
+      print_loop(@Nat.0, @Nat.1 + 1)
+    }
+  }
+}

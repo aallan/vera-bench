@@ -1,0 +1,19 @@
+-- VeraBench VB-T3-006: Option Unwrap Or
+-- Unwrap an Option<Int>, returning a default value if None.
+private data Option {
+  None,
+  Some(Int)
+}
+
+-- Parameters: option_unwrap_or(opt, default_val)
+-- @Int.0 = default_val, @Option.0 = opt
+public fn option_unwrap_or(@Option, @Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  match @Option.0 {
+    None -> @Int.0,
+    Some(@Int) -> @Int.0
+  }
+}

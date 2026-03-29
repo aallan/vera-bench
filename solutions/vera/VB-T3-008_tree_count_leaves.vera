@@ -1,0 +1,18 @@
+-- VeraBench VB-T3-008: Tree Count Leaves
+-- Count the number of leaves in a binary tree.
+private data Tree {
+  Leaf(Int),
+  Branch(Tree, Tree)
+}
+
+public fn tree_count_leaves(@Tree -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 1)
+  decreases(@Tree.0)
+  effects(pure)
+{
+  match @Tree.0 {
+    Leaf(@Int) -> 1,
+    Branch(@Tree, @Tree) -> tree_count_leaves(@Tree.1) + tree_count_leaves(@Tree.0)
+  }
+}

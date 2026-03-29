@@ -1,0 +1,25 @@
+-- VeraBench VB-T4-009: List Nth
+-- Return the nth element of a list (0-indexed), or -1 if out of bounds.
+private data List {
+  Nil,
+  Cons(Int, List)
+}
+
+-- Parameters: list_nth(lst, n) where @Nat.0 = n, @List.0 = lst
+public fn list_nth(@List, @Nat -> @Int)
+  requires(true)
+  ensures(true)
+  decreases(@List.0)
+  effects(pure)
+{
+  match @List.0 {
+    Nil -> 0 - 1,
+    Cons(@Int, @List) -> {
+      if @Nat.0 == 0 then {
+        @Int.0
+      } else {
+        list_nth(@List.0, @Nat.0 - 1)
+      }
+    }
+  }
+}

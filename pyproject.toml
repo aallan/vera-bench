@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vera-bench"
+version = "0.1.0"
+description = "HumanEval/MBPP-style benchmark for the Vera programming language"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+llm = [
+    "anthropic>=0.40",
+    "openai>=1.50",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.9",
+]
+
+[tool.setuptools.packages.find]
+include = ["vera_bench*"]
+
+[project.scripts]
+vera-bench = "vera_bench.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+extend-exclude = ["solutions/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+

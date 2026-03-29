@@ -1,0 +1,18 @@
+{
+  "id": "VB-T3-008",
+  "tier": 3,
+  "title": "Tree Count Leaves",
+  "description": "Define a binary tree ADT with Leaf(Int) and Branch(Tree, Tree) constructors. Write a function that counts the number of leaf nodes. The postcondition should guarantee the result is at least 1 (every tree has at least one leaf).",
+  "signature": "public fn tree_count_leaves(@Tree -> @Nat)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Nat.result >= 1"],
+    "effects": "pure"
+  },
+  "entry_point": "tree_count_leaves",
+  "tags": ["adt", "pattern-matching", "recursion", "decreases", "data-definition", "tree", "counting"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "The ensures clause @Nat.result >= 1 is verifiable at Tier 1 because the base case returns 1 and the recursive case sums two values each >= 1."
+}

@@ -1,0 +1,14 @@
+-- VeraBench VB-T1-008: Distance
+-- Compute the absolute difference between two integers.
+-- Parameters: distance(a, b) where @Int.0 = b, @Int.1 = a
+public fn distance(@Int, @Int -> @Nat)
+  requires(true)
+  ensures(@Nat.result >= 0)
+  effects(pure)
+{
+  if @Int.1 >= @Int.0 then {
+    @Int.1 - @Int.0
+  } else {
+    @Int.0 - @Int.1
+  }
+}

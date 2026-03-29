@@ -1,0 +1,18 @@
+{
+  "id": "VB-T5-005",
+  "tier": 5,
+  "title": "Checked Array Index",
+  "description": "Write a function that safely accesses an array element by index. Define the Exn<E> effect with a throw operation. Write a helper checked_get that throws -1 when the index is out of bounds, and safe_index that handles the exception using handle[Exn<Int>]. safe_index should be pure.",
+  "signature": "public fn safe_index(@Array<Int>, @Nat -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "safe_index",
+  "tags": ["exception-effect", "handler", "effect-discharge", "two-functions", "array-access", "bounds-check"],
+  "test_cases": [],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests Exn<Int> for bounds checking. The agent must declare effect Exn<E> { op throw(E -> Never); } and use handle[Exn<Int>] to discharge the effect. array_length is used for the bounds check."
+}

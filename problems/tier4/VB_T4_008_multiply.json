@@ -1,0 +1,23 @@
+{
+  "id": "VB-T4-008",
+  "tier": 4,
+  "title": "Multiply",
+  "description": "Write a Vera function that multiplies two natural numbers using repeated addition. multiply(a, 0) = 0, multiply(a, b) = a + multiply(a, b-1). Include a decreases clause on the second parameter.",
+  "signature": "public fn multiply(@Nat, @Nat -> @Nat)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Nat.result >= 0"],
+    "effects": "pure"
+  },
+  "entry_point": "multiply",
+  "tags": ["recursion", "decreases", "termination", "repeated-addition", "two-params"],
+  "test_cases": [
+    {"args": [7, 6], "expected": 42},
+    {"args": [0, 5], "expected": 0},
+    {"args": [3, 0], "expected": 0},
+    {"args": [1, 1], "expected": 1}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "multiply(a, b): @Nat.0=b, @Nat.1=a. decreases(@Nat.0) because b decreases."
+}

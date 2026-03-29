@@ -1,0 +1,31 @@
+-- VeraBench VB-T5-010: Safe Head
+-- Return the first element of an array, or throw if empty.
+effect Exn<E> {
+  op throw(E -> Never);
+}
+
+-- Effectful: throws -1 if array is empty
+private fn head_or_throw(@Array<Int> -> @Int)
+  requires(true)
+  ensures(true)
+  effects(<Exn<Int>>)
+{
+  if array_length(@Array<Int>.0) == 0 then {
+    throw(0 - 1)
+  } else {
+    @Array<Int>.0[0]
+  }
+}
+
+-- Pure: handle exception, return -1 for empty array
+public fn safe_head(@Array<Int> -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  handle[Exn<Int>] {
+    throw(@Int) -> { @Int.0 }
+  } in {
+    head_or_throw(@Array<Int>.0)
+  }
+}

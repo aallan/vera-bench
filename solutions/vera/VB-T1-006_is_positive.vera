@@ -1,0 +1,9 @@
+-- VeraBench VB-T1-006: Is Positive
+-- Return true if the integer is strictly positive.
+public fn is_positive(@Int -> @Bool)
+  requires(true)
+  ensures(@Bool.result == (@Int.0 > 0))
+  effects(pure)
+{
+  @Int.0 > 0
+}

@@ -1,0 +1,23 @@
+{
+  "id": "VB-T1-010",
+  "tier": 1,
+  "title": "Double or Nothing",
+  "description": "Write a Vera function that doubles a positive integer and returns 0 for non-positive inputs. The postcondition should guarantee the result is non-negative.",
+  "signature": "public fn double_or_nothing(@Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["@Int.result >= 0"],
+    "effects": "pure"
+  },
+  "entry_point": "double_or_nothing",
+  "tags": ["arithmetic", "conditional", "multiplication"],
+  "test_cases": [
+    {"args": [5], "expected": 10},
+    {"args": [0], "expected": 0},
+    {"args": [-3], "expected": 0},
+    {"args": [1], "expected": 2}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Simple conditional with multiplication. Tests basic arithmetic and the conditional pattern."
+}
