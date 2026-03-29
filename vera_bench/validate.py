@@ -149,6 +149,11 @@ def validate_problem(
         result["tests_run"] += 1
         try:
             run = runner.run_fn(vera_file, entry_point, args if args else None)
+            if run.exit_code != 0:
+                result["errors"].append(
+                    f"run({args}): non-zero exit code {run.exit_code}"
+                )
+                continue
             actual, expected_str = normalize_output(run.stdout, expected)
             if actual == expected_str:
                 result["tests_pass"] += 1
