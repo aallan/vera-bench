@@ -147,6 +147,12 @@ def run(
     console.print(f"\nResults written to {output_path}")
 
 
+def _fmt_rate(rate: float | None) -> str:
+    if rate is None:
+        return "-"
+    return f"{rate * 100:.0f}%"
+
+
 def _print_metrics(model: str, metrics) -> None:
     """Print a summary metrics table."""
     table = Table(title=f"Results: {model}")
@@ -154,10 +160,10 @@ def _print_metrics(model: str, metrics) -> None:
     table.add_column("Value", justify="right")
 
     table.add_row("Problems", str(metrics.total_problems))
-    table.add_row("check@1", f"{metrics.check_rate * 100:.0f}%")
-    table.add_row("verify@1", f"{metrics.verify_rate * 100:.0f}%")
-    table.add_row("fix@1", f"{metrics.fix_rate * 100:.0f}%")
-    table.add_row("run_correct", f"{metrics.run_correct_rate * 100:.0f}%")
+    table.add_row("check@1", _fmt_rate(metrics.check_rate))
+    table.add_row("verify@1", _fmt_rate(metrics.verify_rate))
+    table.add_row("fix@1", _fmt_rate(metrics.fix_rate))
+    table.add_row("run_correct", _fmt_rate(metrics.run_correct_rate))
 
     if metrics.by_tier:
         table.add_section()

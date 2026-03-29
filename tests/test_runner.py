@@ -204,7 +204,7 @@ class TestMetrics:
     def test_empty_results(self):
         m = compute_metrics([])
         assert m.total_problems == 0
-        assert m.check_rate == 0.0
+        assert m.check_rate is None
 
     def test_jsonl_round_trip(self, tmp_path):
         results = self._make_results()

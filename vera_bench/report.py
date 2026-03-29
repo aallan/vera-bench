@@ -49,7 +49,9 @@ def generate_report(results_dir: Path) -> str:
     return report
 
 
-def _pct(rate: float) -> str:
+def _pct(rate: float | None) -> str:
+    if rate is None:
+        return "-"
     return f"{rate * 100:.0f}%"
 
 

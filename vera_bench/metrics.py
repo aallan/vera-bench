@@ -12,18 +12,18 @@ class TierMetrics:
     tier: int
     count: int
     check_rate: float
-    verify_rate: float
-    fix_rate: float
-    run_correct_rate: float
+    verify_rate: float | None
+    fix_rate: float | None
+    run_correct_rate: float | None
 
 
 @dataclass
 class BenchmarkMetrics:
     total_problems: int
     check_rate: float
-    verify_rate: float
-    fix_rate: float
-    run_correct_rate: float
+    verify_rate: float | None
+    fix_rate: float | None
+    run_correct_rate: float | None
     by_tier: dict[int, TierMetrics]
 
 
@@ -50,10 +50,10 @@ def compute_metrics(results: list[dict]) -> BenchmarkMetrics:
     if total == 0:
         return BenchmarkMetrics(
             total_problems=0,
-            check_rate=0.0,
-            verify_rate=0.0,
-            fix_rate=0.0,
-            run_correct_rate=0.0,
+            check_rate=None,
+            verify_rate=None,
+            fix_rate=None,
+            run_correct_rate=None,
             by_tier={},
         )
 
@@ -171,7 +171,7 @@ def _tier_from_id(problem_id: str) -> int:
         return 0
 
 
-def _rate(num: int, denom: int) -> float:
+def _rate(num: int, denom: int) -> float | None:
     if denom == 0:
-        return 0.0
+        return None
     return round(num / denom, 4)
