@@ -106,8 +106,8 @@ def validate_problem(
     # vera check
     try:
         check = runner.check(vera_file)
-        result["check_pass"] = check.passed
-        if not check.passed:
+        result["check_pass"] = check.passed and check.exit_code == 0
+        if not result["check_pass"]:
             for diag in check.diagnostics:
                 result["errors"].append(
                     f"check: {diag.get('description', 'unknown error')}"
@@ -122,7 +122,7 @@ def validate_problem(
     # vera verify
     try:
         verify = runner.verify(vera_file)
-        result["verify_pass"] = verify.passed
+        result["verify_pass"] = verify.passed and verify.exit_code == 0
         result["verify_t1"] = verify.tier1_verified
         result["verify_t3"] = verify.tier3_runtime
 
@@ -144,6 +144,9 @@ def validate_problem(
     test_cases = problem.get("test_cases", [])
     entry_point = problem.get("entry_point", "")
     for tc in test_cases:
+        if not isinstance(tc, dict):
+            result["errors"].append(f"malformed test case: {tc!r}")
+            continue
         args = tc.get("args", [])
         expected = tc.get("expected")
         result["tests_run"] += 1
