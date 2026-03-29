@@ -107,15 +107,18 @@ class TestProblemResult:
 
 
 class TestCreateClient:
-    def test_anthropic_prefix(self):
+    def test_anthropic_prefix(self, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         with pytest.raises((ImportError, EnvironmentError)):
             create_client("claude-sonnet-4-20250514")
 
-    def test_openai_prefix(self):
+    def test_openai_prefix(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with pytest.raises((ImportError, EnvironmentError)):
             create_client("gpt-4o")
 
-    def test_o1_prefix(self):
+    def test_o1_prefix(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
         with pytest.raises((ImportError, EnvironmentError)):
             create_client("o1-preview")
 
@@ -203,18 +206,18 @@ class TestMetrics:
         assert m.total_problems == 0
         assert m.check_rate == 0.0
 
-    def test_jsonl_round_trip(self):
+    def test_jsonl_round_trip(self, tmp_path):
         results = self._make_results()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
-            for r in results:
-                f.write(json.dumps(r) + "\n")
-            path = Path(f.name)
+        path = tmp_path / "test.jsonl"
+        path.write_text(
+            "\n".join(json.dumps(r) for r in results) + "\n",
+            encoding="utf-8",
+        )
 
         from vera_bench.metrics import load_results
 
         loaded = load_results(path)
         assert len(loaded) == len(results)
-        path.unlink()
 
 
 # === Report ===

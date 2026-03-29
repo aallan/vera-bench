@@ -122,21 +122,26 @@ class OpenAIClient:
 
         start = time.monotonic()
         try:
-            response = self._client.chat.completions.create(
+            response = self._client.with_options(
+                timeout=timeout
+            ).chat.completions.create(
                 model=self._model,
                 max_tokens=max_tokens,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                timeout=timeout,
             )
         except openai.APITimeoutError as e:
             raise TimeoutError(f"OpenAI API timed out: {e}") from e
 
         elapsed = time.monotonic() - start
         choice = response.choices[0] if response.choices else None
-        text = choice.message.content if choice else ""
+        text = (
+            choice.message.content
+            if choice and choice.message and choice.message.content
+            else ""
+        )
         usage = response.usage
         return LLMResponse(
             text=text or "",

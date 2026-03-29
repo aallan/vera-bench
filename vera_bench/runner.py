@@ -24,7 +24,7 @@ from vera_bench.vera_runner import VeraRunner
 
 console = Console()
 
-_FENCE_RE = re.compile(r"```(?:vera)?\s*\n(.*?)\n```", re.DOTALL)
+_FENCE_RE = re.compile(r"```(?:vera)?\s*\n(.*?)\n?```", re.DOTALL)
 
 
 def extract_vera_code(response_text: str) -> str:
@@ -150,6 +150,7 @@ def run_single_problem(
     work_dir: Path,
     mode: str = "full-spec",
     max_fix_attempts: int = 1,
+    max_tokens: int = 4096,
 ) -> list[ProblemResult]:
     """Run the full pipeline for one problem.
 
@@ -165,7 +166,11 @@ def run_single_problem(
 
     # Attempt 1: generate
     try:
-        llm_response = client.complete(system=prompt["system"], user=prompt["user"])
+        llm_response = client.complete(
+            system=prompt["system"],
+            user=prompt["user"],
+            max_tokens=max_tokens,
+        )
     except Exception as e:
         results.append(
             ProblemResult(
@@ -202,7 +207,9 @@ def run_single_problem(
         fix_prompt = build_fix_prompt(code, eval_result.get("error_message", ""))
         try:
             fix_response = client.complete(
-                system=fix_prompt["system"], user=fix_prompt["user"]
+                system=fix_prompt["system"],
+                user=fix_prompt["user"],
+                max_tokens=max_tokens,
             )
         except Exception as e:
             results.append(
@@ -246,6 +253,7 @@ def run_benchmark(
     mode: str = "full-spec",
     output_path: Path | None = None,
     max_fix_attempts: int = 1,
+    max_tokens: int = 4096,
     keep_temps: bool = False,
 ) -> list[ProblemResult]:
     """Run the full benchmark across all problems.
@@ -267,6 +275,7 @@ def run_benchmark(
                     work_dir=work_dir,
                     mode=mode,
                     max_fix_attempts=max_fix_attempts,
+                    max_tokens=max_tokens,
                 )
                 all_results.extend(problem_results)
 

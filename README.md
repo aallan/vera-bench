@@ -77,6 +77,16 @@ vera-bench run --model claude-sonnet-4-20250514 --mode spec-from-nl
 vera-bench report results/
 ```
 
+## Results
+
+Running `vera-bench report results/` generates `results/summary.md` with a per-model summary:
+
+| Model | check@1 | verify@1 | fix@1 | run_correct | Problems |
+|-------|---------|----------|-------|-------------|----------|
+| claude-sonnet-4-20250514 | 82% | 74% | 45% | 70% | 50 |
+
+Plus per-tier breakdowns and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so partial runs are resumable and always reportable.
+
 ## Prior art
 
 VeraBench is inspired by:

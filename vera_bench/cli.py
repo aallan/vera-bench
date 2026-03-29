@@ -135,6 +135,7 @@ def run(
         vera=vera,
         mode=mode,
         output_path=output_path,
+        max_tokens=max_tokens,
         keep_temps=keep_temps,
     )
 
