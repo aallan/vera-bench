@@ -19,3 +19,5 @@ htmlcov/
 *.wasm
 *.wat
 tmp/
+results/*.jsonl
+results/summary.md
