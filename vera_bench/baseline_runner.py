@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -117,7 +118,7 @@ def run_python_baseline(
     start = time.monotonic()
     try:
         result = subprocess.run(  # noqa: S603
-            ["python", str(wrapper_path)],
+            [sys.executable, str(wrapper_path)],
             capture_output=True,
             text=True,
             timeout=timeout,
