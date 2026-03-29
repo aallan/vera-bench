@@ -60,6 +60,7 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run tests
+        if: matrix.python-version != '3.12'
         run: pytest -v
 
       - name: Run tests with coverage
@@ -79,6 +80,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -106,6 +108,7 @@ jobs:
       contents: read
       security-events: write
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -121,6 +124,7 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:

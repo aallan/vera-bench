@@ -22,4 +22,3 @@ updates:
     labels:
       - "ci"
     open-pull-requests-limit: 5
-

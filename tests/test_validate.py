@@ -5,23 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from vera_bench.validate import REQUIRED_FIELDS
+
 REPO_ROOT = Path(__file__).parent.parent
 PROBLEMS_DIR = REPO_ROOT / "problems"
 SOLUTIONS_DIR = REPO_ROOT / "solutions"
-
-REQUIRED_FIELDS = [
-    "id",
-    "tier",
-    "title",
-    "description",
-    "signature",
-    "contracts",
-    "entry_point",
-    "tags",
-    "test_cases",
-    "vera_check_must_pass",
-    "vera_verify_tier1",
-]
 
 
 def _collect_problem_files():
@@ -42,7 +30,7 @@ class TestProblemSchema:
         ids=lambda p: p.stem,
     )
     def test_required_fields(self, problem_file: Path):
-        with open(problem_file) as f:
+        with open(problem_file, encoding="utf-8") as f:
             problem = json.load(f)
         missing = [field for field in REQUIRED_FIELDS if field not in problem]
         assert not missing, f"Missing fields: {missing}"
@@ -53,7 +41,7 @@ class TestProblemSchema:
         ids=lambda p: p.stem,
     )
     def test_id_format(self, problem_file: Path):
-        with open(problem_file) as f:
+        with open(problem_file, encoding="utf-8") as f:
             problem = json.load(f)
         pid = problem["id"]
         assert pid.startswith("VB-T"), f"ID must start with VB-T, got {pid}"
@@ -64,7 +52,7 @@ class TestProblemSchema:
         ids=lambda p: p.stem,
     )
     def test_tier_matches_directory(self, problem_file: Path):
-        with open(problem_file) as f:
+        with open(problem_file, encoding="utf-8") as f:
             problem = json.load(f)
         dir_tier = int(problem_file.parent.name.replace("tier", ""))
         assert problem["tier"] == dir_tier, (
@@ -77,7 +65,7 @@ class TestProblemSchema:
         ids=lambda p: p.stem,
     )
     def test_vera_solution_exists(self, problem_file: Path):
-        with open(problem_file) as f:
+        with open(problem_file, encoding="utf-8") as f:
             problem = json.load(f)
         prefix = problem["id"] + "_"
         matches = list((SOLUTIONS_DIR / "vera").glob(f"{prefix}*.vera"))
@@ -91,7 +79,7 @@ class TestProblemSchema:
         ids=lambda p: p.stem,
     )
     def test_contracts_structure(self, problem_file: Path):
-        with open(problem_file) as f:
+        with open(problem_file, encoding="utf-8") as f:
             problem = json.load(f)
         contracts = problem["contracts"]
         assert "requires" in contracts, "Missing contracts.requires"
