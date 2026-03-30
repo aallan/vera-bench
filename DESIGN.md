@@ -24,7 +24,7 @@ The benchmark lives in its own repository (`aallan/vera-bench`), separate from t
 | **HumanEval** (OpenAI, 2021) | 164 | Python | Function completion from docstring | pass@k |
 | **MBPP** (Google, 2021) | 974 | Python | Function from NL description + 3 tests | pass@1 |
 | **DafnyBench** (Loughridge et al., 2024) | 782 | Dafny | Fill in verification annotations | success rate |
-| **VerifyThisBench** (Deng et al., 2025) | ~150 | Dafny/Lean/Coq | End-to-end: spec + code + proof from NL | success rate |
+| **VerifyThisBench** (Deng et al., 2025) | ~150 | Dafny, Frama-C, VerCors, VeriFast, Why3, Verus, CBMC | End-to-end: spec + code + proof from NL | success rate |
 | **CLEVER** (Thakur et al., 2025) | 161 | Lean | Spec equivalence + implementation correctness | pass@k-seconds |
 | **VERINA** (Ye et al., 2025) | 189 | Lean | Spec + code + proof generation | pass@1 per subtask |
 
