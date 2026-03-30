@@ -47,7 +47,7 @@ The benchmark lives in its own repository (`aallan/vera-bench`), separate from t
 For each problem × model combination:
 
 - **check@1** — Does the first attempt pass `vera check`?
-- **verify@1** — Does the best passing attempt pass `vera verify` with Tier 1 contracts? (If attempt 1 fails check but attempt 2 succeeds, verify is evaluated on attempt 2.)
+- **verify@1** — Does the best passing attempt pass `vera verify`? (If attempt 1 fails check but attempt 2 succeeds, verify is evaluated on attempt 2.)
 - **fix@1** — Given the error message from a failed first attempt, can the model fix it in one turn?
 - **run_correct** — Does the best passing attempt produce the correct output for all test cases?
 
