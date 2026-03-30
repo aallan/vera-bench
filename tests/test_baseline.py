@@ -203,6 +203,16 @@ class TestRunTypescriptBaseline:
         result = run_typescript_baseline(problem, SOLUTIONS_DIR, tmp_path)
         assert result.run_correct is None
 
+    def test_missing_file_returns_error(self, tmp_path):
+        problem = {
+            "id": "VB-T99-999",
+            "entry_point": "nonexistent",
+            "test_cases": [{"args": [1], "expected": 1}],
+        }
+        result = run_typescript_baseline(problem, SOLUTIONS_DIR, tmp_path)
+        assert result.check_pass is False
+        assert "No TypeScript baseline" in result.error_message
+
 
 class TestBaselinesCLI:
     def test_baselines_command_exists(self):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -231,10 +232,8 @@ def run_typescript_baseline(
         )
 
     # Copy baseline to work_dir so relative imports work
-    import shutil as _shutil
-
     work_baseline = work_dir / baseline_path.name
-    _shutil.copy2(baseline_path, work_baseline)
+    shutil.copy2(baseline_path, work_baseline)
 
     # The TS files don't export — add export wrapper
     _add_ts_export(work_baseline, problem)
@@ -244,23 +243,25 @@ def run_typescript_baseline(
     wrapper_path.write_text(wrapper_code, encoding="utf-8")
 
     # Find tsx/npx
-    tsx = shutil.which("tsx")
-    if tsx:
-        cmd = [tsx, str(wrapper_path)]
+    tsx_path = _tsx_bin()
+    if tsx_path is None:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="typescript",
+            attempt=1,
+            check_pass=False,
+            error_message="tsx/npx not found on PATH",
+            timestamp=_now(),
+        )
+
+    if tsx_path.endswith("npx"):
+        cmd = [tsx_path, "tsx", str(wrapper_path)]
     else:
-        npx = shutil.which("npx")
-        if npx:
-            cmd = [npx, "tsx", str(wrapper_path)]
-        else:
-            return ProblemResult(
-                problem_id=problem_id,
-                model="baseline",
-                language="typescript",
-                attempt=1,
-                check_pass=False,
-                error_message="tsx/npx not found on PATH",
-                timestamp=_now(),
-            )
+        cmd = [tsx_path, str(wrapper_path)]
+
+    # Strip API keys from env
+    run_env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
 
     start = time.monotonic()
     try:
@@ -271,6 +272,7 @@ def run_typescript_baseline(
             timeout=timeout,
             check=False,
             cwd=work_dir,
+            env=run_env,
         )
     except subprocess.TimeoutExpired:
         return ProblemResult(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -572,7 +573,11 @@ class TestTypescriptPrompt:
         assert "max_of_three" not in result["user"]
 
 
+_has_tsx = shutil.which("tsx") is not None or shutil.which("npx") is not None
+
+
 class TestEvaluateTypescriptCode:
+    @pytest.mark.skipif(not _has_tsx, reason="tsx/npx not on PATH")
     def test_correct_code(self, tmp_path):
         from vera_bench.runner import _evaluate_typescript_code
 
