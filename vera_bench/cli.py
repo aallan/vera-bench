@@ -137,8 +137,12 @@ def run(
     if output_dir is None:
         output_dir = root / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    suffix = f"-{language}" if language != "vera" else ""
-    output_path = output_dir / f"{model}{suffix}.jsonl"
+    parts = [model]
+    if language != "vera":
+        parts.append(language)
+    if mode != "full-spec":
+        parts.append(mode)
+    output_path = output_dir / f"{'-'.join(parts)}.jsonl"
 
     # Truncate stale results from previous runs
     if output_path.exists():
