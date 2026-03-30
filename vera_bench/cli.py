@@ -140,7 +140,7 @@ def run(
     parts = [model]
     if language != "vera":
         parts.append(language)
-    if mode != "full-spec":
+    if language == "vera" and mode != "full-spec":
         parts.append(mode)
     output_path = output_dir / f"{'-'.join(parts)}.jsonl"
 
