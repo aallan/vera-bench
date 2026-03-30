@@ -109,15 +109,20 @@ def _build_typescript_wrapper(
     for i, tc in enumerate(test_cases):
         args = tc.get("args", [])
         expected = tc.get("expected")
+        # Normalize vera-style bools: "true"/"false" strings or 1/0 ints
         if isinstance(expected, str) and expected in ("true", "false"):
             expected = expected == "true"
+        elif isinstance(expected, int) and expected in (0, 1):
+            # Could be a bool — use loose comparison to handle both
+            pass  # keep as int, use == below
         args_json = json.dumps(args)
         expected_json = json.dumps(expected)
+        # Use == (not ===) so true==1 and false==0 match
         lines.extend(
             [
                 "try {",
                 f"  const actual_{i} = {ts_fn}(...{args_json});",
-                f"  const passed_{i} = actual_{i} === {expected_json};",
+                f"  const passed_{i} = actual_{i} == {expected_json};",
                 f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
                 "} catch (e: any) {",
                 "  results.push({passed: false, error: String(e)});",

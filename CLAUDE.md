@@ -58,6 +58,15 @@ vera run solutions/vera/VB-T1-001_absolute_value.vera --fn absolute_value -- -42
 - **`Exn<String>` doesn't work** — use `Exn<Int>` for exception values.
 - **Bare `None`/`Err`** can fail type inference — use typed let bindings.
 
+## Test case bool gotcha
+
+`vera run` outputs booleans as `1`/`0` (WASM i32), not `true`/`false`. Test cases in problem JSONs use these integer values. When comparing against Python or TypeScript baselines:
+
+- **Python**: String `"true"`/`"false"` in expected values must be normalised to Python `True`/`False` (see `_build_python_wrapper` in `baseline_runner.py`).
+- **TypeScript**: Integer `1`/`0` expected values must use loose equality (`==` not `===`) because TypeScript returns native `boolean` and `true === 1` is `false` in strict mode.
+
+Both issues have caused false baseline failures (VB-T4-003 for Python, VB-T1-006 for TypeScript).
+
 ## Coding conventions
 
 - Python 3.11+, type hints everywhere.
