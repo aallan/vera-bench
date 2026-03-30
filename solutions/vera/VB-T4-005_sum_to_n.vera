@@ -3,6 +3,7 @@
 public fn sum_to_n(@Nat -> @Nat)
   requires(true)
   ensures(@Nat.result >= 0)
+  ensures(@Nat.result >= @Nat.0)
   decreases(@Nat.0)
   effects(pure)
 {

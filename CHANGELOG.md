@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-03-30
+
+### Changed
+
+- Strengthened problem descriptions for De Bruijn slot ordering (issue #13):
+  VB-T4-002 (GCD), VB-T4-004 (power), VB-T5-003 (safe_div) now explicitly
+  state which `@Type.N` maps to which parameter in the description text
+- Strengthened postconditions to catch logic bugs (issue #14):
+  - VB-T4-002 (GCD): added `@Nat.result <= @Nat.1 || @Nat.0 > 0`
+  - VB-T4-005 (sum_to_n): added `@Nat.result >= @Nat.0`
+  - VB-T4-008 (multiply): added `@Nat.result == @Nat.1 * @Nat.0`
+  - VB-T4-010 (div_natural): added `@Nat.result * @Nat.0 <= @Nat.1`
+  - VB-T5-001 (counter): `true` → `@Int.result == 3`
+  - VB-T5-006 (state_double): `true` → `@Int.result == @Int.0 * 2`
+  - VB-T5-009 (state_max): `true` → `@Int.result == @Nat.0`
+- SKILL.md now fetched from veralang.dev at runtime (no local cache)
+
 ## [0.0.4] - 2026-03-30
 
 ### Added
@@ -78,7 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/aallan/vera-bench/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/aallan/vera-bench/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/aallan/vera-bench/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/aallan/vera-bench/compare/v0.0.1...v0.0.2

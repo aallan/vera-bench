@@ -2,7 +2,7 @@
 
 ## Where we are
 
-**v0.0.4** — 50 problems across 5 tiers, working LLM harness (Anthropic + OpenAI), Python and TypeScript baseline runners, cross-language generation comparison (Vera, Python, TypeScript). First results: Claude Sonnet 4 achieves 94% check@1, 98% verify@1, 83% run_correct in Vera (full-spec); 88% verify@1, 78% run_correct in spec-from-NL mode; 92% run_correct in Python.
+**v0.0.5** — 50 problems across 5 tiers with strengthened postconditions and explicit slot ordering descriptions. Working LLM harness (Anthropic + OpenAI), Python and TypeScript baseline runners, cross-language generation comparison. SKILL.md fetched from veralang.dev at runtime.
 
 ## Milestone 1: Publication-ready benchmark (current)
 
@@ -13,8 +13,8 @@
 - [ ] Hugging Face dataset export
 - [ ] CITATION.cff
 - [ ] Expand to 75+ problems (15 per tier)
-- [ ] Strengthen problem descriptions for slot ordering (issue #13)
-- [ ] Strengthen postconditions to catch slot-swap bugs (issue #14)
+- [x] Strengthen problem descriptions for slot ordering (issue #13)
+- [x] Strengthen postconditions to catch slot-swap bugs (issue #14)
 - [ ] Improve SKILL.md coverage of where blocks (issue #15)
 - [ ] Increase test coverage to >90% (issue #5)
 

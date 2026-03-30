@@ -14,7 +14,7 @@ private fn next_count(@Int -> @Int)
 -- Demonstrates handle[State<Int>] with put/get, calling a pure helper.
 public fn count_three(@Unit -> @Int)
   requires(true)
-  ensures(true)
+  ensures(@Int.result == 3)
   effects(pure)
 {
   handle[State<Int>](@Int = 0) {

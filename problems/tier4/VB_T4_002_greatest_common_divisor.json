@@ -2,14 +2,15 @@
   "id": "VB-T4-002",
   "tier": 4,
   "title": "Greatest Common Divisor",
-  "description": "Write a Vera function that computes the GCD of two natural numbers using Euclid's algorithm: gcd(a, 0) = a, gcd(a, b) = gcd(b, a mod b). Include a decreases clause. Hint: the second parameter decreases on each call.",
+  "description": "Write a Vera function that computes the GCD of two natural numbers using Euclid's algorithm: gcd(a, 0) = a, gcd(a, b) = gcd(b, a mod b). The function takes two parameters: gcd(a, b) where @Nat.0 is b (the second/rightmost parameter) and @Nat.1 is a (the first). Include a decreases clause — the second parameter decreases on each recursive call.",
   "signature": "public fn gcd(@Nat, @Nat -> @Nat)",
   "contracts": {
     "requires": [
       "true"
     ],
     "ensures": [
-      "@Nat.result >= 0"
+      "@Nat.result >= 0",
+      "@Nat.result <= @Nat.1 || @Nat.0 > 0"
     ],
     "effects": "pure"
   },

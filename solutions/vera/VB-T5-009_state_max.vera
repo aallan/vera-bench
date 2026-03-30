@@ -17,7 +17,7 @@ private fn max_val(@Int, @Int -> @Int)
 -- Pure: find the maximum of 1..n using State<Int> (trivially n, but tests the pattern).
 public fn state_max(@Nat -> @Int)
   requires(@Nat.0 >= 1)
-  ensures(true)
+  ensures(@Int.result == @Nat.0)
   effects(pure)
 {
   handle[State<Int>](@Int = 0) {

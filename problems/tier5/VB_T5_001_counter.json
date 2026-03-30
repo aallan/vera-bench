@@ -9,7 +9,7 @@
       "true"
     ],
     "ensures": [
-      "true"
+      "@Int.result == 3"
     ],
     "effects": "pure"
   },

@@ -5,6 +5,7 @@
 public fn div_natural(@Nat, @Nat -> @Nat)
   requires(@Nat.0 > 0)
   ensures(@Nat.result >= 0)
+  ensures(@Nat.result * @Nat.0 <= @Nat.1)
   decreases(@Nat.1)
   effects(pure)
 {

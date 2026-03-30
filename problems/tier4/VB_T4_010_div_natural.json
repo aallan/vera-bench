@@ -5,18 +5,60 @@
   "description": "Write a Vera function that computes integer division via repeated subtraction. div_natural(a, b) counts how many times b fits into a. Precondition: b > 0. The tricky part: the decreases clause must be on the dividend (first parameter), not the divisor.",
   "signature": "public fn div_natural(@Nat, @Nat -> @Nat)",
   "contracts": {
-    "requires": ["@Nat.0 > 0"],
-    "ensures": ["@Nat.result >= 0"],
+    "requires": [
+      "@Nat.0 > 0"
+    ],
+    "ensures": [
+      "@Nat.result >= 0",
+      "@Nat.result * @Nat.0 <= @Nat.1"
+    ],
     "effects": "pure"
   },
   "entry_point": "div_natural",
-  "tags": ["recursion", "decreases", "termination", "tricky-decreases", "subtraction", "division"],
+  "tags": [
+    "recursion",
+    "decreases",
+    "termination",
+    "tricky-decreases",
+    "subtraction",
+    "division"
+  ],
   "test_cases": [
-    {"args": [17, 5], "expected": 3},
-    {"args": [10, 3], "expected": 3},
-    {"args": [0, 1], "expected": 0},
-    {"args": [7, 7], "expected": 1},
-    {"args": [3, 10], "expected": 0}
+    {
+      "args": [
+        17,
+        5
+      ],
+      "expected": 3
+    },
+    {
+      "args": [
+        10,
+        3
+      ],
+      "expected": 3
+    },
+    {
+      "args": [
+        0,
+        1
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        7,
+        7
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        3,
+        10
+      ],
+      "expected": 0
+    }
   ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,

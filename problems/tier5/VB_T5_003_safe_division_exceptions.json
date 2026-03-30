@@ -2,7 +2,7 @@
   "id": "VB-T5-003",
   "tier": 5,
   "title": "Safe Division (Exceptions)",
-  "description": "Write a division function that uses exceptions for error handling. Define the Exn<E> effect with a throw operation. Write checked_div that throws -1 when the divisor is zero, and safe_div that handles the exception using handle[Exn<Int>] and returns the thrown value on error. safe_div should be pure (the handler discharges the effect).",
+  "description": "Write a division function that uses exceptions for error handling. Define the Exn<E> effect with a throw operation. Write checked_div(a, b) that computes a / b and throws 0-1 when the divisor is zero. In checked_div, @Int.0 is b (divisor, rightmost) and @Int.1 is a (dividend). Write safe_div that calls checked_div and handles the exception using handle[Exn<Int>], returning the thrown value on error. In safe_div(dividend, divisor), @Int.0 is the divisor and @Int.1 is the dividend. safe_div should be pure (the handler discharges the effect).",
   "signature": "public fn safe_div(@Int, @Int -> @Int)",
   "contracts": {
     "requires": [

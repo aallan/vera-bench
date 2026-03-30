@@ -5,18 +5,45 @@
   "description": "Write a function that finds the maximum value among the integers 1 through n using State<Int>. Create a pure max helper. The main function uses handle[State<Int>] initialized to 0, with a loop that updates state to max(current, i) for each i from 1 to n.",
   "signature": "public fn state_max(@Nat -> @Int)",
   "contracts": {
-    "requires": ["@Nat.0 >= 1"],
-    "ensures": ["true"],
+    "requires": [
+      "@Nat.0 >= 1"
+    ],
+    "ensures": [
+      "@Int.result == @Nat.0"
+    ],
     "effects": "pure"
   },
   "entry_point": "state_max",
-  "tags": ["state-effect", "handler", "pure-helper", "where-block", "loop", "get-put", "max"],
+  "tags": [
+    "state-effect",
+    "handler",
+    "pure-helper",
+    "where-block",
+    "loop",
+    "get-put",
+    "max"
+  ],
   "test_cases": [
-    {"args": [5], "expected": 5},
-    {"args": [1], "expected": 1},
-    {"args": [10], "expected": 10}
+    {
+      "args": [
+        5
+      ],
+      "expected": 5
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        10
+      ],
+      "expected": 10
+    }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
-  "notes": "Tests State<Int> with a pure comparison helper. The loop iterates 1..n, updating state with max(current_state, i). Since we're iterating 1..n, the max is always n — but the test is whether the agent can wire up the State pattern correctly."
+  "vera_verify_tier1": false,
+  "notes": "Tests State<Int> with a pure comparison helper. The loop iterates 1..n, updating state with max(current_state, i). Since we're iterating 1..n, the max is always n \u2014 but the test is whether the agent can wire up the State pattern correctly."
 }

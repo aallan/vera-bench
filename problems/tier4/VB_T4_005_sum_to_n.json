@@ -6,7 +6,7 @@
   "signature": "public fn sum_to_n(@Nat -> @Nat)",
   "contracts": {
     "requires": ["true"],
-    "ensures": ["@Nat.result >= 0"],
+    "ensures": ["@Nat.result >= 0", "@Nat.result >= @Nat.0"],
     "effects": "pure"
   },
   "entry_point": "sum_to_n",
