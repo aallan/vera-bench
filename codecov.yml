@@ -1,3 +1,5 @@
+# threshold is a delta (not absolute floor) — "don't drop by more than 1%".
+# The absolute floor is enforced by CI's --cov-fail-under=35.
 coverage:
   status:
     project:
@@ -9,6 +11,8 @@ coverage:
     patch:
       python:
         target: auto
+        # Informational: many code paths need API keys or vera installed,
+        # so strict patch coverage would block legitimate PRs.
         informational: true
         flags:
           - python

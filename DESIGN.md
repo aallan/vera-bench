@@ -47,9 +47,9 @@ The benchmark lives in its own repository (`aallan/vera-bench`), separate from t
 For each problem × model combination:
 
 - **check@1** — Does the first attempt pass `vera check`?
-- **verify@1** — Does the first attempt pass `vera verify` with Tier 1 contracts?
-- **fix@1** — Given the error message, can the model fix it in one turn?
-- **run_correct** — Does execution produce the correct output for all test cases?
+- **verify@1** — Does the best passing attempt pass `vera verify` with Tier 1 contracts? (If attempt 1 fails check but attempt 2 succeeds, verify is evaluated on attempt 2.)
+- **fix@1** — Given the error message from a failed first attempt, can the model fix it in one turn?
+- **run_correct** — Does the best passing attempt produce the correct output for all test cases?
 
 Aggregate rates are computed per tier and overall. Cross-language baselines (Python, TypeScript) measure the same problems without Vera's contract system for comparison.
 
