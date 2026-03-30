@@ -26,7 +26,7 @@ First benchmark results from [VeraBench v0.0.4](https://github.com/aallan/vera-b
 
 **Writing contracts is harder than writing code.** The spec-from-NL mode (where the model must infer its own contracts from the natural language description) drops verify@1 by 10 points and halves fix@1. The implementation itself barely changes — check@1 holds at 94% — but getting the contracts right from NL alone is the real challenge.
 
-> **Note:** These are single-run results from one model. LLM outputs are non-deterministic — individual problems can flip between pass and fail across runs. Stable rates will require multiple trials (pass@k). More models and repeated runs are planned.
+> **Note:** These are single-run results from one model. LLM outputs are non-deterministic — individual problems can flip between pass and fail across runs. Stable rates will require multiple trials ([pass@k](https://arxiv.org/abs/2107.03374) — sample k independent outputs per problem, count as passed if any output succeeds). More models and repeated runs are planned.
 
 ## Overview
 
