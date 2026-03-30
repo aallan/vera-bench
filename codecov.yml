@@ -1,0 +1,20 @@
+coverage:
+  status:
+    project:
+      python:
+        target: auto
+        threshold: 1.0%
+        flags:
+          - python
+    patch:
+      python:
+        target: auto
+        informational: true
+        flags:
+          - python
+
+flags:
+  python:
+    paths:
+      - vera_bench/
+    carryforward: true

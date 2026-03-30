@@ -6,7 +6,9 @@ VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aall
 
 - **This repo** is the benchmark harness and problem set. It treats `vera` as a black-box CLI tool.
 - **The Vera repo** (https://github.com/aallan/vera) is the compiler. Do not modify it from here.
-- **BRIEFING.md** has the full design document: prior art, tier definitions, harness architecture, repo structure.
+- **DESIGN.md** has the design rationale: prior art, tier definitions, key decisions.
+- **ROADMAP.md** has forward-looking milestones and open issues.
+- **BRIEFING.md** is the original bootstrap document (kept for historical reference).
 - **SKILL.md snapshots** in `context/` are the language reference fed to LLMs during evaluation. Use `veralang.dev/SKILL.md` as the canonical source.
 
 ## Vera installation

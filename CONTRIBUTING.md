@@ -62,6 +62,15 @@ source .venv/bin/activate
 pip install -e ".[dev,llm]"
 ```
 
+### Pre-commit Hooks
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+This installs hooks that run on every commit: trailing whitespace, YAML/JSON validation, ruff lint and format, problem validation (when problem files change), and pytest.
+
 ### Running Tests
 
 ```bash

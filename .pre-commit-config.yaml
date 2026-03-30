@@ -1,0 +1,44 @@
+repos:
+  # General hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+
+  # Project-specific checks
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: ruff check .
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: ruff-format
+        name: ruff format
+        entry: ruff format --check .
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: validate-problems
+        name: validate problems
+        entry: python scripts/validate_problems.py
+        language: system
+        pass_filenames: false
+        files: '(problems/.*\.json$|solutions/vera/.*\.vera$)'
+
+      - id: pytest
+        name: pytest
+        entry: pytest tests/ -q
+        language: system
+        types: [python]
+        pass_filenames: false
