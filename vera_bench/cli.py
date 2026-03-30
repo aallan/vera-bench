@@ -272,6 +272,6 @@ def baselines(language: str, output_dir: Path | None):
     # Print summary
     if results:
         metrics = compute_metrics([json.loads(r.to_jsonl()) for r in results])
-        _print_metrics(f"{language}-baseline", metrics)
+        _print_metrics(f"{language}-baseline", metrics, language=language)
 
     console.print(f"\nResults written to {output_path}")

@@ -316,6 +316,8 @@ def run_single_problem(
     if language == "python":
         eval_result = _evaluate_python_code(code, problem, work_dir, attempt=1)
     else:
+        if vera is None:
+            raise ValueError("VeraRunner required for language='vera'")
         eval_result = _evaluate_code(code, problem, vera, work_dir, attempt=1)
 
     results.append(
