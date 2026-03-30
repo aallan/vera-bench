@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -17,6 +20,7 @@ from vera_bench.models import LLMClient
 from vera_bench.prompts import (
     build_fix_prompt,
     build_full_spec_prompt,
+    build_python_prompt,
     build_spec_from_nl_prompt,
 )
 from vera_bench.validate import normalize_output
@@ -24,13 +28,13 @@ from vera_bench.vera_runner import VeraRunner
 
 console = Console()
 
-_FENCE_RE = re.compile(r"```(?:vera)?\s*\n(.*?)\n?```", re.DOTALL)
+_FENCE_RE = re.compile(r"```(?:vera|python|py)?\s*\n(.*?)\n?```", re.DOTALL)
 
 
-def extract_vera_code(response_text: str) -> str:
-    """Extract Vera code from an LLM response.
+def extract_code(response_text: str) -> str:
+    """Extract code from an LLM response.
 
-    Handles markdown-fenced blocks (```vera ... ```) and bare code.
+    Handles markdown-fenced blocks and bare code.
     If multiple fenced blocks, picks the longest.
     """
     matches = _FENCE_RE.findall(response_text)
@@ -39,6 +43,10 @@ def extract_vera_code(response_text: str) -> str:
     else:
         code = response_text
     return code.strip() + "\n"
+
+
+# Backward-compatible alias
+extract_vera_code = extract_code
 
 
 @dataclass
@@ -142,13 +150,129 @@ def _evaluate_code(
     return result
 
 
+def _evaluate_python_code(
+    code: str,
+    problem: dict,
+    work_dir: Path,
+    attempt: int,
+) -> dict:
+    """Write Python code to a file and run test cases via subprocess."""
+    entry_point = problem.get("entry_point", "")
+    test_cases = problem.get("test_cases", [])
+
+    result: dict = {
+        "check_pass": True,
+        "verify_pass": None,
+        "verify_tier1": 0,
+        "verify_tier3": 0,
+        "run_correct": None,
+        "tests_total": 0,
+        "tests_passed": 0,
+        "error_message": None,
+    }
+
+    if not test_cases:
+        return result
+
+    # Write the generated code (sanitize ID for valid Python module name)
+    safe_id = problem["id"].replace("-", "_")
+    code_path = work_dir / f"{safe_id}_attempt{attempt}.py"
+    code_path.write_text(code, encoding="utf-8")
+
+    # Build test wrapper
+    wrapper_lines = [
+        "import json",
+        "import sys",
+        f"sys.path.insert(0, {str(work_dir)!r})",
+        f"from {code_path.stem} import {entry_point}",
+        "",
+        "results = []",
+    ]
+
+    for i, tc in enumerate(test_cases):
+        if not isinstance(tc, dict):
+            continue
+        args = tc.get("args", [])
+        expected = tc.get("expected")
+        if isinstance(expected, str) and expected in ("true", "false"):
+            expected = expected == "true"
+        args_repr = repr(args)
+        expected_repr = repr(expected)
+        wrapper_lines.extend(
+            [
+                "try:",
+                f"    actual_{i} = {entry_point}(*{args_repr})",
+                f"    passed_{i} = actual_{i} == {expected_repr}",
+                f'    results.append({{"passed": passed_{i},'
+                f' "actual": repr(actual_{i})}})',
+                "except Exception as e:",
+                '    results.append({"passed": False, "error": str(e)})',
+            ]
+        )
+
+    wrapper_lines.append("print(json.dumps(results))")
+    wrapper_path = work_dir / f"{safe_id}_test{attempt}.py"
+    wrapper_path.write_text("\n".join(wrapper_lines), encoding="utf-8")
+
+    # Execute with restricted cwd; strip API keys from env
+    run_env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+    try:
+        proc = subprocess.run(  # noqa: S603
+            [sys.executable, str(wrapper_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            cwd=work_dir,
+            env=run_env,
+        )
+    except subprocess.TimeoutExpired:
+        result["tests_total"] = len(test_cases)
+        result["run_correct"] = False
+        result["error_message"] = "Execution timed out"
+        return result
+
+    if proc.returncode != 0:
+        err = proc.stderr[:200] if proc.stderr else "Non-zero exit"
+        # Errors before test execution are analogous to check failures
+        check_errors = (
+            "SyntaxError",
+            "ImportError",
+            "ModuleNotFoundError",
+            "IndentationError",
+            "TabError",
+            "NameError",
+        )
+        is_check_fail = any(e in err for e in check_errors)
+        result["check_pass"] = not is_check_fail
+        result["tests_total"] = len(test_cases)
+        result["run_correct"] = False
+        result["error_message"] = err
+        return result
+
+    try:
+        test_results = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        result["tests_total"] = len(test_cases)
+        result["run_correct"] = False
+        result["error_message"] = f"Bad output: {proc.stdout[:100]}"
+        return result
+
+    passed = sum(1 for r in test_results if r.get("passed"))
+    result["tests_total"] = len(test_cases)
+    result["tests_passed"] = passed
+    result["run_correct"] = passed == len(test_cases)
+    return result
+
+
 def run_single_problem(
     problem: dict,
     client: LLMClient,
     skill_md: str,
-    vera: VeraRunner,
+    vera: VeraRunner | None,
     work_dir: Path,
     mode: str = "full-spec",
+    language: str = "vera",
     max_fix_attempts: int = 1,
     max_tokens: int = 4096,
 ) -> list[ProblemResult]:
@@ -159,7 +283,9 @@ def run_single_problem(
     results: list[ProblemResult] = []
 
     # Build prompt
-    if mode == "spec-from-nl":
+    if language == "python":
+        prompt = build_python_prompt(problem)
+    elif mode == "spec-from-nl":
         prompt = build_spec_from_nl_prompt(problem, skill_md)
     else:
         prompt = build_full_spec_prompt(problem, skill_md)
@@ -176,7 +302,7 @@ def run_single_problem(
             ProblemResult(
                 problem_id=problem["id"],
                 model="unknown",
-                language="vera",
+                language=language,
                 attempt=1,
                 check_pass=False,
                 error_message=f"API error: {e}",
@@ -185,14 +311,20 @@ def run_single_problem(
         )
         return results
 
-    code = extract_vera_code(llm_response.text)
-    eval_result = _evaluate_code(code, problem, vera, work_dir, attempt=1)
+    code = extract_code(llm_response.text)
+
+    if language == "python":
+        eval_result = _evaluate_python_code(code, problem, work_dir, attempt=1)
+    else:
+        if vera is None:
+            raise ValueError("VeraRunner required for language='vera'")
+        eval_result = _evaluate_code(code, problem, vera, work_dir, attempt=1)
 
     results.append(
         ProblemResult(
             problem_id=problem["id"],
             model=llm_response.model,
-            language="vera",
+            language=language,
             attempt=1,
             input_tokens=llm_response.input_tokens,
             output_tokens=llm_response.output_tokens,
@@ -202,8 +334,8 @@ def run_single_problem(
         )
     )
 
-    # Attempt 2: fix from error (if check failed)
-    if not eval_result["check_pass"] and max_fix_attempts > 0:
+    # Attempt 2: fix from error (Vera only — Python has no check step)
+    if language == "vera" and not eval_result["check_pass"] and max_fix_attempts > 0:
         fix_prompt = build_fix_prompt(code, eval_result.get("error_message", ""))
         try:
             fix_response = client.complete(
@@ -216,7 +348,7 @@ def run_single_problem(
                 ProblemResult(
                     problem_id=problem["id"],
                     model=llm_response.model,
-                    language="vera",
+                    language=language,
                     attempt=2,
                     check_pass=False,
                     error_message=f"Fix API error: {e}",
@@ -225,14 +357,14 @@ def run_single_problem(
             )
             return results
 
-        fix_code = extract_vera_code(fix_response.text)
+        fix_code = extract_code(fix_response.text)
         fix_eval = _evaluate_code(fix_code, problem, vera, work_dir, attempt=2)
 
         results.append(
             ProblemResult(
                 problem_id=problem["id"],
                 model=fix_response.model,
-                language="vera",
+                language=language,
                 attempt=2,
                 input_tokens=fix_response.input_tokens,
                 output_tokens=fix_response.output_tokens,
@@ -249,8 +381,9 @@ def run_benchmark(
     problems: list[dict],
     client: LLMClient,
     skill_md: str,
-    vera: VeraRunner,
+    vera: VeraRunner | None,
     mode: str = "full-spec",
+    language: str = "vera",
     output_path: Path | None = None,
     max_fix_attempts: int = 1,
     max_tokens: int = 4096,
@@ -274,6 +407,7 @@ def run_benchmark(
                     vera=vera,
                     work_dir=work_dir,
                     mode=mode,
+                    language=language,
                     max_fix_attempts=max_fix_attempts,
                     max_tokens=max_tokens,
                 )

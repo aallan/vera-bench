@@ -11,7 +11,7 @@ import pytest
 
 from vera_bench.metrics import compute_metrics
 from vera_bench.models import LLMResponse, create_client
-from vera_bench.runner import ProblemResult, extract_vera_code
+from vera_bench.runner import ProblemResult, extract_code, extract_vera_code
 
 # === extract_vera_code ===
 
@@ -392,3 +392,154 @@ class TestCLICommands:
         from vera_bench.cli import main
 
         assert "validate" in main.commands
+
+
+# === Python generation ===
+
+
+class TestPythonPrompt:
+    def test_build_python_prompt(self):
+        from vera_bench.prompts import build_python_prompt
+
+        problem = {
+            "description": "Compute absolute value",
+            "entry_point": "absolute_value",
+        }
+        result = build_python_prompt(problem)
+        assert "absolute_value" in result["user"]
+        assert "Python" in result["system"]
+        assert "Vera" not in result["system"]
+
+    def test_python_prompt_no_contracts(self):
+        from vera_bench.prompts import build_python_prompt
+
+        problem = {
+            "description": "Test problem",
+            "entry_point": "test_fn",
+            "contracts": {"requires": ["x > 0"]},
+        }
+        result = build_python_prompt(problem)
+        assert "requires" not in result["user"]
+
+
+class TestExtractCode:
+    def test_python_fence(self):
+        response = "```python\ndef foo():\n    return 42\n```"
+        result = extract_code(response)
+        assert "def foo" in result
+
+    def test_py_fence(self):
+        response = "```py\ndef bar():\n    pass\n```"
+        result = extract_code(response)
+        assert "def bar" in result
+
+    def test_backward_compat(self):
+        assert extract_vera_code is extract_code
+
+
+class TestEvaluatePythonCode:
+    def test_correct_code(self, tmp_path):
+        from vera_bench.runner import _evaluate_python_code
+
+        code = "def absolute_value(x):\n    return abs(x)\n"
+        problem = {
+            "id": "VB-T1-001",
+            "entry_point": "absolute_value",
+            "test_cases": [
+                {"args": [42], "expected": 42},
+                {"args": [-5], "expected": 5},
+            ],
+        }
+        result = _evaluate_python_code(code, problem, tmp_path, 1)
+        assert result["check_pass"] is True
+        assert result["run_correct"] is True
+        assert result["tests_passed"] == 2
+
+    def test_wrong_code(self, tmp_path):
+        from vera_bench.runner import _evaluate_python_code
+
+        code = "def absolute_value(x):\n    return x\n"
+        problem = {
+            "id": "VB-T1-001",
+            "entry_point": "absolute_value",
+            "test_cases": [
+                {"args": [-5], "expected": 5},
+            ],
+        }
+        result = _evaluate_python_code(code, problem, tmp_path, 1)
+        assert result["run_correct"] is False
+
+    def test_no_test_cases(self, tmp_path):
+        from vera_bench.runner import _evaluate_python_code
+
+        result = _evaluate_python_code(
+            "x = 1\n",
+            {"id": "X", "entry_point": "x", "test_cases": []},
+            tmp_path,
+            1,
+        )
+        assert result["run_correct"] is None
+
+
+class TestRunSingleProblemPython:
+    def test_python_language(self):
+        from vera_bench.runner import run_single_problem
+
+        client = MagicMock()
+        client.complete.return_value = LLMResponse(
+            text="def absolute_value(x):\n    return abs(x)\n",
+            input_tokens=100,
+            output_tokens=20,
+            wall_time_s=1.0,
+            model="mock",
+        )
+        problem = {
+            "id": "VB-T1-001",
+            "description": "Absolute value",
+            "entry_point": "absolute_value",
+            "test_cases": [{"args": [-5], "expected": 5}],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            results = run_single_problem(
+                problem=problem,
+                client=client,
+                skill_md="",
+                vera=None,
+                work_dir=Path(d),
+                language="python",
+            )
+        assert len(results) == 1
+        assert results[0].language == "python"
+        assert results[0].check_pass is True
+        assert results[0].run_correct is True
+
+    def test_python_no_fix_attempt(self):
+        """Python problems should never trigger a fix attempt."""
+        from vera_bench.runner import run_single_problem
+
+        client = MagicMock()
+        client.complete.return_value = LLMResponse(
+            text="def bad():\n    raise Exception('fail')\n",
+            input_tokens=100,
+            output_tokens=20,
+            wall_time_s=1.0,
+            model="mock",
+        )
+        problem = {
+            "id": "VB-T1-001",
+            "description": "Test",
+            "entry_point": "bad",
+            "test_cases": [{"args": [], "expected": 0}],
+        }
+        with tempfile.TemporaryDirectory() as d:
+            results = run_single_problem(
+                problem=problem,
+                client=client,
+                skill_md="",
+                vera=None,
+                work_dir=Path(d),
+                language="python",
+            )
+        # Only 1 result — no fix attempt for Python
+        assert len(results) == 1
+        assert client.complete.call_count == 1

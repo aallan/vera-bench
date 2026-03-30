@@ -45,6 +45,12 @@ def validate(problems_dir: Path | None, solutions_dir: Path | None):
 @click.option("--tier", type=int, default=None, help="Run only this tier (1-5)")
 @click.option("--problem", default=None, help="Run only this problem ID")
 @click.option(
+    "--language",
+    type=click.Choice(["vera", "python"]),
+    default="vera",
+    help="Target language for code generation",
+)
+@click.option(
     "--mode",
     type=click.Choice(["full-spec", "spec-from-nl"]),
     default="full-spec",
@@ -68,12 +74,13 @@ def validate(problems_dir: Path | None, solutions_dir: Path | None):
 @click.option(
     "--keep-temps",
     is_flag=True,
-    help="Keep temporary .vera files",
+    help="Keep temporary generated files",
 )
 def run(
     model: str,
     tier: int | None,
     problem: str | None,
+    language: str,
     mode: str,
     skill_md: Path | None,
     output_dir: Path | None,
@@ -86,6 +93,17 @@ def run(
     from vera_bench.prompts import load_skill_md
     from vera_bench.runner import run_benchmark
     from vera_bench.vera_runner import VeraRunner
+
+    # Warn on Vera-specific flags in Python mode
+    if language == "python":
+        if skill_md is not None:
+            console.print(
+                "[yellow]Warning: --skill-md is ignored with --language python[/yellow]"
+            )
+        if mode != "full-spec":
+            console.print(
+                "[yellow]Warning: --mode is ignored with --language python[/yellow]"
+            )
 
     root = _repo_root()
 
@@ -108,16 +126,19 @@ def run(
 
     console.print(f"Found {len(problems)} problems to evaluate.\n")
 
-    # Load SKILL.md
-    if skill_md is None:
-        skill_md = root / "context" / "SKILL.md"
-    skill_content = load_skill_md(skill_md)
+    # Load SKILL.md (only needed for Vera)
+    skill_content = ""
+    if language == "vera":
+        if skill_md is None:
+            skill_md = root / "context" / "SKILL.md"
+        skill_content = load_skill_md(skill_md)
 
     # Set up output
     if output_dir is None:
         output_dir = root / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{model}.jsonl"
+    suffix = f"-{language}" if language != "vera" else ""
+    output_path = output_dir / f"{model}{suffix}.jsonl"
 
     # Truncate stale results from previous runs
     if output_path.exists():
@@ -125,11 +146,12 @@ def run(
 
     # Create clients
     client = create_client(model)
-    vera = VeraRunner()
+    vera = VeraRunner() if language == "vera" else None
 
-    console.print(f"Model:   {model}")
-    console.print(f"Mode:    {mode}")
-    console.print(f"Output:  {output_path}\n")
+    console.print(f"Model:    {model}")
+    console.print(f"Language: {language}")
+    console.print(f"Mode:     {mode}")
+    console.print(f"Output:   {output_path}\n")
 
     # Run benchmark
     results = run_benchmark(
@@ -138,6 +160,7 @@ def run(
         skill_md=skill_content,
         vera=vera,
         mode=mode,
+        language=language,
         output_path=output_path,
         max_tokens=max_tokens,
         keep_temps=keep_temps,
@@ -146,7 +169,7 @@ def run(
     # Print summary
     if results:
         metrics = compute_metrics([json.loads(r.to_jsonl()) for r in results])
-        _print_metrics(model, metrics)
+        _print_metrics(model, metrics, language=language)
 
     console.print(f"\nResults written to {output_path}")
 
@@ -157,7 +180,7 @@ def _fmt_rate(rate: float | None) -> str:
     return f"{rate * 100:.0f}%"
 
 
-def _print_metrics(model: str, metrics) -> None:
+def _print_metrics(model: str, metrics, language: str = "vera") -> None:
     """Print a summary metrics table."""
     table = Table(title=f"Results: {model}")
     table.add_column("Metric", style="cyan")
@@ -165,8 +188,9 @@ def _print_metrics(model: str, metrics) -> None:
 
     table.add_row("Problems", str(metrics.total_problems))
     table.add_row("check@1", _fmt_rate(metrics.check_rate))
-    table.add_row("verify@1", _fmt_rate(metrics.verify_rate))
-    table.add_row("fix@1", _fmt_rate(metrics.fix_rate))
+    if language == "vera":
+        table.add_row("verify@1", _fmt_rate(metrics.verify_rate))
+        table.add_row("fix@1", _fmt_rate(metrics.fix_rate))
     table.add_row("run_correct", _fmt_rate(metrics.run_correct_rate))
 
     if metrics.by_tier:
@@ -248,6 +272,6 @@ def baselines(language: str, output_dir: Path | None):
     # Print summary
     if results:
         metrics = compute_metrics([json.loads(r.to_jsonl()) for r in results])
-        _print_metrics(f"{language}-baseline", metrics)
+        _print_metrics(f"{language}-baseline", metrics, language=language)
 
     console.print(f"\nResults written to {output_path}")

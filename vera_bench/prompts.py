@@ -66,6 +66,28 @@ def build_spec_from_nl_prompt(problem: dict, skill_md: str) -> dict:
     }
 
 
+PYTHON_SYSTEM_PROMPT = (
+    "You are an expert Python programmer. Write correct, concise Python 3.11+ code."
+)
+
+
+def build_python_prompt(problem: dict) -> dict:
+    """Build a prompt asking the model to write Python.
+
+    Returns dict with 'system' and 'user' keys.
+    """
+    entry_point = problem["entry_point"]
+    user_msg = (
+        f"{problem['description']}\n\n"
+        f"Write a Python function named `{entry_point}`. "
+        "Output only the Python code, no explanation."
+    )
+    return {
+        "system": PYTHON_SYSTEM_PROMPT,
+        "user": user_msg,
+    }
+
+
 def build_fix_prompt(original_code: str, error_output: str) -> dict:
     """Build a retry prompt after a failed check.
 
