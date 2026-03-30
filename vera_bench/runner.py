@@ -29,7 +29,9 @@ from vera_bench.vera_runner import VeraRunner
 
 console = Console()
 
-_FENCE_RE = re.compile(r"```(?:vera|python|py)?\s*\n(.*?)\n?```", re.DOTALL)
+_FENCE_RE = re.compile(
+    r"```(?:vera|python|py|typescript|ts)?\s*\n(.*?)\n?```", re.DOTALL
+)
 
 
 def extract_code(response_text: str) -> str:
