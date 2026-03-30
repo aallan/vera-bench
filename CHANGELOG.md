@@ -7,12 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-03-30
+
 ### Added
 
 - `--language python` flag on `vera-bench run` for cross-language LLM comparison
 - Python prompt builder (`build_python_prompt`) — minimal prompt without SKILL.md or contracts
 - Python code evaluation via subprocess with test wrapper
 - `extract_code()` now handles `python` and `py` fence tags alongside `vera`
+- Vera-specific metrics (verify@1, fix@1) hidden for Python runs
+- Warning when Vera-only flags are used with `--language python`
+- CHANGELOG.md, CODE_OF_CONDUCT.md, CONTRIBUTING.md, SECURITY.md
+- CI and Codecov badges in README
+
+### Security
+
+- Python subprocess runs with `cwd=work_dir` and API keys stripped from env
+- SyntaxError/ImportError/NameError in generated Python sets `check_pass=False`
+- Guard against None VeraRunner for non-Python languages
 
 ## [0.0.2] - 2026-03-29
 
@@ -49,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/aallan/vera-bench/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/aallan/vera-bench/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/aallan/vera-bench/releases/tag/v0.0.1
