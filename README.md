@@ -7,6 +7,27 @@
 
 A benchmark for evaluating LLM code generation in [Vera](https://github.com/aallan/vera), a programming language designed for large language models (LLMs) to write.
 
+## Initial Results
+
+First benchmark results from [VeraBench v0.0.4](https://github.com/aallan/vera-bench/releases/tag/v0.0.4) against [Vera v0.0.104](https://github.com/aallan/vera/releases/tag/v0.0.104) using a single run of [Claude Sonnet 4](https://platform.claude.com/docs/en/about-claude/models/overview#claude-4) (`claude-sonnet-4-20250514`) across 50 problems:
+
+| Mode | check@1 | verify@1 | fix@1 | run_correct |
+|------|---------|----------|-------|-------------|
+| Vera (full-spec) | 94% | 98% | 67% | 83% |
+| Vera (spec-from-NL) | 94% | 88% | 33% | 78% |
+| Python (LLM) | 100% | - | - | 92% |
+| TypeScript (LLM) | 100% | - | - | 79% |
+| Python baseline | 100% | - | - | 100% |
+| TypeScript baseline | 100% | - | - | 100% |
+
+**Vera with contracts provided outperforms TypeScript without them** — 83% vs 79% run_correct — despite being a novel language with zero presence in training data. Vera's mandatory contracts and typed slot references provide enough guardrails to compensate for the model having never seen the language before.
+
+**Python remains the strongest LLM target** at 92%, which is expected — it's the most represented language in training data. But the gap between Python and Vera (9 points) is remarkably small given that Vera requires De Bruijn indices, mandatory contracts, and explicit effect annotations that the model must learn entirely from the [SKILL.md](https://veralang.dev/SKILL.md) reference provided at evaluation time.
+
+**Writing contracts is harder than writing code.** The spec-from-NL mode (where the model must infer its own contracts from the natural language description) drops verify@1 by 10 points and halves fix@1. The implementation itself barely changes — check@1 holds at 94% — but getting the contracts right from NL alone is the real challenge.
+
+> **Note:** These are single-run results from one model. LLM outputs are non-deterministic — individual problems can flip between pass and fail across runs. Stable rates will require multiple trials ([pass@k](https://arxiv.org/abs/2107.03374) — sample k independent outputs per problem, count as passed if any output succeeds). More models and repeated runs are planned.
+
 ## Overview
 
 VeraBench measures whether LLMs write better code in a language designed for them. Vera uses typed slot references instead of variable names, mandatory contracts, and explicit algebraic effects — all features that should make LLM-generated code more verifiable.
@@ -110,13 +131,7 @@ vera-bench run --model claude-sonnet-4-20250514 --skill-md /path/to/SKILL.md
 
 ## Results
 
-Running `vera-bench report results/` generates `results/summary.md` with a per-model summary:
-
-| Model | check@1 | verify@1 | fix@1 | run_correct | Problems |
-|-------|---------|----------|-------|-------------|----------|
-| claude-sonnet-4-20250514 | 82% | 74% | 45% | 70% | 50 |
-
-Plus per-tier breakdowns and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so partial runs are resumable and always reportable.
+Running `vera-bench report results/` generates `results/summary.md` with a summary table, per-tier breakdowns, and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so partial runs are resumable and always reportable. Results files are in `.gitignore` — they are generated artifacts, not checked in.
 
 ## Prior art
 
