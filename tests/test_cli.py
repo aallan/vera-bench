@@ -95,7 +95,6 @@ class TestBaselinesCommand:
                 str(tmp_path),
             ],
         )
-        # May skip if tsx not available
         assert result.exit_code == 0
 
 

@@ -210,9 +210,18 @@ class TestLoadSkillMd:
         assert "Vera" in content
 
     def test_bad_url(self):
+        import urllib.error
+        from unittest.mock import patch
+
         from vera_bench.prompts import load_skill_md
 
-        with pytest.raises(RuntimeError, match="Failed to fetch"):
+        with (
+            patch(
+                "urllib.request.urlopen",
+                side_effect=urllib.error.URLError("not found"),
+            ),
+            pytest.raises(RuntimeError, match="Failed to fetch"),
+        ):
             load_skill_md("https://veralang.dev/nonexistent")
 
 
