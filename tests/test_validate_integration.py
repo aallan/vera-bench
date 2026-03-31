@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -19,6 +20,10 @@ from vera_bench.vera_runner import VeraRunner
 REPO_ROOT = Path(__file__).parent.parent
 PROBLEMS_DIR = REPO_ROOT / "problems"
 SOLUTIONS_DIR = REPO_ROOT / "solutions"
+
+pytestmark = pytest.mark.skipif(
+    shutil.which("vera") is None, reason="vera not available"
+)
 
 
 class TestFindVeraFile:

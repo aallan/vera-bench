@@ -16,7 +16,7 @@
 - [x] Strengthen problem descriptions for slot ordering (issue #13)
 - [x] Strengthen postconditions to catch slot-swap bugs (issue #14)
 - [ ] Improve SKILL.md coverage of where blocks (issue #15)
-- [x] Increase test coverage to >83% (issue #5, ongoing)
+- [x] Increase test coverage to 83% (issue #5, ongoing)
 
 ## Milestone 2: Longitudinal tracking
 

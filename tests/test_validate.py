@@ -175,11 +175,18 @@ class TestPrompts:
 
 class TestLoadSkillMd:
     def test_load_from_url(self):
+        from unittest.mock import MagicMock, patch
+
         from vera_bench.prompts import SKILL_MD_URL, load_skill_md
 
-        content = load_skill_md(SKILL_MD_URL)
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b"# Vera SKILL.md\nTest content"
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            content = load_skill_md(SKILL_MD_URL)
         assert "Vera" in content
-        assert len(content) > 1000
 
     def test_load_from_file(self, tmp_path):
         from vera_bench.prompts import load_skill_md
@@ -189,9 +196,17 @@ class TestLoadSkillMd:
         assert load_skill_md(f) == "test content"
 
     def test_load_default(self):
+        from unittest.mock import MagicMock, patch
+
         from vera_bench.prompts import load_skill_md
 
-        content = load_skill_md()  # defaults to URL
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b"# Vera"
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            content = load_skill_md()
         assert "Vera" in content
 
     def test_bad_url(self):

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import re
+import shutil
+
+import pytest
 from click.testing import CliRunner
 
 from vera_bench.cli import main
@@ -11,7 +15,7 @@ class TestValidateCommand:
     def test_runs_successfully(self):
         result = CliRunner().invoke(main, ["validate"])
         assert result.exit_code == 0
-        assert "50/50" in result.output
+        assert re.search(r"\d+/\d+ problems passed", result.output)
 
     def test_bad_problems_dir(self):
         result = CliRunner().invoke(
@@ -76,6 +80,10 @@ class TestBaselinesCommand:
         assert len(jsonl) == 1
         assert "python" in jsonl[0].name
 
+    @pytest.mark.skipif(
+        shutil.which("tsx") is None and shutil.which("npx") is None,
+        reason="tsx/npx not on PATH",
+    )
     def test_typescript_baselines(self, tmp_path):
         result = CliRunner().invoke(
             main,

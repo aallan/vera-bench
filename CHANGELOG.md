@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bench and vera compiler versions in JSONL filenames and result records (#20)
 - `VeraRunner.version()` method to query vera compiler version
-- 52 new tests across 3 new test files (test_cli.py, test_models.py,
-  test_vera_runner_integration.py) + expanded existing tests
+- 52 new tests across 4 new test files (test_cli.py, test_models.py,
+  test_validate_integration.py, test_vera_runner_integration.py)
+  plus expanded existing tests
 
 ### Changed
 

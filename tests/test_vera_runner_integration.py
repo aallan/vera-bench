@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    shutil.which("vera") is None, reason="vera not available"
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 SOLUTIONS_DIR = REPO_ROOT / "solutions" / "vera"
