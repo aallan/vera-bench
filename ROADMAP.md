@@ -2,7 +2,7 @@
 
 ## Where we are
 
-**v0.0.5** — 50 problems across 5 tiers with strengthened postconditions and explicit slot ordering descriptions. Working LLM harness (Anthropic + OpenAI), Python and TypeScript baseline runners, cross-language generation comparison. SKILL.md fetched from veralang.dev at runtime.
+**v0.0.6** — 50 problems across 5 tiers with strengthened postconditions and explicit slot ordering descriptions. Working LLM harness (Anthropic + OpenAI), Python and TypeScript baseline runners, cross-language generation comparison. SKILL.md fetched from veralang.dev at runtime.
 
 ## Milestone 1: Publication-ready benchmark (current)
 
@@ -16,7 +16,7 @@
 - [x] Strengthen problem descriptions for slot ordering (issue #13)
 - [x] Strengthen postconditions to catch slot-swap bugs (issue #14)
 - [ ] Improve SKILL.md coverage of where blocks (issue #15)
-- [ ] Increase test coverage to >90% (issue #5)
+- [x] Increase test coverage to >83% (issue #5, ongoing)
 
 ## Milestone 2: Longitudinal tracking
 

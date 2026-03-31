@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-03-30
+
+### Added
+
+- Bench and vera compiler versions in JSONL filenames and result records (#20)
+- `VeraRunner.version()` method to query vera compiler version
+- 52 new tests across 3 new test files (test_cli.py, test_models.py,
+  test_vera_runner_integration.py) + expanded existing tests
+
+### Changed
+
+- CI coverage threshold raised from 35% to 80%
+- Test coverage: 66% → 83% (324 → 376 tests)
+
 ## [0.0.5] - 2026-03-30
 
 ### Changed
@@ -95,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/aallan/vera-bench/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/aallan/vera-bench/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/aallan/vera-bench/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/aallan/vera-bench/compare/v0.0.2...v0.0.3

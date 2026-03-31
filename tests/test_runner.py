@@ -618,3 +618,88 @@ class TestEvaluateTypescriptCode:
             1,
         )
         assert result["run_correct"] is None
+
+
+# === Error paths ===
+
+
+class TestEvaluatePythonErrors:
+    def test_syntax_error(self, tmp_path):
+        from vera_bench.runner import _evaluate_python_code
+
+        code = "def broken(\n"  # unclosed paren
+        problem = {
+            "id": "VB-T1-001",
+            "entry_point": "broken",
+            "test_cases": [{"args": [1], "expected": 1}],
+        }
+        result = _evaluate_python_code(code, problem, tmp_path, 1)
+        # Syntax error causes import failure → run_correct=False
+        assert result["run_correct"] is False
+        assert result["error_message"] is not None
+
+    def test_runtime_error(self, tmp_path):
+        from vera_bench.runner import _evaluate_python_code
+
+        code = "def bad(x):\n    return 1 / 0\n"
+        problem = {
+            "id": "VB-T1-001",
+            "entry_point": "bad",
+            "test_cases": [{"args": [1], "expected": 1}],
+        }
+        result = _evaluate_python_code(code, problem, tmp_path, 1)
+        assert result["check_pass"] is True
+        assert result["run_correct"] is False
+
+    def test_wrong_output(self, tmp_path):
+        from vera_bench.runner import _evaluate_python_code
+
+        code = "def wrong(x):\n    return x + 1\n"
+        problem = {
+            "id": "VB-T1-001",
+            "entry_point": "wrong",
+            "test_cases": [{"args": [5], "expected": 5}],
+        }
+        result = _evaluate_python_code(code, problem, tmp_path, 1)
+        assert result["check_pass"] is True
+        assert result["run_correct"] is False
+        assert result["tests_passed"] == 0
+
+
+class TestRunBenchmarkIntegration:
+    def test_writes_jsonl(self, tmp_path):
+        from vera_bench.runner import run_benchmark
+
+        client = MagicMock()
+        client.complete.return_value = LLMResponse(
+            text="def absolute_value(x):\n    return abs(x)\n",
+            input_tokens=100,
+            output_tokens=20,
+            wall_time_s=1.0,
+            model="mock",
+        )
+        problem = {
+            "id": "VB-T1-001",
+            "description": "Abs",
+            "entry_point": "absolute_value",
+            "signature": "fn abs(@Int -> @Nat)",
+            "contracts": {
+                "requires": ["true"],
+                "ensures": ["true"],
+                "effects": "pure",
+            },
+            "test_cases": [{"args": [-5], "expected": 5}],
+        }
+        output = tmp_path / "test.jsonl"
+        results = run_benchmark(
+            problems=[problem],
+            client=client,
+            skill_md="",
+            vera=None,
+            language="python",
+            output_path=output,
+        )
+        assert len(results) >= 1
+        assert output.exists()
+        lines = output.read_text().strip().split("\n")
+        assert len(lines) >= 1
