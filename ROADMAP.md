@@ -2,7 +2,7 @@
 
 ## Where we are
 
-**v0.0.6** — 50 problems across 5 tiers with strengthened postconditions and explicit slot ordering descriptions. Working LLM harness (Anthropic + OpenAI), Python and TypeScript baseline runners, cross-language generation comparison. SKILL.md fetched from veralang.dev at runtime.
+**v0.0.7** — 50 problems across 5 tiers with strengthened postconditions and explicit slot ordering descriptions. Working LLM harness (Anthropic, OpenAI, Moonshot), Python and TypeScript baseline runners, cross-language generation comparison. Full benchmark runner script. SKILL.md fetched from veralang.dev at runtime.
 
 ## Milestone 1: Publication-ready benchmark (current)
 
