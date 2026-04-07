@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
 from vera_bench.models import create_client
@@ -38,9 +40,26 @@ class TestCreateClient:
         with pytest.raises((ImportError, EnvironmentError)):
             create_client("openai/gpt-4")
 
+    def test_moonshot(self, monkeypatch):
+        monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+        with pytest.raises((ImportError, EnvironmentError)):
+            create_client("moonshot/kimi-k2")
+
     def test_unknown(self):
         with pytest.raises(ValueError, match="Unknown model"):
             create_client("llama-3-70b")
+
+
+class TestMoonshotClient:
+    def test_missing_api_key(self, monkeypatch):
+        monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+        try:
+            from vera_bench.models import MoonshotClient
+
+            with pytest.raises(EnvironmentError, match="MOONSHOT_API_KEY"):
+                MoonshotClient("moonshot/kimi-k2")
+        except ImportError:
+            pytest.skip("openai package not installed")
 
 
 class TestAnthropicClient:
@@ -71,71 +90,96 @@ class TestAnthropicComplete:
     def test_complete_mock(self, monkeypatch):
         """Test Anthropic complete with a mocked SDK."""
         try:
-            import anthropic
+            import anthropic  # noqa: F401
+
+            from vera_bench.models import AnthropicClient
         except ImportError:
             pytest.skip("anthropic not installed")
 
-        from unittest.mock import MagicMock, patch
-
-        from vera_bench.models import AnthropicClient
-
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
 
-        with patch("vera_bench.models.anthropic") as mock_mod:
-            # Mock the client
-            mock_client = MagicMock()
-            mock_mod.Anthropic.return_value = mock_client
-            mock_mod.APITimeoutError = anthropic.APITimeoutError
+        client = AnthropicClient("claude-test")
 
-            # Mock response
-            mock_resp = MagicMock()
-            mock_resp.content = [MagicMock(text="hello")]
-            mock_resp.usage.input_tokens = 100
-            mock_resp.usage.output_tokens = 50
-            mock_resp.model = "claude-test"
-            mock_client.messages.create.return_value = mock_resp
+        mock_resp = MagicMock()
+        mock_resp.content = [MagicMock(text="hello")]
+        mock_resp.usage.input_tokens = 100
+        mock_resp.usage.output_tokens = 50
+        mock_resp.model = "claude-test"
+        client._client.messages.create = MagicMock(return_value=mock_resp)
 
-            client = AnthropicClient("claude-test")
-            result = client.complete("system", "user")
-            assert result.text == "hello"
-            assert result.input_tokens == 100
-            assert result.output_tokens == 50
+        result = client.complete("system", "user")
+        assert result.text == "hello"
+        assert result.input_tokens == 100
+        assert result.output_tokens == 50
+        assert result.model == "claude-test"
 
 
 class TestOpenAIComplete:
     def test_complete_mock(self, monkeypatch):
         """Test OpenAI complete with a mocked SDK."""
         try:
-            import openai
+            import openai  # noqa: F401
+
+            from vera_bench.models import OpenAIClient
         except ImportError:
             pytest.skip("openai not installed")
 
-        from unittest.mock import MagicMock, patch
-
-        from vera_bench.models import OpenAIClient
-
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-        with patch("vera_bench.models.openai") as mock_mod:
-            mock_client = MagicMock()
-            mock_mod.OpenAI.return_value = mock_client
-            mock_mod.APITimeoutError = openai.APITimeoutError
+        client = OpenAIClient("gpt-test")
 
-            mock_resp = MagicMock()
-            mock_choice = MagicMock()
-            mock_choice.message.content = "world"
-            mock_resp.choices = [mock_choice]
-            mock_resp.usage.prompt_tokens = 200
-            mock_resp.usage.completion_tokens = 75
-            mock_resp.model = "gpt-test"
-            chat = mock_client.with_options.return_value.chat
-            chat.completions.create.return_value = mock_resp
+        mock_resp = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = "world"
+        mock_resp.choices = [mock_choice]
+        mock_resp.usage.prompt_tokens = 200
+        mock_resp.usage.completion_tokens = 75
+        mock_resp.model = "gpt-test"
 
-            client = OpenAIClient("gpt-test")
-            result = client.complete("system", "user")
-            assert result.text == "world"
-            assert result.input_tokens == 200
-            assert result.output_tokens == 75
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = mock_resp
+        client._client = MagicMock()
+        client._client.with_options.return_value = mock_inner
+
+        result = client.complete("system", "user")
+        assert result.text == "world"
+        assert result.input_tokens == 200
+        assert result.output_tokens == 75
+        assert result.model == "gpt-test"
+
+
+class TestMoonshotComplete:
+    def test_complete_mock(self, monkeypatch):
+        """Test Moonshot complete with a mocked SDK."""
+        try:
+            import openai  # noqa: F401
+
+            from vera_bench.models import MoonshotClient
+        except ImportError:
+            pytest.skip("openai not installed")
+
+        monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
+
+        client = MoonshotClient("moonshot/kimi-k2")
+
+        mock_resp = MagicMock()
+        mock_choice = MagicMock()
+        mock_choice.message.content = "kimi response"
+        mock_resp.choices = [mock_choice]
+        mock_resp.usage.prompt_tokens = 150
+        mock_resp.usage.completion_tokens = 60
+        mock_resp.model = "kimi-k2"
+
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = mock_resp
+        client._client = MagicMock()
+        client._client.with_options.return_value = mock_inner
+
+        result = client.complete("system", "user")
+        assert result.text == "kimi response"
+        assert result.input_tokens == 150
+        assert result.output_tokens == 60
+        assert result.model == "kimi-k2"
 
 
 class TestLLMResponse:

@@ -32,6 +32,7 @@ def create_client(model: str) -> LLMClient:
 
     - claude-* -> AnthropicClient
     - gpt-*, o1-*, o3-* -> OpenAIClient
+    - moonshot/* -> MoonshotClient (OpenAI-compatible)
     """
     if model.startswith("claude-") or model.startswith("anthropic/"):
         return AnthropicClient(model)
@@ -42,8 +43,12 @@ def create_client(model: str) -> LLMClient:
         or model.startswith("openai/")
     ):
         return OpenAIClient(model)
+    if model.startswith("moonshot/"):
+        return MoonshotClient(model)
     raise ValueError(
-        f"Unknown model: {model!r}. Expected claude-*, gpt-*, o1-*, or o3-* prefix."
+        f"Unknown model: {model!r}. "
+        "Expected claude-*, anthropic/*, gpt-*, o1-*, o3-*, openai/*, "
+        "or moonshot/* prefix."
     )
 
 
@@ -134,6 +139,69 @@ class OpenAIClient:
             )
         except openai.APITimeoutError as e:
             raise TimeoutError(f"OpenAI API timed out: {e}") from e
+
+        elapsed = time.monotonic() - start
+        choice = response.choices[0] if response.choices else None
+        text = (
+            choice.message.content
+            if choice and choice.message and choice.message.content
+            else ""
+        )
+        usage = response.usage
+        return LLMResponse(
+            text=text or "",
+            input_tokens=usage.prompt_tokens if usage else 0,
+            output_tokens=usage.completion_tokens if usage else 0,
+            wall_time_s=round(elapsed, 2),
+            model=response.model or self._model,
+        )
+
+
+MOONSHOT_BASE_URL = "https://api.moonshot.cn/v1"
+
+
+class MoonshotClient:
+    """Moonshot (Kimi) client — OpenAI-compatible API."""
+
+    def __init__(self, model: str) -> None:
+        try:
+            import openai  # noqa: F811
+        except ImportError:
+            raise ImportError(
+                "openai package required for Moonshot. "
+                "Install with: pip install vera-bench[llm]"
+            ) from None
+
+        api_key = os.environ.get("MOONSHOT_API_KEY")
+        if not api_key:
+            raise EnvironmentError("MOONSHOT_API_KEY environment variable not set")
+
+        self._client = openai.OpenAI(api_key=api_key, base_url=MOONSHOT_BASE_URL)
+        self._model = model.removeprefix("moonshot/")
+
+    def complete(
+        self,
+        system: str,
+        user: str,
+        max_tokens: int = 4096,
+        timeout: float = 120.0,
+    ) -> LLMResponse:
+        import openai
+
+        start = time.monotonic()
+        try:
+            response = self._client.with_options(
+                timeout=timeout
+            ).chat.completions.create(
+                model=self._model,
+                max_tokens=max_tokens,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+            )
+        except openai.APITimeoutError as e:
+            raise TimeoutError(f"Moonshot API timed out: {e}") from e
 
         elapsed = time.monotonic() - start
         choice = response.choices[0] if response.choices else None

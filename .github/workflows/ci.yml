@@ -62,7 +62,7 @@ jobs:
         run: pip install git+https://github.com/aallan/vera.git
 
       - name: Install vera-bench
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,llm]"
 
       - name: Run tests
         if: matrix.python-version != '3.12'

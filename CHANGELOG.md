@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-04-07
+
+### Added
+
+- Moonshot (Kimi) provider support — OpenAI-compatible API via `moonshot/*` model prefix
+- `MoonshotClient` in models.py using `api.moonshot.cn/v1` base URL
+- `scripts/run_full_benchmark.py` — run all 6 benchmark targets with one command
+  (interactive mode with provider/model/key menus, or autonomous via CLI args)
+- Secure API key input via `getpass` in interactive mode
+
 ## [0.0.6] - 2026-03-30
 
 ### Added
@@ -110,7 +120,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/aallan/vera-bench/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/aallan/vera-bench/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/aallan/vera-bench/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/aallan/vera-bench/compare/v0.0.3...v0.0.4
