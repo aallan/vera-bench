@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "VeraBench: a benchmark suite for LLM code generation in Vera"
+message: "If you use this benchmark, please cite it as below."
+type: software
+version: "0.0.6"
+date-released: "2026-03-31"
+authors:
+  - given-names: Alasdair
+    family-names: Allan
+    email: alasdair@babilim.co.uk
+repository-code: "https://github.com/aallan/vera-bench"
+url: "https://veralang.dev"
+license: MIT
+keywords:
+  - benchmark
+  - llm
+  - code-generation
+  - vera
+  - formal-verification
+  - contracts
