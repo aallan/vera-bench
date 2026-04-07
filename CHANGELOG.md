@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Moonshot (Kimi) provider support — OpenAI-compatible API via `moonshot/*` model prefix
-- `MoonshotClient` in models.py using `api.moonshot.cn/v1` base URL
+- `MoonshotClient` in models.py using `api.moonshot.ai/v1` base URL
 - `scripts/run_full_benchmark.py` — run all 6 benchmark targets with one command
   (interactive mode with provider/model/key menus, or autonomous via CLI args)
 - Secure API key input via `getpass` in interactive mode

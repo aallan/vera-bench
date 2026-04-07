@@ -126,7 +126,7 @@ vera-bench report results/
 python scripts/run_full_benchmark.py
 ```
 
-Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), and [Moonshot](https://moonshot.cn) (Kimi). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `MOONSHOT_API_KEY`).
+Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), and [Moonshot](https://moonshot.ai) (Kimi). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `MOONSHOT_API_KEY`).
 
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
 

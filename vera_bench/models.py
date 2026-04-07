@@ -157,7 +157,7 @@ class OpenAIClient:
         )
 
 
-MOONSHOT_BASE_URL = "https://api.moonshot.cn/v1"
+MOONSHOT_BASE_URL = "https://api.moonshot.ai/v1"
 
 
 class MoonshotClient:
