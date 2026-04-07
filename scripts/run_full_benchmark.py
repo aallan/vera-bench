@@ -25,6 +25,7 @@ Runs all 6 targets:
 from __future__ import annotations
 
 import argparse
+import getpass
 import os
 import subprocess
 import sys
@@ -115,7 +116,7 @@ def _ensure_api_key(model: str, api_key: str | None) -> dict:
     key = api_key or os.environ.get(env_key)
 
     if not key:
-        key = input(f"\nEnter {env_key}: ").strip()
+        key = getpass.getpass(f"\nEnter {env_key}: ").strip()
         if not key:
             print(f"Error: {env_key} is required.")
             sys.exit(1)

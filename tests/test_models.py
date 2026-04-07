@@ -38,9 +38,26 @@ class TestCreateClient:
         with pytest.raises((ImportError, EnvironmentError)):
             create_client("openai/gpt-4")
 
+    def test_moonshot(self, monkeypatch):
+        monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+        with pytest.raises((ImportError, EnvironmentError)):
+            create_client("moonshot/kimi-k2")
+
     def test_unknown(self):
         with pytest.raises(ValueError, match="Unknown model"):
             create_client("llama-3-70b")
+
+
+class TestMoonshotClient:
+    def test_missing_api_key(self, monkeypatch):
+        monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+        try:
+            from vera_bench.models import MoonshotClient
+
+            with pytest.raises(EnvironmentError, match="MOONSHOT_API_KEY"):
+                MoonshotClient("moonshot/kimi-k2")
+        except ImportError:
+            pytest.skip("openai package not installed")
 
 
 class TestAnthropicClient:
