@@ -109,8 +109,8 @@ def _ensure_api_key(model: str, api_key: str | None) -> dict:
     env_key = PROVIDER_ENV_KEYS.get(provider)
 
     if not env_key:
-        print(f"Warning: unknown provider for {model}")
-        return dict(os.environ)
+        print(f"Error: unknown provider for model {model!r}")
+        sys.exit(1)
 
     # Check sources in order: --api-key flag, environment, interactive
     key = api_key or os.environ.get(env_key)
