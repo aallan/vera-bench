@@ -134,7 +134,6 @@ def plot_vera_vs_both(ax, flagship: dict, sonnet: dict):
         color=colors_py,
         edgecolor=CREAM,
         linewidth=0.5,
-        label="vs Python",
         alpha=0.85,
     )
     colors_ts = [GREEN if d >= 0 else RED for d in delta_ts]
@@ -145,7 +144,6 @@ def plot_vera_vs_both(ax, flagship: dict, sonnet: dict):
         color=colors_ts,
         edgecolor=CREAM,
         linewidth=0.5,
-        label="vs TypeScript",
         alpha=0.55,
         hatch="//",
     )
@@ -196,7 +194,16 @@ def plot_vera_vs_both(ax, flagship: dict, sonnet: dict):
     _style_ax(ax)
     ax.set_xlim(-22, 22)
     ax.invert_yaxis()
-    ax.legend(loc="lower right", fontsize=9, framealpha=0.8, edgecolor=BROWN_300)
+
+    # fmt: off
+    # Neutral grey legend swatches (not red/green)
+    from matplotlib.patches import Patch  # noqa: E402
+    legend_handles = [
+        Patch(facecolor="#888888", edgecolor=CREAM, alpha=0.85, label="vs Python"),
+        Patch(facecolor="#aaaaaa", edgecolor=CREAM, alpha=0.55, hatch="//", label="vs TypeScript"),  # noqa: E501
+    ]
+    ax.legend(handles=legend_handles, loc="lower right", fontsize=9, framealpha=0.8, edgecolor=BROWN_300)  # noqa: E501
+    # fmt: on
 
 
 def plot_all_modes(ax, flagship: dict, sonnet: dict):
@@ -292,17 +299,16 @@ def main():
     ax_footer = fig.add_subplot(gs[3, :])
     ax_footer.axis("off")
 
+    # fmt: off
     explanation = (
-        "Vera (full-spec):  The model receives the complete Vera\n"
-        "type signature and contracts (requires/ensures/effects)\n"
-        "in the prompt. It only needs to write the function body."
-        "\n\n"
-        "Vera (spec-from-NL):  The model receives only a natural\n"
-        "language description. It must infer the contracts itself,\n"
-        "then write the code. This tests whether the model\n"
-        "understands Vera\u2019s type system well enough to author\n"
-        "correct specifications from scratch."
+        "Vera (full-spec):  The model receives the complete Vera type signature and contracts (requires/ensures/effects) in the\n"  # noqa: E501
+        "prompt. It only needs to write the function body.\n"
+        "\n"
+        "Vera (spec-from-NL):  The model receives only a natural language description. It must infer the contracts itself, then\n"  # noqa: E501
+        "write the code. This tests whether the model understands Vera\u2019s type system well enough to author correct specifications\n"  # noqa: E501
+        "from scratch."
     )
+    # fmt: on
     ax_footer.text(
         0.0,
         0.95,
