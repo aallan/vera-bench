@@ -9,7 +9,7 @@ A benchmark for evaluating LLM code generation in [Vera](https://github.com/aall
 
 ## Results
 
-![VeraBench v0.0.7 Results](results/benchmark_v0.0.7.png)
+![VeraBench v0.0.7 Results](assets/benchmark_v0.0.7.png)
 
 Results from [VeraBench v0.0.7](https://github.com/aallan/vera-bench/releases/tag/v0.0.7) against [Vera v0.0.108](https://github.com/aallan/vera/releases/tag/v0.0.108) across 50 problems, 6 models, and 4 modes per model.
 

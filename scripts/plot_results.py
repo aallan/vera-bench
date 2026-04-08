@@ -256,7 +256,7 @@ def main():
         linespacing=1.6,
     )
 
-    out = "results/benchmark_v0.0.7.png"
+    out = "assets/benchmark_v0.0.7.png"
     fig.savefig(out, dpi=180, facecolor="white")
     print(f"Saved: {out}")
     plt.close()
