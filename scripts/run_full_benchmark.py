@@ -127,11 +127,11 @@ def _ensure_api_key(model: str, api_key: str | None) -> dict:
     return env
 
 
-def _run(cmd: list[str], env: dict, timeout: int = 1800) -> int:
+def _run(cmd: list[str], env: dict, timeout: int = 3600) -> int:
     """Run a vera-bench command, streaming output.
 
     Args:
-        timeout: Maximum seconds per target (default 30 minutes).
+        timeout: Maximum seconds per target (default 60 minutes).
     """
     print(f"\n{'=' * 60}")
     print(f"Running: {' '.join(cmd)}")
