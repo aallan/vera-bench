@@ -6,17 +6,19 @@
 
 ## Milestone 1: Publication-ready benchmark (current)
 
-- [ ] Run against 5+ models (Claude Opus/Sonnet, GPT-4o, DeepSeek, Gemini)
+- [x] Run against 6 models across 3 providers — Claude Opus 4 / Sonnet 4, GPT-4.1 / 4o, Kimi K2.5 / K2 Turbo (v0.0.7)
+- [ ] Expand provider coverage — Mistral, xAI Grok, DeepSeek, Gemini (issue [#24](https://github.com/aallan/vera-bench/issues/24))
+- [ ] Refactor `models.py` to a provider registry before adding more (issue [#45](https://github.com/aallan/vera-bench/issues/45))
 - [x] Run spec-from-NL mode comparison (issue #7)
 - [x] TypeScript baseline runner and LLM generation
-- [ ] Generate paper-quality figures (matplotlib/seaborn in analysis/)
+- [x] Generate paper-quality figures (matplotlib in `scripts/plot_results.py`, v0.0.7)
 - [ ] Hugging Face dataset export
-- [ ] CITATION.cff
+- [x] CITATION.cff
 - [ ] Expand to 75+ problems (15 per tier)
 - [x] Strengthen problem descriptions for slot ordering (issue #13)
 - [x] Strengthen postconditions to catch slot-swap bugs (issue #14)
 - [ ] Improve SKILL.md coverage of where blocks (issue #15)
-- [x] Increase test coverage to 83% (issue #5, ongoing)
+- [x] Increase test coverage to 85% (issue #5, ongoing — target 90%)
 
 ## Milestone 2: Longitudinal tracking
 
