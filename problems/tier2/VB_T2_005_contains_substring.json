@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "Contains Substring",
   "description": "Write a Vera function that checks if the first string contains the second string as a substring. Use the string_contains built-in function. The first parameter is the haystack, the second is the needle.",
+  "description_neutral": "Check if the first string contains the second string as a substring.",
   "signature": "public fn contains_substring(@String, @String -> @Bool)",
   "contracts": {
     "requires": ["true"],

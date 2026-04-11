@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "List Last",
   "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors, and an Option ADT with None and Some(Int). Write a function that returns the last element of the list as Some(Int), or None for an empty list.",
+  "description_neutral": "Define a linked list type and an option type. Write a function that returns the last element of the list, or none if the list is empty.",
   "signature": "public fn list_last(@List -> @Option)",
   "contracts": {
     "requires": ["true"],

@@ -1,0 +1,38 @@
+module TreeDepth
+    intent = "Computes the depth of a binary tree using recursive pattern matching."
+    exposes [Tree, tree_depth]
+
+type Tree
+    Leaf(Int)
+    Branch(Tree, Tree)
+
+fn max_int(a: Int, b: Int) -> Int
+    ? "Returns the larger of two integers."
+    match a >= b
+        true -> a
+        false -> b
+
+verify max_int
+    max_int(1, 2) => 2
+    max_int(5, 3) => 5
+    max_int(0, 0) => 0
+
+fn tree_depth(t: Tree) -> Int
+    ? "Returns the depth of the tree. A leaf has depth 1."
+    match t
+        Tree.Leaf(_) -> 1
+        Tree.Branch(l, r) -> 1 + max_int(tree_depth(l), tree_depth(r))
+
+verify tree_depth
+    tree_depth(Tree.Leaf(1)) => 1
+    tree_depth(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))) => 2
+    tree_depth(Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))) => 3
+
+fn main() -> Unit
+    ! [Console.print]
+    leaf = Tree.Leaf(42)
+    shallow = Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))
+    deep = Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))
+    Console.print(tree_depth(leaf))
+    Console.print(tree_depth(shallow))
+    Console.print(tree_depth(deep))

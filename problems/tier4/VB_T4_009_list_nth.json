@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "List Nth",
   "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors. Write a function that returns the nth element (0-indexed), or -1 if the index is out of bounds. The decreases clause should be on the list parameter.",
+  "description_neutral": "Define a linked list type with nil and cons constructors. Write a function that returns the nth element (0-indexed), or -1 if the index is out of bounds.",
   "signature": "public fn list_nth(@List, @Nat -> @Int)",
   "contracts": {
     "requires": ["true"],

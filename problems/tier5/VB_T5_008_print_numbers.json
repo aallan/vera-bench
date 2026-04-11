@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "Print Numbers",
   "description": "Write a function that prints the numbers 1 through n, each on its own line. Declare the IO effect with a print operation. Use a pure helper to format each number as a string. The main function should have effects(<IO>) and use a recursive loop helper via a where block.",
+  "description_neutral": "Print the numbers 1 through n, each on its own line.",
   "signature": "public fn print_numbers(@Nat -> @Unit)",
   "contracts": {
     "requires": ["@Nat.0 >= 0"],

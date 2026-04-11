@@ -1,0 +1,18 @@
+module Greeting
+    intent = "Generates a greeting string from a name using string interpolation."
+    exposes [greeting]
+
+fn greeting(name: String) -> String
+    ? "Returns a greeting in the form Hello, <name>!"
+    "Hello, {name}!"
+
+verify greeting
+    greeting("Alice") => "Hello, Alice!"
+    greeting("World") => "Hello, World!"
+    greeting("Aver") => "Hello, Aver!"
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(greeting("Alice"))
+    Console.print(greeting("World"))
+    Console.print(greeting("Aver"))

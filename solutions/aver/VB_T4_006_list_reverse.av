@@ -1,0 +1,29 @@
+module ListReverse
+    intent =
+        "Reverses a list using the accumulator pattern."
+    exposes [list_reverse]
+
+fn reverse_acc(xs: List<Int>, acc: List<Int>) -> List<Int>
+    ? "Tail-recursive helper that moves elements from xs to acc one at a time."
+    match xs
+        [] -> acc
+        [h, ..t] -> reverse_acc(t, List.prepend(h, acc))
+
+verify reverse_acc
+    reverse_acc([1, 2, 3], []) => [3, 2, 1]
+    reverse_acc([], [5])       => [5]
+
+fn list_reverse(xs: List<Int>) -> List<Int>
+    ? "Reverses a list using an accumulator."
+    reverse_acc(xs, [])
+
+verify list_reverse
+    list_reverse([1, 2, 3]) => [3, 2, 1]
+    list_reverse([])         => []
+    list_reverse([42])       => [42]
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(list_reverse([1, 2, 3]))
+    Console.print(list_reverse([]))
+    Console.print(list_reverse([42]))

@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Count Digits",
   "description": "Write a Vera function that counts the number of decimal digits in a natural number. The number 0 has 1 digit. For n >= 10, recursively count digits of n / 10 and add 1. The postcondition should guarantee the result is at least 1.",
+  "description_neutral": "Count the number of decimal digits in a non-negative integer. The number 0 has 1 digit.",
   "signature": "public fn count_digits(@Nat -> @Nat)",
   "contracts": {
     "requires": ["true"],

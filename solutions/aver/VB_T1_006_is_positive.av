@@ -1,0 +1,19 @@
+module IsPositive
+    intent = "Checks whether an integer is strictly positive."
+
+fn is_positive(x: Int) -> Bool
+    ? "Returns true if x > 0, false otherwise."
+    x > 0
+
+verify is_positive
+    is_positive(5)   => true
+    is_positive(-3)  => false
+    is_positive(0)   => false
+    is_positive(1)   => true
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(is_positive(5))
+    Console.print(is_positive(-3))
+    Console.print(is_positive(0))
+    Console.print(is_positive(1))

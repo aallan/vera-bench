@@ -1,0 +1,23 @@
+module SumToN
+    intent =
+        "Computes the sum 0+1+...+n using recursion."
+    exposes [sum_to_n]
+
+fn sum_to_n(n: Int) -> Int
+    ? "Returns the sum of integers from 0 to n."
+    match n
+        0 -> 0
+        _ -> n + sum_to_n(n - 1)
+
+verify sum_to_n
+    sum_to_n(0)  => 0
+    sum_to_n(1)  => 1
+    sum_to_n(5)  => 15
+    sum_to_n(10) => 55
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(sum_to_n(0))
+    Console.print(sum_to_n(1))
+    Console.print(sum_to_n(5))
+    Console.print(sum_to_n(10))

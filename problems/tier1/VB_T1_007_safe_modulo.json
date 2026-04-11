@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Safe Modulo",
   "description": "Write a Vera function that computes a modulo b with a precondition that the divisor is non-zero. The postcondition should guarantee the result equals a % b.",
+  "description_neutral": "Compute a modulo b. The divisor must be non-zero.",
   "signature": "public fn safe_modulo(@Int, @Int -> @Int)",
   "contracts": {
     "requires": ["@Int.0 != 0"],

@@ -1,0 +1,22 @@
+module ExnNegate
+    intent = "Clamps negative integers to zero, replacing exception-based control flow with pattern matching."
+    exposes [safe_non_negative]
+
+fn safe_non_negative(x: Int) -> Int
+    ? "Returns x if non-negative, otherwise 0."
+    match x < 0
+        true  -> 0
+        false -> x
+
+verify safe_non_negative
+    safe_non_negative(5)   => 5
+    safe_non_negative(-3)  => 0
+    safe_non_negative(0)   => 0
+    safe_non_negative(100) => 100
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(safe_non_negative(5))
+    Console.print(safe_non_negative(-3))
+    Console.print(safe_non_negative(0))
+    Console.print(safe_non_negative(100))

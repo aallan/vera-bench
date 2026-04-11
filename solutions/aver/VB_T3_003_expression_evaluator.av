@@ -1,0 +1,29 @@
+module ExpressionEvaluator
+    intent = "Evaluates a simple expression tree with literals, addition, and negation."
+    exposes [Expr, eval_expr]
+
+type Expr
+    Lit(Int)
+    Add(Expr, Expr)
+    Neg(Expr)
+
+fn eval_expr(e: Expr) -> Int
+    ? "Recursively evaluates an expression tree to an integer."
+    match e
+        Expr.Lit(n) -> n
+        Expr.Add(a, b) -> eval_expr(a) + eval_expr(b)
+        Expr.Neg(inner) -> 0 - eval_expr(inner)
+
+verify eval_expr
+    eval_expr(Expr.Lit(5)) => 5
+    eval_expr(Expr.Add(Expr.Lit(2), Expr.Lit(3))) => 5
+    eval_expr(Expr.Neg(Expr.Lit(7))) => -7
+    eval_expr(Expr.Add(Expr.Lit(10), Expr.Neg(Expr.Lit(3)))) => 7
+    eval_expr(Expr.Neg(Expr.Neg(Expr.Lit(4)))) => 4
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(eval_expr(Expr.Lit(5)))
+    Console.print(eval_expr(Expr.Add(Expr.Lit(2), Expr.Lit(3))))
+    Console.print(eval_expr(Expr.Neg(Expr.Lit(7))))
+    Console.print(eval_expr(Expr.Add(Expr.Lit(10), Expr.Neg(Expr.Lit(3)))))

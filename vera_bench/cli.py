@@ -46,7 +46,7 @@ def validate(problems_dir: Path | None, solutions_dir: Path | None):
 @click.option("--problem", default=None, help="Run only this problem ID")
 @click.option(
     "--language",
-    type=click.Choice(["vera", "python", "typescript"]),
+    type=click.Choice(["vera", "python", "typescript", "aver"]),
     default="vera",
     help="Target language for code generation",
 )
@@ -94,8 +94,8 @@ def run(
     from vera_bench.runner import run_benchmark
     from vera_bench.vera_runner import VeraRunner
 
-    # Warn on Vera-specific flags in non-Vera mode
-    if language != "vera":
+    # Warn on flags that are ignored for the selected language
+    if language not in ("vera", "aver"):
         if skill_md is not None:
             console.print(
                 f"[yellow]Warning: --skill-md is ignored "
@@ -106,6 +106,11 @@ def run(
                 f"[yellow]Warning: --mode is ignored "
                 f"with --language {language}[/yellow]"
             )
+    if language == "aver" and mode != "full-spec":
+        console.print(
+            f"[yellow]Warning: --mode {mode} is ignored "
+            f"with --language aver[/yellow]"
+        )
 
     root = _repo_root()
 
@@ -128,7 +133,7 @@ def run(
 
     console.print(f"Found {len(problems)} problems to evaluate.\n")
 
-    # Load SKILL.md (only needed for Vera)
+    # Load language spec (SKILL.md for Vera, llms.txt for Aver)
     skill_content = ""
     if language == "vera":
         import hashlib
@@ -139,6 +144,15 @@ def run(
         skill_content = load_skill_md(skill_md)
         content_hash = hashlib.sha256(skill_content.encode()).hexdigest()[:12]
         console.print(f"SKILL.md: {source} ({content_hash})")
+    elif language == "aver":
+        import hashlib
+
+        from vera_bench.prompts import AVER_LLMS_TXT_URL, load_aver_llms_txt
+
+        source = str(skill_md) if skill_md else AVER_LLMS_TXT_URL
+        skill_content = load_aver_llms_txt(skill_md)
+        content_hash = hashlib.sha256(skill_content.encode()).hexdigest()[:12]
+        console.print(f"llms.txt: {source} ({content_hash})")
 
     # Versions
     import vera_bench
@@ -149,6 +163,27 @@ def run(
     client = create_client(model)
     vera = VeraRunner() if language == "vera" else None
     vera_ver = vera.version() if vera else ""
+
+    # Get Aver version if running Aver
+    aver_ver = ""
+    if language == "aver":
+        import subprocess as _sp
+
+        try:
+            _av_proc = _sp.run(  # noqa: S603
+                ["aver", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            aver_ver = _av_proc.stdout.strip().replace("aver ", "")
+        except (FileNotFoundError, _sp.TimeoutExpired):
+            console.print(
+                "[red]Error: aver not found on PATH. "
+                "Install with: cargo install aver-lang[/red]"
+            )
+            raise SystemExit(1)
 
     # Set up output — dots to hyphens in versions for clean filenames
     def _ver_slug(v: str) -> str:
@@ -165,6 +200,8 @@ def run(
     parts.append(f"bench-{_ver_slug(bench_ver)}")
     if vera_ver and vera_ver != "unknown":
         parts.append(f"vera-{_ver_slug(vera_ver)}")
+    if aver_ver and aver_ver != "unknown":
+        parts.append(f"aver-{_ver_slug(aver_ver)}")
     output_path = output_dir / f"{'-'.join(parts)}.jsonl"
 
     # Truncate stale results from previous runs
@@ -175,6 +212,8 @@ def run(
     console.print(f"Language: {language}")
     console.print(f"Mode:     {mode}")
     console.print(f"Bench:    v{bench_ver}")
+    if aver_ver:
+        console.print(f"Aver:     v{aver_ver}")
     if vera_ver:
         console.print(f"Vera:     v{vera_ver}")
     console.print(f"Output:   {output_path}\n")
@@ -216,7 +255,7 @@ def _print_metrics(model: str, metrics, language: str = "vera") -> None:
 
     table.add_row("Problems", str(metrics.total_problems))
     table.add_row("check@1", _fmt_rate(metrics.check_rate))
-    if language == "vera":
+    if language in ("vera", "aver"):
         table.add_row("verify@1", _fmt_rate(metrics.verify_rate))
         table.add_row("fix@1", _fmt_rate(metrics.fix_rate))
     table.add_row("run_correct", _fmt_rate(metrics.run_correct_rate))
@@ -249,7 +288,7 @@ def report(results_dir: Path):
 @main.command()
 @click.option(
     "--language",
-    type=click.Choice(["python", "typescript"]),
+    type=click.Choice(["python", "typescript", "aver"]),
     default="python",
     help="Baseline language to run",
 )

@@ -1,0 +1,31 @@
+module SafeDivisionExceptions
+    intent = "Performs integer division, returning -1 on division by zero."
+    exposes [safe_div]
+
+fn try_div(a: Int, b: Int) -> Result<Int, String>
+    ? "Returns Ok(a/b) or Err if b is zero."
+    match b == 0
+        true  -> Result.Err("division by zero")
+        false -> Result.Ok(a / b)
+
+fn safe_div(a: Int, b: Int) -> Int
+    ? "Returns a/b, or -1 if b is zero."
+    match try_div(a, b)
+        Result.Ok(v)  -> v
+        Result.Err(_) -> 0 - 1
+
+verify try_div
+    try_div(10, 2) => Result.Ok(5)
+    try_div(7, 0)  => Result.Err("division by zero")
+    try_div(0, 1)  => Result.Ok(0)
+
+verify safe_div
+    safe_div(10, 2) => 5
+    safe_div(7, 0)  => 0 - 1
+    safe_div(0, 1)  => 0
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(safe_div(10, 2))
+    Console.print(safe_div(7, 0))
+    Console.print(safe_div(0, 1))

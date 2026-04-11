@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Fibonacci",
   "description": "Write a Vera function that computes the nth Fibonacci number. fib(0) = 0, fib(1) = 1, fib(n) = fib(n-1) + fib(n-2). The function must include a decreases clause proving termination.",
+  "description_neutral": "Compute the nth Fibonacci number. fib(0) = 0, fib(1) = 1, fib(n) = fib(n-1) + fib(n-2).",
   "signature": "public fn fibonacci(@Nat -> @Nat)",
   "contracts": {
     "requires": [

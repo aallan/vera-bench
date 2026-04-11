@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "Join Strings",
   "description": "Write a Vera function that joins an array of strings with a separator string. Use the string_join built-in function.",
+  "description_neutral": "Join a list of strings with a separator string.",
   "signature": "public fn join_strings(@Array<String>, @String -> @String)",
   "contracts": {
     "requires": ["true"],

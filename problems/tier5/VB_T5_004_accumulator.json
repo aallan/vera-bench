@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "Accumulator",
   "description": "Write a function that sums the integers from 1 to n using State<Int> effect. Create a pure helper function for addition. The main function should use handle[State<Int>] to manage state, with get and put operations inlined in the handler. Use a where block for the loop helper that has effects(<State<Int>>).",
+  "description_neutral": "Compute the sum of integers from 1 to n using a stateful accumulator pattern. Use a helper function for addition.",
   "signature": "public fn sum_with_state(@Nat -> @Int)",
   "contracts": {
     "requires": ["true"],

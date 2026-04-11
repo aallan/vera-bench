@@ -1,0 +1,23 @@
+module ListNth
+    intent =
+        "Returns the element at a 0-based index in a list, or -1 if out of bounds."
+    exposes [list_nth]
+
+fn list_nth(xs: List<Int>, index: Int) -> Int
+    ? "Returns the element at index, or -1 if out of bounds."
+    match xs
+        [] -> 0 - 1
+        [h, ..t] -> match index
+            0 -> h
+            _ -> list_nth(t, index - 1)
+
+verify list_nth
+    list_nth([10, 20, 30], 0) => 10
+    list_nth([10, 20, 30], 2) => 30
+    list_nth([], 0)           => 0 - 1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(list_nth([10, 20, 30], 0))
+    Console.print(list_nth([10, 20, 30], 2))
+    Console.print(list_nth([], 0))

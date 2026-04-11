@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Distance",
   "description": "Write a Vera function that computes the absolute difference between two integers, returning a Nat (non-negative integer). The postcondition should guarantee the result is non-negative.",
+  "description_neutral": "Compute the absolute difference between two integers. Returns a non-negative integer.",
   "signature": "public fn distance(@Int, @Int -> @Nat)",
   "contracts": {
     "requires": ["true"],

@@ -1,0 +1,38 @@
+module CheckedIndex
+    intent = "Safely indexes into a list, returning -1 on out-of-bounds."
+    exposes [safe_index]
+
+fn get_at(lst: List<Int>, idx: Int) -> Result<Int, String>
+    ? "Walks the list to position idx, returning Ok(element) or Err on OOB."
+    match lst
+        [] -> Result.Err("index out of bounds")
+        [h, ..t] -> match idx == 0
+            true  -> Result.Ok(h)
+            false -> get_at(t, idx - 1)
+
+verify get_at
+    get_at([10, 20, 30], 0) => Result.Ok(10)
+    get_at([10, 20, 30], 2) => Result.Ok(30)
+    get_at([], 0)           => Result.Err("index out of bounds")
+
+fn safe_index(arr: List<Int>, idx: Int) -> Int
+    ? "Returns the element at idx, or -1 if out of bounds."
+    match idx < 0
+        true  -> 0 - 1
+        false -> match get_at(arr, idx)
+            Result.Ok(v)  -> v
+            Result.Err(_) -> 0 - 1
+
+verify safe_index
+    safe_index([10, 20, 30], 0)  => 10
+    safe_index([10, 20, 30], 2)  => 30
+    safe_index([10, 20, 30], 5)  => 0 - 1
+    safe_index([], 0)            => 0 - 1
+    safe_index([42], -1)         => 0 - 1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(safe_index([10, 20, 30], 0))
+    Console.print(safe_index([10, 20, 30], 2))
+    Console.print(safe_index([10, 20, 30], 5))
+    Console.print(safe_index([], 0))

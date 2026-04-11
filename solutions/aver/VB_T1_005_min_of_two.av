@@ -1,0 +1,21 @@
+module MinOfTwo
+    intent = "Returns the minimum of two integers."
+
+fn min_of_two(a: Int, b: Int) -> Int
+    ? "Returns the smaller of a and b."
+    match a < b
+        true  -> a
+        false -> b
+
+verify min_of_two
+    min_of_two(3, 7)    => 3
+    min_of_two(7, 3)    => 3
+    min_of_two(5, 5)    => 5
+    min_of_two(-1, -5)  => -5
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(min_of_two(3, 7))
+    Console.print(min_of_two(7, 3))
+    Console.print(min_of_two(5, 5))
+    Console.print(min_of_two(-1, -5))

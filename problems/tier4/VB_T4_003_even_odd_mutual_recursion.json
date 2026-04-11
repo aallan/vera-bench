@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Even/Odd (Mutual Recursion)",
   "description": "Write a function is_even that determines if a natural number is even using mutual recursion with is_odd. Use a where block to define the mutually recursive helper. Both functions need decreases clauses.",
+  "description_neutral": "Determine if a non-negative integer is even using mutual recursion with an is_odd helper. is_even(0) = true, is_even(n) = is_odd(n-1). is_odd(0) = false, is_odd(n) = is_even(n-1).",
   "signature": "public fn is_even(@Nat -> @Bool)",
   "contracts": {
     "requires": [

@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Sum to N",
   "description": "Write a Vera function that computes the sum 0 + 1 + 2 + ... + n. Use recursion with a decreases clause.",
+  "description_neutral": "Compute the sum 0 + 1 + 2 + ... + n using recursion.",
   "signature": "public fn sum_to_n(@Nat -> @Nat)",
   "contracts": {
     "requires": ["true"],

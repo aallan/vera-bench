@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Absolute Value",
   "description": "Write a Vera function that computes the absolute value of an integer. The function should take a single Int parameter and return a Nat (non-negative integer). The postcondition should guarantee the result is non-negative and equals either the input or its negation.",
+  "description_neutral": "Compute the absolute value of an integer. Returns a non-negative integer that equals either the input or its negation.",
   "signature": "public fn absolute_value(@Int -> @Nat)",
   "contracts": {
     "requires": [

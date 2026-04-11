@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "Greeter (IO Boundary)",
   "description": "Write two functions: a pure function build_greeting that takes a non-empty String and returns 'Hello, <name>!\\n' using string_concat, and an IO function greet that calls build_greeting and prints the result with IO.print. The IO effect must be declared explicitly. Include a minimal IO effect declaration with only the print operation.",
+  "description_neutral": "Write two functions: a pure function build_greeting that takes a non-empty string and returns 'Hello, <name>!\n', and a function greet that prints the result.",
   "signature": "public fn greet(@String -> @Unit)",
   "contracts": {
     "requires": [

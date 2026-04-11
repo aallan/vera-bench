@@ -1,0 +1,20 @@
+module ContainsSubstring
+    intent = "Checks if a string contains a given substring."
+    exposes [contains_substring]
+
+fn contains_substring(haystack: String, needle: String) -> Bool
+    ? "Returns true when haystack contains needle."
+    String.contains(haystack, needle)
+
+verify contains_substring
+    contains_substring("hello world", "world") => true
+    contains_substring("hello world", "mars") => false
+    contains_substring("abcdef", "cde") => true
+    contains_substring("abc", "") => true
+    contains_substring("", "a") => false
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(contains_substring("hello world", "world"))
+    Console.print(contains_substring("hello world", "mars"))
+    Console.print(contains_substring("abcdef", "cde"))

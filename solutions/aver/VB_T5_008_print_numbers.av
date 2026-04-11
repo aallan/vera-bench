@@ -1,0 +1,25 @@
+module PrintNumbers
+    intent = "Prints integers from 1 to n, each on a new line."
+    exposes [print_numbers]
+
+fn print_and_continue(i: Int, n: Int) -> Unit
+    ? "Prints i then continues with the next integer."
+    ! [Console.print]
+    Console.print(i)
+    print_loop(i + 1, n)
+
+fn print_loop(i: Int, n: Int) -> Unit
+    ? "Recurses from i to n, printing each integer."
+    ! [Console.print]
+    match i <= n
+        true  -> print_and_continue(i, n)
+        false -> Console.print("")
+
+fn print_numbers(n: Int) -> Unit
+    ? "Prints 1 through n on separate lines."
+    ! [Console.print]
+    print_loop(1, n)
+
+fn main() -> Unit
+    ! [Console.print]
+    print_numbers(5)

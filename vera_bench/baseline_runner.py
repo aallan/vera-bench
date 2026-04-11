@@ -19,7 +19,7 @@ from vera_bench.runner import ProblemResult
 
 console = Console()
 
-_EXT = {"python": ".py", "typescript": ".ts"}
+_EXT = {"python": ".py", "typescript": ".ts", "aver": ".av"}
 
 
 def _snake_to_camel(name: str) -> str:
@@ -364,6 +364,190 @@ def _parse_subprocess_result(
     )
 
 
+def run_aver_baseline(
+    problem: dict,
+    solutions_dir: Path,
+    work_dir: Path,
+    timeout: int = 30,
+) -> ProblemResult:
+    """Run an Aver baseline solution against test cases."""
+    problem_id = problem["id"]
+    test_cases = problem.get("test_cases", [])
+
+    baseline_path = _find_baseline_file(problem_id, solutions_dir, "aver")
+    if baseline_path is None:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="aver",
+            attempt=1,
+            check_pass=False,
+            error_message=f"No Aver baseline found for {problem_id}",
+            timestamp=_now(),
+        )
+
+    # aver check
+    run_env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+    start = time.monotonic()
+
+    try:
+        check_result = subprocess.run(  # noqa: S603
+            ["aver", "check", str(baseline_path)],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env=run_env,
+        )
+    except FileNotFoundError:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="aver",
+            attempt=1,
+            check_pass=False,
+            error_message="aver not found on PATH",
+            timestamp=_now(),
+        )
+    except subprocess.TimeoutExpired:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="aver",
+            attempt=1,
+            check_pass=False,
+            error_message="aver check timed out",
+            wall_time_s=round(time.monotonic() - start, 2),
+            timestamp=_now(),
+        )
+
+    if check_result.returncode != 0:
+        err = (check_result.stderr or check_result.stdout)[:200]
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="aver",
+            attempt=1,
+            check_pass=False,
+            error_message=err,
+            wall_time_s=round(time.monotonic() - start, 2),
+            timestamp=_now(),
+        )
+
+    if not test_cases:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="aver",
+            attempt=1,
+            check_pass=True,
+            run_correct=None,
+            wall_time_s=round(time.monotonic() - start, 2),
+            timestamp=_now(),
+        )
+
+    # aver run — the baseline .av files have main() that prints test outputs
+    try:
+        run_result = subprocess.run(  # noqa: S603
+            ["aver", "run", str(baseline_path)],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env=run_env,
+        )
+    except subprocess.TimeoutExpired:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="aver",
+            attempt=1,
+            check_pass=True,
+            run_correct=False,
+            tests_total=len(test_cases),
+            error_message="aver run timed out",
+            wall_time_s=round(time.monotonic() - start, 2),
+            timestamp=_now(),
+        )
+
+    elapsed = round(time.monotonic() - start, 2)
+
+    if run_result.returncode != 0:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="aver",
+            attempt=1,
+            check_pass=True,
+            run_correct=False,
+            tests_total=len(test_cases),
+            error_message=(run_result.stderr[:200] if run_result.stderr else "Non-zero exit"),
+            wall_time_s=elapsed,
+            timestamp=_now(),
+        )
+
+    # Parse output: each line corresponds to one test case result
+    output_lines = run_result.stdout.strip().split("\n") if run_result.stdout.strip() else []
+    tests_passed = 0
+
+    for i, tc in enumerate(test_cases):
+        expected = tc.get("expected")
+        if i < len(output_lines):
+            actual = output_lines[i].strip()
+            if _aver_output_matches(actual, expected):
+                tests_passed += 1
+
+    return ProblemResult(
+        problem_id=problem_id,
+        model="baseline",
+        language="aver",
+        attempt=1,
+        check_pass=True,
+        run_correct=(tests_passed == len(test_cases)),
+        tests_total=len(test_cases),
+        tests_passed=tests_passed,
+        wall_time_s=elapsed,
+        timestamp=_now(),
+    )
+
+
+def _normalize_aver_expected(expected) -> str:
+    """Normalize expected value to match aver run output.
+
+    Vera uses 1/0 for bools in test_cases; Aver prints true/false.
+    """
+    if isinstance(expected, bool):
+        return "true" if expected else "false"
+    if isinstance(expected, int):
+        # Vera-style bool: 1 -> true, 0 -> false for Bool-returning fns
+        # We can't always know, so keep as int — the caller handles matching
+        return str(expected)
+    if isinstance(expected, float):
+        return str(expected)
+    if isinstance(expected, str):
+        return expected
+    if isinstance(expected, list):
+        items = ", ".join(_normalize_aver_expected(v) for v in expected)
+        return f"[{items}]"
+    return str(expected)
+
+
+def _aver_output_matches(actual: str, expected) -> bool:
+    """Check if aver output matches expected, handling bool normalization.
+
+    Vera test cases use 1/0 for bools; Aver prints true/false.
+    """
+    expected_str = _normalize_aver_expected(expected)
+    if actual == expected_str:
+        return True
+    # Handle Vera-style bool: expected=1 matches "true", expected=0 matches "false"
+    if isinstance(expected, int) and expected in (0, 1):
+        bool_str = "true" if expected == 1 else "false"
+        if actual == bool_str:
+            return True
+    return False
+
+
 def run_all_baselines(
     problems: list[dict],
     solutions_dir: Path,
@@ -371,26 +555,36 @@ def run_all_baselines(
     language: str = "python",
 ) -> list[ProblemResult]:
     """Run baselines for all problems. Write JSONL incrementally."""
-    if language not in ("python", "typescript"):
+    if language not in ("python", "typescript", "aver"):
         raise NotImplementedError(
             f"Baseline runner for {language!r} not yet implemented"
         )
 
-    runner = run_python_baseline if language == "python" else run_typescript_baseline
+    if language == "python":
+        runner = run_python_baseline
+    elif language == "typescript":
+        runner = run_typescript_baseline
+    else:
+        runner = run_aver_baseline
 
     all_results: list[ProblemResult] = []
 
-    testable = [p for p in problems if p.get("test_cases")]
-    skipped = len(problems) - len(testable)
-
-    if skipped:
-        console.print(f"[dim]Skipping {skipped} problems with no test cases[/dim]")
+    # Aver validates all problems (check even without test_cases)
+    if language == "aver":
+        run_problems = problems
+    else:
+        run_problems = [p for p in problems if p.get("test_cases")]
+        skipped = len(problems) - len(run_problems)
+        if skipped:
+            console.print(
+                f"[dim]Skipping {skipped} problems with no test cases[/dim]"
+            )
 
     with tempfile.TemporaryDirectory(prefix="verabench_baseline_") as tmpdir:
         work_dir = Path(tmpdir)
         with Progress(console=console) as progress:
-            task = progress.add_task("Running baselines...", total=len(testable))
-            for problem in testable:
+            task = progress.add_task("Running baselines...", total=len(run_problems))
+            for problem in run_problems:
                 result = runner(problem, solutions_dir, work_dir)
                 all_results.append(result)
 

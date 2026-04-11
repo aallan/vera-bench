@@ -1,0 +1,23 @@
+module Clamp
+    intent = "Clamps an integer value to a given range [lo, hi]."
+
+fn clamp(value: Int, lo: Int, hi: Int) -> Int
+    ? "Returns lo if value < lo, hi if value > hi, otherwise value."
+    match value < lo
+        true  -> lo
+        false -> match value > hi
+            true  -> hi
+            false -> value
+
+verify clamp
+    clamp(50, 0, 100)   => 50
+    clamp(-5, 0, 100)   => 0
+    clamp(150, 0, 100)  => 100
+    clamp(0, 0, 0)      => 0
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(clamp(50, 0, 100))
+    Console.print(clamp(-5, 0, 100))
+    Console.print(clamp(150, 0, 100))
+    Console.print(clamp(0, 0, 0))

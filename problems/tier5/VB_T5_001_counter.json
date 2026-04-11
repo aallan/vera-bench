@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "Counter",
   "description": "Write a counter using Vera's State<Int> effect. Create a pure helper function next_count that adds 1 to an Int (with a postcondition ensuring the result equals input + 1). Then write a function count_three that uses handle[State<Int>] to run three increments and return the final count (should be 3). The handler should initialise state to 0.",
+  "description_neutral": "Create a counter that increments three times starting from 0 and returns the final count (3). Use a helper function next_count that adds 1 to an integer.",
   "signature": "public fn count_three(@Unit -> @Int)",
   "contracts": {
     "requires": [

@@ -1,0 +1,19 @@
+module JoinStrings
+    intent = "Joins a list of strings with a separator using String.join."
+    exposes [join_strings]
+
+fn join_strings(xs: List<String>, sep: String) -> String
+    ? "Joins all strings in the list with the given separator."
+    String.join(xs, sep)
+
+verify join_strings
+    join_strings(["a", "b", "c"], ", ") => "a, b, c"
+    join_strings(["hello"], "-") => "hello"
+    join_strings([], ",") => ""
+    join_strings(["x", "y"], "") => "xy"
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(join_strings(["a", "b", "c"], ", "))
+    Console.print(join_strings(["hello"], "-"))
+    Console.print(join_strings([], ","))

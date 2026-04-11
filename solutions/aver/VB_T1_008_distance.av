@@ -1,0 +1,22 @@
+module Distance
+    intent = "Computes the absolute distance between two integers."
+
+fn distance(a: Int, b: Int) -> Int
+    ? "Returns |a - b|."
+    diff = a - b
+    match diff < 0
+        true  -> 0 - diff
+        false -> diff
+
+verify distance
+    distance(3, 7)   => 4
+    distance(7, 3)   => 4
+    distance(5, 5)   => 0
+    distance(-3, 3)  => 6
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(distance(3, 7))
+    Console.print(distance(7, 3))
+    Console.print(distance(5, 5))
+    Console.print(distance(-3, 3))

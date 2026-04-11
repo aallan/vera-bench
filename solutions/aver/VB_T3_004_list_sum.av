@@ -1,0 +1,27 @@
+module ListSum
+    intent = "Sums all elements in a user-defined linked list."
+    exposes [MyList, list_sum]
+
+type MyList
+    Nil
+    Cons(Int, MyList)
+
+fn list_sum(xs: MyList) -> Int
+    ? "Returns the sum of all elements in a MyList."
+    match xs
+        MyList.Nil -> 0
+        MyList.Cons(h, rest) -> h + list_sum(rest)
+
+verify list_sum
+    list_sum(MyList.Nil) => 0
+    list_sum(MyList.Cons(5, MyList.Nil)) => 5
+    list_sum(MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))) => 6
+
+fn main() -> Unit
+    ! [Console.print]
+    empty = MyList.Nil
+    single = MyList.Cons(5, MyList.Nil)
+    triple = MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))
+    Console.print(list_sum(empty))
+    Console.print(list_sum(single))
+    Console.print(list_sum(triple))

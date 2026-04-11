@@ -1,0 +1,25 @@
+module Power
+    intent =
+        "Computes base raised to the power of exp by repeated multiplication."
+    exposes [power]
+
+fn power(base: Int, exp: Int) -> Int
+    ? "Returns base^exp using recursive repeated multiplication."
+    match exp
+        0 -> 1
+        _ -> base * power(base, exp - 1)
+
+verify power
+    power(2, 10)  => 1024
+    power(3, 0)   => 1
+    power(5, 1)   => 5
+    power(2, 0)   => 1
+    power(1, 100) => 1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(power(2, 10))
+    Console.print(power(3, 0))
+    Console.print(power(5, 1))
+    Console.print(power(2, 0))
+    Console.print(power(1, 100))

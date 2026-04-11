@@ -18,6 +18,8 @@ from rich.progress import Progress
 
 from vera_bench.models import LLMClient
 from vera_bench.prompts import (
+    build_aver_fix_prompt,
+    build_aver_prompt,
     build_fix_prompt,
     build_full_spec_prompt,
     build_python_prompt,
@@ -30,7 +32,7 @@ from vera_bench.vera_runner import VeraRunner
 console = Console()
 
 _FENCE_RE = re.compile(
-    r"```(?:vera|python|py|typescript|ts)?\s*\n(.*?)\n?```", re.DOTALL
+    r"```(?:vera|aver|python|py|typescript|ts)?\s*\n(.*?)\n?```", re.DOTALL
 )
 
 
@@ -403,6 +405,189 @@ def _evaluate_typescript_code(
     return result
 
 
+def _evaluate_aver_code(
+    code: str,
+    problem: dict,
+    work_dir: Path,
+    attempt: int,
+) -> dict:
+    """Write Aver code to a file and run check + test cases via aver run."""
+    entry_point = problem.get("entry_point", "")
+    test_cases = problem.get("test_cases", [])
+
+    result: dict = {
+        "check_pass": False,
+        "verify_pass": None,
+        "verify_tier1": 0,
+        "verify_tier3": 0,
+        "run_correct": None,
+        "tests_total": 0,
+        "tests_passed": 0,
+        "error_message": None,
+    }
+
+    # Write the generated code
+    safe_id = problem["id"].replace("-", "_")
+    code_path = work_dir / f"{safe_id}_attempt{attempt}.av"
+    code_path.write_text(code, encoding="utf-8")
+
+    # aver check
+    run_env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+    try:
+        check_proc = subprocess.run(  # noqa: S603
+            ["aver", "check", str(code_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env=run_env,
+        )
+    except FileNotFoundError:
+        result["error_message"] = "aver not found on PATH"
+        return result
+    except subprocess.TimeoutExpired:
+        result["error_message"] = "aver check timed out"
+        return result
+
+    if check_proc.returncode != 0:
+        result["check_pass"] = False
+        result["error_message"] = (check_proc.stderr or check_proc.stdout)[:500]
+        return result
+
+    # aver verify (typecheck + verify blocks in one step)
+    try:
+        verify_proc = subprocess.run(  # noqa: S603
+            ["aver", "verify", str(code_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env=run_env,
+        )
+        result["verify_pass"] = verify_proc.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        result["verify_pass"] = None
+
+    result["check_pass"] = True
+
+    # Test cases — build a single test .av file per test case
+    if not test_cases:
+        result["run_correct"] = None
+        return result
+
+    # Strategy: strip any existing main() from the LLM code and replace
+    # with our own that calls the entry_point with specific test args.
+    code_without_main = _strip_aver_main(code)
+
+    all_pass = True
+    for i, tc in enumerate(test_cases):
+        if not isinstance(tc, dict):
+            continue
+        args = tc.get("args", [])
+        expected = tc.get("expected")
+        result["tests_total"] += 1
+
+        args_str = ", ".join(_aver_literal(a) for a in args)
+
+        # If code has no module declaration, wrap it
+        has_module = any(
+            line.strip().startswith("module ")
+            for line in code_without_main.split("\n")
+        )
+        if has_module:
+            test_file = (
+                f"{code_without_main}\n\n"
+                f"fn main() -> Unit\n"
+                f"    ! [Console.print]\n"
+                f"    Console.print({entry_point}({args_str}))\n"
+            )
+        else:
+            test_file = (
+                f"module Test{safe_id}\n"
+                f"    intent = \"Test wrapper\"\n\n"
+                f"{code_without_main}\n\n"
+                f"fn main() -> Unit\n"
+                f"    ! [Console.print]\n"
+                f"    Console.print({entry_point}({args_str}))\n"
+            )
+
+        test_path = work_dir / f"{safe_id}_test{i}_attempt{attempt}.av"
+        test_path.write_text(test_file, encoding="utf-8")
+
+        try:
+            run_proc = subprocess.run(  # noqa: S603
+                ["aver", "run", str(test_path)],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=run_env,
+            )
+        except subprocess.TimeoutExpired:
+            all_pass = False
+            continue
+
+        if run_proc.returncode != 0:
+            all_pass = False
+            continue
+
+        actual_output = run_proc.stdout.strip()
+
+        if _aver_output_matches(actual_output, expected):
+            result["tests_passed"] += 1
+        else:
+            all_pass = False
+
+    result["run_correct"] = all_pass
+    return result
+
+
+def _strip_aver_main(code: str) -> str:
+    """Remove fn main() and its body from Aver code."""
+    lines = code.split("\n")
+    result_lines = []
+    skip = False
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("fn main(") or stripped.startswith("fn main ()"):
+            skip = True
+            continue
+        if skip:
+            # main body is indented; stop skipping at next top-level item
+            if stripped and not line[0:1].isspace():
+                skip = False
+            else:
+                continue
+        if not skip:
+            result_lines.append(line)
+    return "\n".join(result_lines)
+
+
+def _aver_literal(value) -> str:
+    """Convert a Python value to an Aver literal."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        if value < 0:
+            return f"(0 - {abs(value)})"
+        return str(value)
+    if isinstance(value, float):
+        return str(value)
+    if isinstance(value, str):
+        return f'"{value}"'
+    if isinstance(value, list):
+        items = ", ".join(_aver_literal(v) for v in value)
+        return f"[{items}]"
+    return str(value)
+
+
+def _aver_output_matches(actual: str, expected) -> bool:
+    """Check if aver output matches expected, handling bool normalization."""
+    from vera_bench.baseline_runner import _aver_output_matches as _match
+
+    return _match(actual, expected)
+
+
 def run_single_problem(
     problem: dict,
     client: LLMClient,
@@ -423,7 +608,9 @@ def run_single_problem(
     results: list[ProblemResult] = []
 
     # Build prompt
-    if language == "python":
+    if language == "aver":
+        prompt = build_aver_prompt(problem, skill_md)
+    elif language == "python":
         prompt = build_python_prompt(problem)
     elif language == "typescript":
         prompt = build_typescript_prompt(problem)
@@ -457,7 +644,9 @@ def run_single_problem(
 
     code = extract_code(llm_response.text)
 
-    if language == "python":
+    if language == "aver":
+        eval_result = _evaluate_aver_code(code, problem, work_dir, attempt=1)
+    elif language == "python":
         eval_result = _evaluate_python_code(code, problem, work_dir, attempt=1)
     elif language == "typescript":
         eval_result = _evaluate_typescript_code(code, problem, work_dir, attempt=1)
@@ -481,6 +670,52 @@ def run_single_problem(
             **eval_result,
         )
     )
+
+    # Attempt 2: fix from error (Aver — has aver check step)
+    if language == "aver" and not eval_result["check_pass"] and max_fix_attempts > 0:
+        fix_prompt = build_aver_fix_prompt(
+            code, eval_result.get("error_message", ""), skill_md
+        )
+        try:
+            fix_response = client.complete(
+                system=fix_prompt["system"],
+                user=fix_prompt["user"],
+                max_tokens=max_tokens,
+            )
+        except Exception as e:
+            results.append(
+                ProblemResult(
+                    problem_id=problem["id"],
+                    model=llm_response.model,
+                    language=language,
+                    attempt=2,
+                    check_pass=False,
+                    error_message=f"Fix API error: {e}",
+                    timestamp=_now(),
+                    bench_version=bench_version,
+                    vera_version=vera_version,
+                )
+            )
+            return results
+
+        fix_code = extract_code(fix_response.text)
+        fix_eval = _evaluate_aver_code(fix_code, problem, work_dir, attempt=2)
+
+        results.append(
+            ProblemResult(
+                problem_id=problem["id"],
+                model=fix_response.model,
+                language=language,
+                attempt=2,
+                input_tokens=fix_response.input_tokens,
+                output_tokens=fix_response.output_tokens,
+                wall_time_s=fix_response.wall_time_s,
+                timestamp=_now(),
+                bench_version=bench_version,
+                vera_version=vera_version,
+                **fix_eval,
+            )
+        )
 
     # Attempt 2: fix from error (Vera only — Python has no check step)
     if language == "vera" and not eval_result["check_pass"] and max_fix_attempts > 0:

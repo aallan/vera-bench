@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "Option Unwrap Or",
   "description": "Define an Option ADT with None and Some(Int) constructors. Write a function that unwraps the Option, returning the contained value for Some and a provided default value for None. The function takes two parameters: the Option and the default Int.",
+  "description_neutral": "Define an option type with none and some constructors. Write a function that unwraps the option, returning the contained value or a default integer.",
   "signature": "public fn option_unwrap_or(@Option, @Int -> @Int)",
   "contracts": {
     "requires": ["true"],

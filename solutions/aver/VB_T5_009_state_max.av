@@ -1,0 +1,42 @@
+module StateMax
+    intent = "Finds the maximum of integers from 1 to n using a recursive accumulator."
+    exposes [state_max]
+
+fn max_step(i: Int, n: Int, current_max: Int) -> Int
+    ? "Advances one step: updates max and recurses with i+1."
+    next = i + 1
+    match i > current_max
+        true  -> max_loop(next, n, i)
+        false -> max_loop(next, n, current_max)
+
+fn max_loop(i: Int, n: Int, current_max: Int) -> Int
+    ? "Compares i against current_max, recurses until i exceeds n."
+    match i > n
+        true  -> current_max
+        false -> max_step(i, n, current_max)
+
+fn state_max(n: Int) -> Int
+    ? "Returns the maximum of 1..n. For n >= 1, this is always n."
+    match n < 1
+        true  -> 0
+        false -> max_loop(1, n, 0)
+
+verify max_step
+    max_step(3, 5, 2) => 5
+    max_step(1, 1, 0) => 1
+
+verify max_loop
+    max_loop(1, 5, 0) => 5
+    max_loop(3, 3, 2) => 3
+    max_loop(4, 3, 3) => 3
+
+verify state_max
+    state_max(5)  => 5
+    state_max(1)  => 1
+    state_max(10) => 10
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(state_max(5))
+    Console.print(state_max(1))
+    Console.print(state_max(10))

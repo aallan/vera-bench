@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "List Sum",
   "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors, then write a function that sums all elements. The base case (Nil) returns 0. The recursive case adds the head to the sum of the tail.",
+  "description_neutral": "Define a linked list type with nil and cons constructors, then write a function that sums all elements.",
   "signature": "public fn list_sum(@List -> @Int)",
   "contracts": {
     "requires": ["true"],

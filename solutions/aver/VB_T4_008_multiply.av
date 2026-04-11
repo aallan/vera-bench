@@ -1,0 +1,23 @@
+module Multiply
+    intent =
+        "Multiplies two non-negative integers by repeated addition."
+    exposes [multiply]
+
+fn multiply(a: Int, b: Int) -> Int
+    ? "Returns a*b using recursive repeated addition."
+    match b
+        0 -> 0
+        _ -> a + multiply(a, b - 1)
+
+verify multiply
+    multiply(7, 6) => 42
+    multiply(0, 5) => 0
+    multiply(3, 0) => 0
+    multiply(1, 1) => 1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(multiply(7, 6))
+    Console.print(multiply(0, 5))
+    Console.print(multiply(3, 0))
+    Console.print(multiply(1, 1))

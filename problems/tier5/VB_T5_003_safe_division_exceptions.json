@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "Safe Division (Exceptions)",
   "description": "Write a division function that uses exceptions for error handling. Define the Exn<E> effect with a throw operation. Write checked_div(a, b) that computes a / b and throws -1 (written as `0 - 1` in Vera, which has no unary minus) when the divisor is zero. In checked_div, @Int.0 is b (divisor, rightmost) and @Int.1 is a (dividend). Write safe_div that calls checked_div and handles the exception using handle[Exn<Int>], returning the thrown value on error. In safe_div(dividend, divisor), @Int.0 is the divisor and @Int.1 is the dividend. safe_div should be pure (the handler discharges the effect).",
+  "description_neutral": "Write a safe division function. A helper checked_div(a, b) computes a / b but signals an error when the divisor is zero. The main safe_div function handles the error and returns -1 on division by zero.",
   "signature": "public fn safe_div(@Int, @Int -> @Int)",
   "contracts": {
     "requires": [

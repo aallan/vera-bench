@@ -1,0 +1,25 @@
+module DivNatural
+    intent =
+        "Integer division by repeated subtraction."
+    exposes [div_natural]
+
+fn div_natural(a: Int, b: Int) -> Int
+    ? "Returns a divided by b using repeated subtraction."
+    match a < b
+        true  -> 0
+        false -> 1 + div_natural(a - b, b)
+
+verify div_natural
+    div_natural(17, 5) => 3
+    div_natural(10, 3) => 3
+    div_natural(0, 1)  => 0
+    div_natural(7, 7)  => 1
+    div_natural(3, 10) => 0
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(div_natural(17, 5))
+    Console.print(div_natural(10, 3))
+    Console.print(div_natural(0, 1))
+    Console.print(div_natural(7, 7))
+    Console.print(div_natural(3, 10))

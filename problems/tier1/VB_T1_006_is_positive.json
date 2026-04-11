@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Is Positive",
   "description": "Write a Vera function that returns true if the integer is strictly positive (greater than zero). The postcondition should express logical equivalence between the result and the comparison.",
+  "description_neutral": "Return true if the integer is strictly positive (greater than zero), false otherwise.",
   "signature": "public fn is_positive(@Int -> @Bool)",
   "contracts": {
     "requires": ["true"],

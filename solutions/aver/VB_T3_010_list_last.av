@@ -1,0 +1,29 @@
+module ListLast
+    intent = "Returns the last element of a user-defined linked list, or None."
+    exposes [MyList, list_last]
+
+type MyList
+    Nil
+    Cons(Int, MyList)
+
+fn list_last(xs: MyList) -> Option<Int>
+    ? "Returns the last element wrapped in Some, or None for an empty list."
+    match xs
+        MyList.Nil -> Option.None
+        MyList.Cons(h, rest) -> match rest
+            MyList.Nil -> Option.Some(h)
+            MyList.Cons(_, _) -> list_last(rest)
+
+verify list_last
+    list_last(MyList.Nil) => Option.None
+    list_last(MyList.Cons(42, MyList.Nil)) => Option.Some(42)
+    list_last(MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))) => Option.Some(3)
+
+fn main() -> Unit
+    ! [Console.print]
+    empty = MyList.Nil
+    single = MyList.Cons(42, MyList.Nil)
+    triple = MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))
+    Console.print(list_last(empty))
+    Console.print(list_last(single))
+    Console.print(list_last(triple))

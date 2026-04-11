@@ -1,0 +1,19 @@
+module ToUpper
+    intent = "Converts a string to uppercase using String.toUpper."
+    exposes [to_upper]
+
+fn to_upper(s: String) -> String
+    ? "Returns the input string converted to uppercase."
+    String.toUpper(s)
+
+verify to_upper
+    to_upper("hello") => "HELLO"
+    to_upper("World") => "WORLD"
+    to_upper("") => ""
+    to_upper("ABC") => "ABC"
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(to_upper("hello"))
+    Console.print(to_upper("World"))
+    Console.print(to_upper(""))

@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "Filter Positives",
   "description": "Write a Vera function that returns a new array containing only the positive elements from an integer array. Use the array_filter built-in.",
+  "description_neutral": "Return a new list containing only the positive elements from an integer list.",
   "signature": "public fn filter_positives(@Array<Int> -> @Array<Int>)",
   "contracts": {
     "requires": [

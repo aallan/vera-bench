@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "Double Elements",
   "description": "Write a Vera function that doubles every element in an integer array. Use the array_map built-in function with an inline closure.",
+  "description_neutral": "Double every element in an integer list.",
   "signature": "public fn double_elements(@Array<Int> -> @Array<Int>)",
   "contracts": {
     "requires": ["true"],

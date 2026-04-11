@@ -1,0 +1,21 @@
+module OptionUnwrapOr
+    intent = "Unwraps an Option with a default value using built-in Option type."
+    exposes [option_unwrap_or]
+
+fn option_unwrap_or(opt: Option<Int>, default: Int) -> Int
+    ? "Returns the contained value or the provided default."
+    match opt
+        Option.Some(v) -> v
+        Option.None -> default
+
+verify option_unwrap_or
+    option_unwrap_or(Option.Some(42), 0) => 42
+    option_unwrap_or(Option.None, 0) => 0
+    option_unwrap_or(Option.Some(7), 99) => 7
+    option_unwrap_or(Option.None, -1) => -1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(option_unwrap_or(Option.Some(42), 0))
+    Console.print(option_unwrap_or(Option.None, 0))
+    Console.print(option_unwrap_or(Option.Some(7), 99))

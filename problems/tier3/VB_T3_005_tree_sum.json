@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "Tree Sum",
   "description": "Define a binary tree ADT with Leaf(Int) and Branch(Tree, Tree) constructors, then write a function that sums all leaf values. Leaf returns its value, Branch sums both subtrees.",
+  "description_neutral": "Define a binary tree type with leaf and branch constructors, then write a function that sums all leaf values.",
   "signature": "public fn tree_sum(@Tree -> @Int)",
   "contracts": {
     "requires": ["true"],

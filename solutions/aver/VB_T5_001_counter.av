@@ -1,0 +1,25 @@
+module Counter
+    intent = "Counts to three by recursively incrementing from zero."
+    exposes [count_three]
+
+fn count(n: Int, target: Int) -> Int
+    ? "Increments n until it reaches target."
+    match n == target
+        true  -> n
+        false -> count(n + 1, target)
+
+fn count_three() -> Int
+    ? "Returns 3 via three increments from 0."
+    count(0, 3)
+
+verify count
+    count(0, 3) => 3
+    count(0, 0) => 0
+    count(2, 5) => 5
+
+verify count_three
+    count_three() => 3
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(count_three())

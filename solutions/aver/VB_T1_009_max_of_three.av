@@ -1,0 +1,32 @@
+module MaxOfThree
+    intent = "Returns the maximum of three integers."
+
+fn max2(a: Int, b: Int) -> Int
+    ? "Returns the larger of two integers."
+    match a > b
+        true  -> a
+        false -> b
+
+verify max2
+    max2(3, 7) => 7
+    max2(7, 3) => 7
+    max2(5, 5) => 5
+
+fn max_of_three(a: Int, b: Int, c: Int) -> Int
+    ? "Returns the largest of a, b, and c."
+    max2(max2(a, b), c)
+
+verify max_of_three
+    max_of_three(3, 7, 5)      => 7
+    max_of_three(9, 1, 4)      => 9
+    max_of_three(2, 2, 8)      => 8
+    max_of_three(5, 5, 5)      => 5
+    max_of_three(-1, -2, -3)   => -1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(max_of_three(3, 7, 5))
+    Console.print(max_of_three(9, 1, 4))
+    Console.print(max_of_three(2, 2, 8))
+    Console.print(max_of_three(5, 5, 5))
+    Console.print(max_of_three(-1, -2, -3))

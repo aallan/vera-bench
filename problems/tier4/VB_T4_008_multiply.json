@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Multiply",
   "description": "Write a Vera function that multiplies two natural numbers using repeated addition. multiply(a, 0) = 0, multiply(a, b) = a + multiply(a, b-1). Include a decreases clause on the second parameter.",
+  "description_neutral": "Multiply two non-negative integers using repeated addition. multiply(a, 0) = 0, multiply(a, b) = a + multiply(a, b-1).",
   "signature": "public fn multiply(@Nat, @Nat -> @Nat)",
   "contracts": {
     "requires": [

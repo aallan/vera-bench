@@ -1,0 +1,31 @@
+module Accumulator
+    intent = "Computes the sum of integers from 1 to n using a recursive accumulator."
+    exposes [sum_with_state]
+
+fn sum_loop(i: Int, n: Int, acc: Int) -> Int
+    ? "Accumulates the sum from i to n."
+    match i > n
+        true  -> acc
+        false -> sum_loop(i + 1, n, acc + i)
+
+fn sum_with_state(n: Int) -> Int
+    ? "Returns the sum 1 + 2 + ... + n. Returns 0 for n <= 0."
+    sum_loop(1, n, 0)
+
+verify sum_loop
+    sum_loop(1, 5, 0)  => 15
+    sum_loop(1, 0, 0)  => 0
+    sum_loop(3, 5, 10) => 22
+
+verify sum_with_state
+    sum_with_state(5)  => 15
+    sum_with_state(0)  => 0
+    sum_with_state(1)  => 1
+    sum_with_state(10) => 55
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(sum_with_state(5))
+    Console.print(sum_with_state(0))
+    Console.print(sum_with_state(1))
+    Console.print(sum_with_state(10))

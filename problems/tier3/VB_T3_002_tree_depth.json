@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "Tree Depth",
   "description": "Define a binary tree ADT with Leaf(Int) and Branch(Tree, Tree) constructors, then write a function that computes the depth (height). A leaf has depth 1. Use the max built-in for comparing branch depths.",
+  "description_neutral": "Define a binary tree type with leaf and branch constructors, then write a function that computes the depth. A leaf has depth 1.",
   "signature": "public fn tree_depth(@Tree -> @Nat)",
   "contracts": {
     "requires": [

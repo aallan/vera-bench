@@ -1,0 +1,23 @@
+module CountPositives
+    intent = "Counts the number of positive elements in an integer list."
+    exposes [count_positives]
+
+fn count_positives(xs: List<Int>) -> Int
+    ? "Returns how many elements are greater than zero."
+    match xs
+        [] -> 0
+        [h, ..t] -> match h > 0
+            true -> 1 + count_positives(t)
+            false -> count_positives(t)
+
+verify count_positives
+    count_positives([]) => 0
+    count_positives([1, -2, 3, 0, 5]) => 3
+    count_positives([-1, -2, -3]) => 0
+    count_positives([1, 2, 3]) => 3
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(count_positives([]))
+    Console.print(count_positives([1, -2, 3, 0, 5]))
+    Console.print(count_positives([-1, -2, -3]))

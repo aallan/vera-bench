@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "Greeting",
   "description": "Write a Vera function that builds a greeting string. Given a name, return 'Hello, <name>!'. Use string_concat to build the result. The precondition should require the name is non-empty. The postcondition should guarantee the result is longer than 7 characters.",
+  "description_neutral": "Build a greeting string. Given a non-empty name, return 'Hello, <name>!'.",
   "signature": "public fn greet(@String -> @String)",
   "contracts": {
     "requires": [

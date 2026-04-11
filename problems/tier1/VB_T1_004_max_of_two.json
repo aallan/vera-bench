@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Maximum of Two",
   "description": "Write a Vera function that returns the larger of two integers. The postconditions should guarantee the result is greater than or equal to both inputs, and is equal to one of them.",
+  "description_neutral": "Return the larger of two integers.",
   "signature": "public fn max_of_two(@Int, @Int -> @Int)",
   "contracts": {
     "requires": ["true"],

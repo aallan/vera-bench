@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "List Reverse",
   "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors. Write a function that reverses the list. Use an accumulator-based helper function with a where block. The helper should have its own decreases clause.",
+  "description_neutral": "Define a linked list type with nil and cons constructors. Write a function that reverses the list using an accumulator pattern.",
   "signature": "public fn list_reverse(@List -> @List)",
   "contracts": {
     "requires": ["true"],

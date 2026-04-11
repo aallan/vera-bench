@@ -1,0 +1,25 @@
+module Fibonacci
+    intent =
+        "Computes the nth Fibonacci number using naive recursion."
+        "fib(0)=0, fib(1)=1, fib(n)=fib(n-1)+fib(n-2)."
+    exposes [fib]
+
+fn fib(n: Int) -> Int
+    ? "Returns the nth Fibonacci number."
+    match n
+        0 -> 0
+        1 -> 1
+        _ -> fib(n - 1) + fib(n - 2)
+
+verify fib
+    fib(0)  => 0
+    fib(1)  => 1
+    fib(5)  => 5
+    fib(10) => 55
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(fib(0))
+    Console.print(fib(1))
+    Console.print(fib(5))
+    Console.print(fib(10))

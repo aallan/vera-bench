@@ -1,0 +1,23 @@
+module MaxOfTwo
+    intent = "Returns the maximum of two integers."
+
+fn max_of_two(a: Int, b: Int) -> Int
+    ? "Returns the larger of a and b."
+    match a > b
+        true  -> a
+        false -> b
+
+verify max_of_two
+    max_of_two(3, 7)    => 7
+    max_of_two(7, 3)    => 7
+    max_of_two(5, 5)    => 5
+    max_of_two(-1, -5)  => -1
+    max_of_two(0, 0)    => 0
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(max_of_two(3, 7))
+    Console.print(max_of_two(7, 3))
+    Console.print(max_of_two(5, 5))
+    Console.print(max_of_two(-1, -5))
+    Console.print(max_of_two(0, 0))

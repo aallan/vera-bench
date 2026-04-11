@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "List Append",
   "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors. Write a function that concatenates two lists. Traverse the first list recursively and build a new list ending with the second list.",
+  "description_neutral": "Define a linked list type with nil and cons constructors. Write a function that concatenates two lists.",
   "signature": "public fn list_append(@List, @List -> @List)",
   "contracts": {
     "requires": ["true"],

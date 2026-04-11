@@ -1,0 +1,28 @@
+module ListContains
+    intent = "Checks if a user-defined linked list contains a given value."
+    exposes [MyList, list_contains]
+
+type MyList
+    Nil
+    Cons(Int, MyList)
+
+fn list_contains(xs: MyList, value: Int) -> Bool
+    ? "Returns true if the list contains the given value."
+    match xs
+        MyList.Nil -> false
+        MyList.Cons(h, rest) -> match h == value
+            true -> true
+            false -> list_contains(rest, value)
+
+verify list_contains
+    list_contains(MyList.Nil, 1) => false
+    list_contains(MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil))), 2) => true
+    list_contains(MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil))), 4) => false
+    list_contains(MyList.Cons(5, MyList.Nil), 5) => true
+
+fn main() -> Unit
+    ! [Console.print]
+    xs = MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))
+    Console.print(list_contains(xs, 2))
+    Console.print(list_contains(xs, 4))
+    Console.print(list_contains(MyList.Nil, 1))

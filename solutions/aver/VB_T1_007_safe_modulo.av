@@ -1,0 +1,19 @@
+module SafeModulo
+    intent = "Computes the remainder of integer division (a % b)."
+
+fn safe_modulo(a: Int, b: Int) -> Int
+    ? "Returns a modulo b. Assumes b != 0."
+    a - (a / b) * b
+
+verify safe_modulo
+    safe_modulo(10, 3) => 1
+    safe_modulo(7, 2)  => 1
+    safe_modulo(6, 3)  => 0
+    safe_modulo(5, 7)  => 5
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(safe_modulo(10, 3))
+    Console.print(safe_modulo(7, 2))
+    Console.print(safe_modulo(6, 3))
+    Console.print(safe_modulo(5, 7))

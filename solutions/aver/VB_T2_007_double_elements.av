@@ -1,0 +1,20 @@
+module DoubleElements
+    intent = "Doubles each element in an integer list using recursion."
+    exposes [double_elements]
+
+fn double_elements(xs: List<Int>) -> List<Int>
+    ? "Returns a new list where each element is multiplied by two."
+    match xs
+        [] -> []
+        [h, ..t] -> List.prepend(h * 2, double_elements(t))
+
+verify double_elements
+    double_elements([]) => []
+    double_elements([1, 2, 3]) => [2, 4, 6]
+    double_elements([0, -1, 5]) => [0, -2, 10]
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(double_elements([]))
+    Console.print(double_elements([1, 2, 3]))
+    Console.print(double_elements([0, -1, 5]))

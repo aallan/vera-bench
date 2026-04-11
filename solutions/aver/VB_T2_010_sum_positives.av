@@ -1,0 +1,23 @@
+module SumPositives
+    intent = "Sums only the positive elements of an integer list."
+    exposes [sum_positives]
+
+fn sum_positives(xs: List<Int>) -> Int
+    ? "Returns the sum of elements greater than zero."
+    match xs
+        [] -> 0
+        [h, ..t] -> match h > 0
+            true -> h + sum_positives(t)
+            false -> sum_positives(t)
+
+verify sum_positives
+    sum_positives([]) => 0
+    sum_positives([1, -2, 3, -4, 5]) => 9
+    sum_positives([-1, -2, -3]) => 0
+    sum_positives([0, 1, 2]) => 3
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(sum_positives([]))
+    Console.print(sum_positives([1, -2, 3, -4, 5]))
+    Console.print(sum_positives([-1, -2, -3]))

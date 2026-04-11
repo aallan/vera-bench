@@ -1,0 +1,36 @@
+module EvenOddMutualRecursion
+    intent =
+        "Determines if a number is even using mutual recursion between is_even and is_odd."
+        "is_even(0)=true, is_even(n)=is_odd(n-1); is_odd(0)=false, is_odd(n)=is_even(n-1)."
+    exposes [is_even, is_odd]
+
+fn is_even(n: Int) -> Bool
+    ? "Returns true if n is even, using mutual recursion with is_odd."
+    match n
+        0 -> true
+        _ -> is_odd(n - 1)
+
+fn is_odd(n: Int) -> Bool
+    ? "Returns true if n is odd, using mutual recursion with is_even."
+    match n
+        0 -> false
+        _ -> is_even(n - 1)
+
+verify is_odd
+    is_odd(0) => false
+    is_odd(1) => true
+    is_odd(4) => false
+    is_odd(7) => true
+
+verify is_even
+    is_even(0) => true
+    is_even(1) => false
+    is_even(4) => true
+    is_even(7) => false
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(is_even(0))
+    Console.print(is_even(1))
+    Console.print(is_even(4))
+    Console.print(is_even(7))

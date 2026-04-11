@@ -1,0 +1,24 @@
+module GreatestCommonDivisor
+    intent =
+        "Computes the greatest common divisor using Euclid's algorithm."
+        "gcd(a,0)=a, gcd(a,b)=gcd(b, a%b)."
+    exposes [gcd]
+
+fn gcd(a: Int, b: Int) -> Int
+    ? "Returns the greatest common divisor of a and b."
+    match b
+        0 -> a
+        _ -> gcd(b, a - (a / b) * b)
+
+verify gcd
+    gcd(12, 8)   => 4
+    gcd(7, 0)    => 7
+    gcd(0, 5)    => 5
+    gcd(100, 75) => 25
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(gcd(12, 8))
+    Console.print(gcd(7, 0))
+    Console.print(gcd(0, 5))
+    Console.print(gcd(100, 75))

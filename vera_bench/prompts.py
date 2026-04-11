@@ -16,6 +16,7 @@ _WRITE_INSTRUCTION = (
 )
 
 SKILL_MD_URL = "https://veralang.dev/SKILL.md"
+AVER_LLMS_TXT_URL = "https://averlang.dev/llms.txt"
 
 
 def load_skill_md(source: str | Path | None = None) -> str:
@@ -38,6 +39,32 @@ def load_skill_md(source: str | Path | None = None) -> str:
         except (urllib.error.URLError, OSError) as e:
             raise RuntimeError(
                 f"Failed to fetch SKILL.md from {source_str}: {e}\n"
+                "Use --skill-md to provide a local copy."
+            ) from e
+
+    return Path(source).read_text(encoding="utf-8")
+
+
+def load_aver_llms_txt(source: str | Path | None = None) -> str:
+    """Load Aver llms.txt from a URL or local file.
+
+    If source is None, fetches from averlang.dev.
+    If source starts with http, fetches from that URL.
+    Otherwise reads from the local file path.
+    """
+    if source is None:
+        source = AVER_LLMS_TXT_URL
+
+    source_str = str(source)
+    if source_str.startswith("http"):
+        try:
+            with urllib.request.urlopen(  # noqa: S310
+                source_str, timeout=10
+            ) as resp:
+                return resp.read().decode("utf-8")
+        except (urllib.error.URLError, OSError) as e:
+            raise RuntimeError(
+                f"Failed to fetch llms.txt from {source_str}: {e}\n"
                 "Use --skill-md to provide a local copy."
             ) from e
 
@@ -97,6 +124,11 @@ PYTHON_SYSTEM_PROMPT = (
 )
 
 
+def _neutral_description(problem: dict) -> str:
+    """Return language-neutral description, falling back to original."""
+    return problem.get("description_neutral") or problem["description"]
+
+
 def build_python_prompt(problem: dict) -> dict:
     """Build a prompt asking the model to write Python.
 
@@ -104,7 +136,7 @@ def build_python_prompt(problem: dict) -> dict:
     """
     entry_point = problem["entry_point"]
     user_msg = (
-        f"{problem['description']}\n\n"
+        f"{_neutral_description(problem)}\n\n"
         f"Write a Python function named `{entry_point}`. "
         "Output only the Python code, no explanation."
     )
@@ -128,12 +160,57 @@ def build_typescript_prompt(problem: dict) -> dict:
 
     entry_point = _snake_to_camel(problem["entry_point"])
     user_msg = (
-        f"{problem['description']}\n\n"
+        f"{_neutral_description(problem)}\n\n"
         f"Write a TypeScript function named `{entry_point}`. "
         "Output only the TypeScript code, no explanation."
     )
     return {
         "system": TYPESCRIPT_SYSTEM_PROMPT,
+        "user": user_msg,
+    }
+
+
+AVER_SYSTEM_PROMPT = (
+    "You are an expert Aver programmer. "
+    "Write correct, concise Aver code. "
+    "Aver is not in your training data — use the llms.txt reference below."
+)
+
+
+def build_aver_prompt(problem: dict, llms_txt: str) -> dict:
+    """Build a prompt asking the model to write Aver.
+
+    Same approach as Python/TypeScript: raw description + function name.
+    The llms.txt in the system prompt replaces training data.
+    """
+    entry_point = problem["entry_point"]
+    user_msg = (
+        f"{_neutral_description(problem)}\n\n"
+        f"Write an Aver function named `{entry_point}`. "
+        "Output only the Aver code, no explanation."
+    )
+    return {
+        "system": f"{AVER_SYSTEM_PROMPT}\n\n{llms_txt}",
+        "user": user_msg,
+    }
+
+
+def build_aver_fix_prompt(
+    original_code: str, error_output: str, llms_txt: str
+) -> dict:
+    """Build a retry prompt after a failed Aver check.
+
+    Returns dict with 'system' and 'user' keys.
+    """
+    user_msg = (
+        "The Aver code you wrote:\n\n"
+        f"```aver\n{original_code}\n```\n\n"
+        f"produced this error:\n\n{error_output}\n\n"
+        "Fix the code. Output only the corrected Aver code, "
+        "no explanation."
+    )
+    return {
+        "system": f"{AVER_SYSTEM_PROMPT}\n\n{llms_txt}",
         "user": user_msg,
     }
 

@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "State Max",
   "description": "Write a function that finds the maximum value among the integers 1 through n using State<Int>. Create a pure max helper. The main function uses handle[State<Int>] initialized to 0, with a loop that updates state to max(current, i) for each i from 1 to n.",
+  "description_neutral": "Find the maximum value among the integers 1 through n. For n >= 1, the result equals n.",
   "signature": "public fn state_max(@Nat -> @Int)",
   "contracts": {
     "requires": [

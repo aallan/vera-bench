@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "To Upper Case",
   "description": "Write a Vera function that converts a string to uppercase. Use the string_upper built-in function.",
+  "description_neutral": "Convert a string to uppercase.",
   "signature": "public fn to_upper(@String -> @String)",
   "contracts": {
     "requires": ["true"],

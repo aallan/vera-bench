@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Greatest Common Divisor",
   "description": "Write a Vera function that computes the GCD of two natural numbers using Euclid's algorithm: gcd(a, 0) = a, gcd(a, b) = gcd(b, a mod b). The function takes two parameters: gcd(a, b) where @Nat.0 is b (the second/rightmost parameter) and @Nat.1 is a (the first). Include a decreases clause — the second parameter decreases on each recursive call.",
+  "description_neutral": "Compute the GCD of two non-negative integers using Euclid's algorithm: gcd(a, 0) = a, gcd(a, b) = gcd(b, a mod b).",
   "signature": "public fn gcd(@Nat, @Nat -> @Nat)",
   "contracts": {
     "requires": [

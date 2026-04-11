@@ -1,0 +1,21 @@
+module DoubleOrNothing
+    intent = "Doubles positive integers, returns zero otherwise."
+
+fn double_or_nothing(x: Int) -> Int
+    ? "Returns x * 2 when x is positive, 0 otherwise."
+    match x > 0
+        true  -> x * 2
+        false -> 0
+
+verify double_or_nothing
+    double_or_nothing(5)   => 10
+    double_or_nothing(0)   => 0
+    double_or_nothing(-3)  => 0
+    double_or_nothing(1)   => 2
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(double_or_nothing(5))
+    Console.print(double_or_nothing(0))
+    Console.print(double_or_nothing(-3))
+    Console.print(double_or_nothing(1))

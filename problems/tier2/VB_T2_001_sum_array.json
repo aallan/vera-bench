@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "Sum Array",
   "description": "Write a Vera function that sums all elements of an integer array. Use the array_fold built-in function with an accumulator starting at 0.",
+  "description_neutral": "Sum all elements of an integer list.",
   "signature": "public fn sum_array(@Array<Int> -> @Int)",
   "contracts": {
     "requires": [

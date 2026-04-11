@@ -1,0 +1,13 @@
+module GreeterIoBoundary
+    intent = "Greets a user by name using console output."
+    exposes [greet]
+
+fn greet(name: String) -> Unit
+    ? "Prints Hello, <name>! to the console."
+    ! [Console.print]
+    Console.print("Hello, {name}!")
+
+fn main() -> Unit
+    ! [Console.print]
+    greet("World")
+    greet("Alice")

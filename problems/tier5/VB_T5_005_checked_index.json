@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "Checked Array Index",
   "description": "Write a function that safely accesses an array element by index. Define the Exn<E> effect with a throw operation. Write a helper checked_get that throws -1 when the index is out of bounds, and safe_index that handles the exception using handle[Exn<Int>]. safe_index should be pure.",
+  "description_neutral": "Safely access a list element by index. Return -1 if the index is out of bounds.",
   "signature": "public fn safe_index(@Array<Int>, @Nat -> @Int)",
   "contracts": {
     "requires": ["true"],

@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Power",
   "description": "Write a Vera function that computes base raised to the power of exponent using repeated multiplication. The function takes two parameters: power(base, exp) where @Nat.0 is the exponent (rightmost) and @Nat.1 is the base. Use a decreases clause on the exponent. power(base, 0) = 1, power(base, n) = base * power(base, n-1).",
+  "description_neutral": "Compute base raised to the power of exponent using repeated multiplication. power(base, 0) = 1, power(base, exp) = base * power(base, exp-1).",
   "signature": "public fn power(@Nat, @Nat -> @Nat)",
   "contracts": {
     "requires": ["true"],

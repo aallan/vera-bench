@@ -1,0 +1,18 @@
+module IsEmptyString
+    intent = "Checks whether a string is empty using String.len."
+    exposes [is_empty_string]
+
+fn is_empty_string(s: String) -> Bool
+    ? "Returns true when the string has zero length."
+    String.len(s) == 0
+
+verify is_empty_string
+    is_empty_string("") => true
+    is_empty_string("hello") => false
+    is_empty_string(" ") => false
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(is_empty_string(""))
+    Console.print(is_empty_string("hello"))
+    Console.print(is_empty_string(" "))

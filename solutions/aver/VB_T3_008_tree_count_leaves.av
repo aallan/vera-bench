@@ -1,0 +1,27 @@
+module TreeCountLeaves
+    intent = "Counts the number of leaf nodes in a binary tree."
+    exposes [Tree, tree_count_leaves]
+
+type Tree
+    Leaf(Int)
+    Branch(Tree, Tree)
+
+fn tree_count_leaves(t: Tree) -> Int
+    ? "Returns the total number of leaf nodes in the tree."
+    match t
+        Tree.Leaf(_) -> 1
+        Tree.Branch(l, r) -> tree_count_leaves(l) + tree_count_leaves(r)
+
+verify tree_count_leaves
+    tree_count_leaves(Tree.Leaf(1)) => 1
+    tree_count_leaves(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))) => 2
+    tree_count_leaves(Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))) => 3
+
+fn main() -> Unit
+    ! [Console.print]
+    leaf = Tree.Leaf(1)
+    pair = Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))
+    nested = Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))
+    Console.print(tree_count_leaves(leaf))
+    Console.print(tree_count_leaves(pair))
+    Console.print(tree_count_leaves(nested))

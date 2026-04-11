@@ -1,0 +1,21 @@
+module SafeHead
+    intent = "Returns the first element of a list, or -1 if empty."
+    exposes [safe_head]
+
+fn safe_head(lst: List<Int>) -> Int
+    ? "Returns the head of lst, or -1 for an empty list."
+    match lst
+        [h, ..rest] -> h
+        []      -> 0 - 1
+
+verify safe_head
+    safe_head([10, 20, 30]) => 10
+    safe_head([42])         => 42
+    safe_head([0 - 5, 99])  => 0 - 5
+    safe_head([])           => 0 - 1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(safe_head([10, 20, 30]))
+    Console.print(safe_head([42]))
+    Console.print(safe_head([]))

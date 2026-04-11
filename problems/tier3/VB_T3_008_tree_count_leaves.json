@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "Tree Count Leaves",
   "description": "Define a binary tree ADT with Leaf(Int) and Branch(Tree, Tree) constructors. Write a function that counts the number of leaf nodes. The postcondition should guarantee the result is at least 1 (every tree has at least one leaf).",
+  "description_neutral": "Define a binary tree type with leaf and branch constructors. Write a function that counts the number of leaf nodes.",
   "signature": "public fn tree_count_leaves(@Tree -> @Nat)",
   "contracts": {
     "requires": ["true"],

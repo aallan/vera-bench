@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Maximum of Three",
   "description": "Write a Vera function that returns the largest of three integers. The postconditions should guarantee the result is greater than or equal to all three inputs.",
+  "description_neutral": "Return the largest of three integers.",
   "signature": "public fn max_of_three(@Int, @Int, @Int -> @Int)",
   "contracts": {
     "requires": ["true"],

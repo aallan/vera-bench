@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Double or Nothing",
   "description": "Write a Vera function that doubles a positive integer and returns 0 for non-positive inputs. The postcondition should guarantee the result is non-negative.",
+  "description_neutral": "Double a positive integer. Return 0 for non-positive inputs.",
   "signature": "public fn double_or_nothing(@Int -> @Int)",
   "contracts": {
     "requires": ["true"],

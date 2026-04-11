@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "List Contains",
   "description": "Define a linked list ADT with Nil and Cons(Int, List) constructors. Write a function that returns true if the list contains a given target value. The function takes two parameters: the list and the target integer.",
+  "description_neutral": "Define a linked list type with nil and cons constructors. Write a function that returns true if the list contains a given target integer.",
   "signature": "public fn list_contains(@List, @Int -> @Bool)",
   "contracts": {
     "requires": ["true"],

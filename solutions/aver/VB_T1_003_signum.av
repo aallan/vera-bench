@@ -1,0 +1,21 @@
+module Signum
+    intent = "Returns the sign of an integer: -1, 0, or 1."
+
+fn signum(x: Int) -> Int
+    ? "Returns 1 for positive, -1 for negative, 0 for zero."
+    match x > 0
+        true  -> 1
+        false -> match x < 0
+            true  -> 0 - 1
+            false -> 0
+
+verify signum
+    signum(42)  => 1
+    signum(-7)  => -1
+    signum(0)   => 0
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(signum(42))
+    Console.print(signum(-7))
+    Console.print(signum(0))

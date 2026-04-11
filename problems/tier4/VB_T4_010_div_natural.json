@@ -3,6 +3,7 @@
   "tier": 4,
   "title": "Natural Division",
   "description": "Write a Vera function that computes integer division via repeated subtraction. div_natural(a, b) counts how many times b fits into a. Precondition: b > 0. The tricky part: the decreases clause must be on the dividend (first parameter), not the divisor.",
+  "description_neutral": "Compute integer division via repeated subtraction. div_natural(a, b) counts how many times b can be subtracted from a. Precondition: b > 0.",
   "signature": "public fn div_natural(@Nat, @Nat -> @Nat)",
   "contracts": {
     "requires": [

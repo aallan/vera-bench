@@ -3,6 +3,7 @@
   "tier": 5,
   "title": "Exception on Negative",
   "description": "Write a function that throws an exception if the input is negative, with a handler that catches and returns 0. Define the Exn<E> effect. Write require_non_negative that throws the input value if negative, and safe_non_negative that handles the exception. The postcondition should guarantee the result is non-negative.",
+  "description_neutral": "Return the input if it is non-negative, otherwise return 0.",
   "signature": "public fn safe_non_negative(@Int -> @Int)",
   "contracts": {
     "requires": ["true"],

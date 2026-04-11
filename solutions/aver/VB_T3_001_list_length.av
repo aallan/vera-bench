@@ -1,0 +1,27 @@
+module ListLength
+    intent = "Computes the length of a user-defined linked list."
+    exposes [MyList, list_length]
+
+type MyList
+    Nil
+    Cons(Int, MyList)
+
+fn list_length(xs: MyList) -> Int
+    ? "Returns the number of elements in a MyList."
+    match xs
+        MyList.Nil -> 0
+        MyList.Cons(_, rest) -> 1 + list_length(rest)
+
+verify list_length
+    list_length(MyList.Nil) => 0
+    list_length(MyList.Cons(1, MyList.Nil)) => 1
+    list_length(MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))) => 3
+
+fn main() -> Unit
+    ! [Console.print]
+    empty = MyList.Nil
+    one = MyList.Cons(1, MyList.Nil)
+    three = MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))
+    Console.print(list_length(empty))
+    Console.print(list_length(one))
+    Console.print(list_length(three))

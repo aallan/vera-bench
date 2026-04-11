@@ -3,6 +3,7 @@
   "tier": 1,
   "title": "Clamp",
   "description": "Write a Vera function that clamps an integer to a range [lo, hi]. Takes three Int parameters: value, lo, hi. Precondition: lo <= hi. Postconditions: result is within [lo, hi].",
+  "description_neutral": "Clamp an integer to a range [lo, hi]. Takes three parameters: value, lo, hi (where lo <= hi). Returns lo if value < lo, hi if value > hi, otherwise value.",
   "signature": "public fn clamp(@Int, @Int, @Int -> @Int)",
   "contracts": {
     "requires": [

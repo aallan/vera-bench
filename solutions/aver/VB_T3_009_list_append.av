@@ -1,0 +1,27 @@
+module ListAppend
+    intent = "Concatenates two user-defined linked lists."
+    exposes [MyList, list_append]
+
+type MyList
+    Nil
+    Cons(Int, MyList)
+
+fn list_append(xs: MyList, ys: MyList) -> MyList
+    ? "Appends ys to the end of xs by recursing through xs."
+    match xs
+        MyList.Nil -> ys
+        MyList.Cons(h, rest) -> MyList.Cons(h, list_append(rest, ys))
+
+verify list_append
+    list_append(MyList.Nil, MyList.Nil) => MyList.Nil
+    list_append(MyList.Nil, MyList.Cons(1, MyList.Nil)) => MyList.Cons(1, MyList.Nil)
+    list_append(MyList.Cons(1, MyList.Nil), MyList.Cons(2, MyList.Nil)) => MyList.Cons(1, MyList.Cons(2, MyList.Nil))
+    list_append(MyList.Cons(1, MyList.Cons(2, MyList.Nil)), MyList.Cons(3, MyList.Nil)) => MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))
+
+fn main() -> Unit
+    ! [Console.print]
+    xs = MyList.Cons(1, MyList.Cons(2, MyList.Nil))
+    ys = MyList.Cons(3, MyList.Cons(4, MyList.Nil))
+    Console.print(list_append(MyList.Nil, MyList.Nil))
+    Console.print(list_append(xs, ys))
+    Console.print(list_append(MyList.Nil, ys))

@@ -3,6 +3,7 @@
   "tier": 3,
   "title": "Expression Evaluator",
   "description": "Define an expression ADT with Lit(Int), Add(Expr, Expr), and Neg(Expr) constructors. Write a function that evaluates the expression to an Int. Add evaluates both sub-expressions and sums them. Neg negates the sub-expression.",
+  "description_neutral": "Define an expression type with literal, addition, and negation constructors. Write a function that evaluates the expression to an integer.",
   "signature": "public fn eval_expr(@Expr -> @Int)",
   "contracts": {
     "requires": [

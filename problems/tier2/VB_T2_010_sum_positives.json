@@ -3,6 +3,7 @@
   "tier": 2,
   "title": "Sum Positives",
   "description": "Write a Vera function that sums only the positive elements in an integer array. Use array_filter to select positive elements, then array_fold to sum them.",
+  "description_neutral": "Sum only the positive elements in an integer list.",
   "signature": "public fn sum_positives(@Array<Int> -> @Int)",
   "contracts": {
     "requires": ["true"],

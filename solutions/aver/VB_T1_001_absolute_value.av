@@ -1,0 +1,23 @@
+module AbsoluteValue
+    intent = "Computes the absolute value of an integer."
+
+fn absolute_value(x: Int) -> Int
+    ? "Returns |x|. Uses match on comparison since Aver has no unary minus."
+    match x < 0
+        true  -> 0 - x
+        false -> x
+
+verify absolute_value
+    absolute_value(0)    => 0
+    absolute_value(42)   => 42
+    absolute_value(-42)  => 42
+    absolute_value(1)    => 1
+    absolute_value(-1)   => 1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(absolute_value(0))
+    Console.print(absolute_value(42))
+    Console.print(absolute_value(-42))
+    Console.print(absolute_value(1))
+    Console.print(absolute_value(-1))

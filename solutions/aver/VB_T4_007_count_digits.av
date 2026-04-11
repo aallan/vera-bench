@@ -1,0 +1,26 @@
+module CountDigits
+    intent =
+        "Counts the number of digits in a non-negative integer."
+        "0 has 1 digit."
+    exposes [count_digits]
+
+fn count_digits(n: Int) -> Int
+    ? "Returns the number of digits in n. Handles 0 as having 1 digit."
+    match n < 10
+        true  -> 1
+        false -> 1 + count_digits(n / 10)
+
+verify count_digits
+    count_digits(0)       => 1
+    count_digits(9)       => 1
+    count_digits(42)      => 2
+    count_digits(12345)   => 5
+    count_digits(1000000) => 7
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(count_digits(0))
+    Console.print(count_digits(9))
+    Console.print(count_digits(42))
+    Console.print(count_digits(12345))
+    Console.print(count_digits(1000000))

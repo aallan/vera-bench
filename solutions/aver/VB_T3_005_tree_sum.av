@@ -1,0 +1,27 @@
+module TreeSum
+    intent = "Sums all values in the leaf nodes of a binary tree."
+    exposes [Tree, tree_sum]
+
+type Tree
+    Leaf(Int)
+    Branch(Tree, Tree)
+
+fn tree_sum(t: Tree) -> Int
+    ? "Returns the sum of all leaf values in the tree."
+    match t
+        Tree.Leaf(v) -> v
+        Tree.Branch(l, r) -> tree_sum(l) + tree_sum(r)
+
+verify tree_sum
+    tree_sum(Tree.Leaf(5)) => 5
+    tree_sum(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))) => 3
+    tree_sum(Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))) => 6
+
+fn main() -> Unit
+    ! [Console.print]
+    leaf = Tree.Leaf(5)
+    pair = Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))
+    nested = Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))
+    Console.print(tree_sum(leaf))
+    Console.print(tree_sum(pair))
+    Console.print(tree_sum(nested))
