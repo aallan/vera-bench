@@ -146,7 +146,7 @@ vera-bench baselines --language aver
 # Generate a combined report
 vera-bench report results/
 
-# Or run the full benchmark suite (all 6 targets) with one command
+# Or run the full benchmark suite (all 8 targets) with one command
 python scripts/run_full_benchmark.py
 ```
 
