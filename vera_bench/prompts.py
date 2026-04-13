@@ -195,9 +195,7 @@ def build_aver_prompt(problem: dict, llms_txt: str) -> dict:
     }
 
 
-def build_aver_fix_prompt(
-    original_code: str, error_output: str, llms_txt: str
-) -> dict:
+def build_aver_fix_prompt(original_code: str, error_output: str, llms_txt: str) -> dict:
     """Build a retry prompt after a failed Aver check.
 
     Returns dict with 'system' and 'user' keys.

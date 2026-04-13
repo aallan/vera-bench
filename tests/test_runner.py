@@ -1071,9 +1071,7 @@ class TestAverCLI:
 
         # Just test that --language aver is accepted (will fail on
         # missing aver binary, but that's the expected path)
-        result = CliRunner().invoke(
-            main, ["baselines", "--language", "aver"]
-        )
+        result = CliRunner().invoke(main, ["baselines", "--language", "aver"])
         # Should fail with "aver not found" not "invalid choice"
         assert "invalid" not in (result.output or "").lower()
 
@@ -1083,8 +1081,7 @@ class TestAverCLI:
         from vera_bench.cli import main
 
         result = CliRunner().invoke(
-            main, ["run", "--model", "claude-haiku-4-5-20251001",
-                   "--language", "aver"]
+            main, ["run", "--model", "claude-haiku-4-5-20251001", "--language", "aver"]
         )
         # Should not fail with "invalid choice"
         assert "invalid" not in (result.output or "").lower()

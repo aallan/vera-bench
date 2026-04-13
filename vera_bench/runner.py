@@ -491,8 +491,7 @@ def _evaluate_aver_code(
 
         # If code has no module declaration, wrap it
         has_module = any(
-            line.strip().startswith("module ")
-            for line in code_without_main.split("\n")
+            line.strip().startswith("module ") for line in code_without_main.split("\n")
         )
         if has_module:
             test_file = (
@@ -504,7 +503,7 @@ def _evaluate_aver_code(
         else:
             test_file = (
                 f"module Test{safe_id}\n"
-                f"    intent = \"Test wrapper\"\n\n"
+                f'    intent = "Test wrapper"\n\n'
                 f"{code_without_main}\n\n"
                 f"fn main() -> Unit\n"
                 f"    ! [Console.print]\n"
@@ -574,7 +573,7 @@ def _aver_literal(value) -> str:
     if isinstance(value, float):
         return str(value)
     if isinstance(value, str):
-        escaped = value.replace('\\', '\\\\').replace('"', '\\"')
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'
     if isinstance(value, list):
         items = ", ".join(_aver_literal(v) for v in value)

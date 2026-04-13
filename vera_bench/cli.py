@@ -108,8 +108,7 @@ def run(
             )
     if language == "aver" and mode != "full-spec":
         console.print(
-            f"[yellow]Warning: --mode {mode} is ignored "
-            f"with --language aver[/yellow]"
+            f"[yellow]Warning: --mode {mode} is ignored with --language aver[/yellow]"
         )
 
     root = _repo_root()

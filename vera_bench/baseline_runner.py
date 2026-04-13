@@ -579,9 +579,7 @@ def run_all_baselines(
         run_problems = [p for p in problems if p.get("test_cases")]
         skipped = len(problems) - len(run_problems)
         if skipped:
-            console.print(
-                f"[dim]Skipping {skipped} problems with no test cases[/dim]"
-            )
+            console.print(f"[dim]Skipping {skipped} problems with no test cases[/dim]")
 
     with tempfile.TemporaryDirectory(prefix="verabench_baseline_") as tmpdir:
         work_dir = Path(tmpdir)
