@@ -1069,11 +1069,18 @@ class TestAverCLI:
 
         from vera_bench.cli import main
 
-        # Just test that --language aver is accepted (will fail on
-        # missing aver binary, but that's the expected path)
         result = CliRunner().invoke(main, ["baselines", "--language", "aver"])
-        # Should fail with "aver not found" not "invalid choice"
         assert "invalid" not in (result.output or "").lower()
+
+    def test_baselines_aver_not_on_path(self):
+        from click.testing import CliRunner
+
+        from vera_bench.cli import main
+
+        with patch("shutil.which", return_value=None):
+            result = CliRunner().invoke(main, ["baselines", "--language", "aver"])
+        assert result.exit_code != 0
+        assert "aver not found" in (result.output or "")
 
     def test_run_command_accepts_aver(self):
         from click.testing import CliRunner
@@ -1081,10 +1088,102 @@ class TestAverCLI:
         from vera_bench.cli import main
 
         result = CliRunner().invoke(
-            main, ["run", "--model", "claude-haiku-4-5-20251001", "--language", "aver"]
+            main,
+            [
+                "run",
+                "--model",
+                "claude-haiku-4-5-20251001",
+                "--language",
+                "aver",
+            ],
         )
-        # Should not fail with "invalid choice"
         assert "invalid" not in (result.output or "").lower()
+
+    def test_run_aver_version_not_found(self):
+        from click.testing import CliRunner
+
+        from vera_bench.cli import main
+
+        # Mock llms.txt loading to isolate the aver version check
+        with (
+            patch("vera_bench.models.create_client"),
+            patch(
+                "vera_bench.prompts.load_aver_llms_txt",
+                return_value="# mock spec",
+            ),
+            patch(
+                "subprocess.run",
+                side_effect=FileNotFoundError,
+            ),
+        ):
+            result = CliRunner().invoke(
+                main,
+                [
+                    "run",
+                    "--model",
+                    "claude-haiku-4-5-20251001",
+                    "--language",
+                    "aver",
+                ],
+            )
+        assert result.exit_code != 0
+        assert "aver not found" in (result.output or "")
+
+    def test_run_aver_mode_warning(self):
+        from click.testing import CliRunner
+
+        from vera_bench.cli import main
+
+        result = CliRunner().invoke(
+            main,
+            [
+                "run",
+                "--model",
+                "claude-haiku-4-5-20251001",
+                "--language",
+                "aver",
+                "--mode",
+                "spec-from-nl",
+            ],
+        )
+        assert "mode" in (result.output or "").lower()
+
+    def test_run_python_skill_md_warning(self):
+        from click.testing import CliRunner
+
+        from vera_bench.cli import main
+
+        result = CliRunner().invoke(
+            main,
+            [
+                "run",
+                "--model",
+                "claude-haiku-4-5-20251001",
+                "--language",
+                "python",
+                "--mode",
+                "spec-from-nl",
+            ],
+        )
+        assert "ignored" in (result.output or "").lower()
+
+    def test_run_no_matching_problems(self):
+        from click.testing import CliRunner
+
+        from vera_bench.cli import main
+
+        result = CliRunner().invoke(
+            main,
+            [
+                "run",
+                "--model",
+                "claude-haiku-4-5-20251001",
+                "--problem",
+                "VB-T99-999",
+            ],
+        )
+        assert result.exit_code != 0
+        assert "No matching" in (result.output or "")
 
 
 class TestAverOutputMatches:
