@@ -10,7 +10,7 @@ VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aall
 - **ROADMAP.md** has forward-looking milestones and open issues.
 - **BRIEFING.md** is the original bootstrap document (kept for historical reference).
 - **SKILL.md** is fetched from `https://veralang.dev/SKILL.md` at runtime (no local cache). Override with `--skill-md /path/to/local/SKILL.md`.
-- **Aver's llms.txt** is fetched from `https://averlang.org/llms.txt` at runtime (equivalent of SKILL.md for Aver).
+- **Aver's llms.txt** is fetched from `https://averlang.dev/llms.txt` at runtime (equivalent of SKILL.md for Aver).
 
 ## Vera installation
 
@@ -88,7 +88,7 @@ The pattern for adding a new language is established by the Python, TypeScript, 
 
 ### Aver
 
-[Aver](https://github.com/pchj/aver-lang) is a Haskell-inspired language with strong typing, similar zero-training-data properties to Vera. Its reference doc (`llms.txt`) is fetched from `https://averlang.org/llms.txt`. The `aver` command must be on `$PATH`.
+[Aver](https://github.com/pchj/aver-lang) is a Haskell-inspired language with strong typing, similar zero-training-data properties to Vera. Its reference doc (`llms.txt`) is fetched from `https://averlang.dev/llms.txt`. The `aver` command must be on `$PATH`.
 
 ### Tier 5 cross-language caveat
 
