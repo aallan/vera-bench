@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -782,6 +783,343 @@ class TestStripAverMain:
         result = _strip_aver_main(code)
         assert "fn main" not in result
         assert "fn bar" in result
+
+
+class TestEvaluateAverCode:
+    def _sample_problem(self, test_cases=None):
+        return {
+            "id": "VB-T1-001",
+            "entry_point": "absolute_value",
+            "test_cases": test_cases or [],
+        }
+
+    def _mock_subprocess(self, returncode=0, stdout="", stderr=""):
+        result = MagicMock()
+        result.returncode = returncode
+        result.stdout = stdout
+        result.stderr = stderr
+        return result
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_check_pass(self, mock_run, tmp_path):
+        from vera_bench.runner import _evaluate_aver_code
+
+        # check passes, verify passes, no test cases
+        mock_run.side_effect = [
+            self._mock_subprocess(returncode=0),  # aver check
+            self._mock_subprocess(returncode=0),  # aver verify
+        ]
+        code = 'module Test\n    intent = "test"\n\nfn absolute_value(x: Int) -> Int\n    match x < 0\n        true -> 0 - x\n        false -> x\n'
+        result = _evaluate_aver_code(code, self._sample_problem(), tmp_path, 1)
+        assert result["check_pass"] is True
+        assert result["verify_pass"] is True
+        assert result["run_correct"] is None
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_check_fail(self, mock_run, tmp_path):
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.return_value = self._mock_subprocess(
+            returncode=1, stderr="error: type mismatch"
+        )
+        result = _evaluate_aver_code(
+            "fn bad() -> Int\n    true\n",
+            self._sample_problem(),
+            tmp_path,
+            1,
+        )
+        assert result["check_pass"] is False
+        assert "type mismatch" in result["error_message"]
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_aver_not_found(self, mock_run, tmp_path):
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.side_effect = FileNotFoundError
+        result = _evaluate_aver_code(
+            "fn x() -> Int\n    1\n",
+            self._sample_problem(),
+            tmp_path,
+            1,
+        )
+        assert result["check_pass"] is False
+        assert "aver not found" in result["error_message"]
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_check_timeout(self, mock_run, tmp_path):
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="aver", timeout=30)
+        result = _evaluate_aver_code(
+            "fn x() -> Int\n    1\n",
+            self._sample_problem(),
+            tmp_path,
+            1,
+        )
+        assert result["check_pass"] is False
+        assert "timed out" in result["error_message"]
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_with_test_cases(self, mock_run, tmp_path):
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.side_effect = [
+            self._mock_subprocess(returncode=0),  # aver check
+            self._mock_subprocess(returncode=0),  # aver verify
+            self._mock_subprocess(returncode=0, stdout="42\n"),  # aver run tc1
+            self._mock_subprocess(returncode=0, stdout="5\n"),  # aver run tc2
+        ]
+        problem = self._sample_problem(
+            test_cases=[
+                {"args": [42], "expected": 42},
+                {"args": [-5], "expected": 5},
+            ]
+        )
+        result = _evaluate_aver_code(
+            'module T\n    intent = "t"\n\nfn absolute_value(x: Int) -> Int\n    x\n',
+            problem,
+            tmp_path,
+            1,
+        )
+        assert result["check_pass"] is True
+        assert result["tests_total"] == 2
+        assert result["tests_passed"] == 2
+        assert result["run_correct"] is True
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_verify_timeout_counts_as_failure(self, mock_run, tmp_path):
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.side_effect = [
+            self._mock_subprocess(returncode=0),  # aver check
+            subprocess.TimeoutExpired(cmd="aver", timeout=30),  # aver verify
+        ]
+        result = _evaluate_aver_code(
+            'module T\n    intent = "t"\n\nfn x() -> Int\n    1\n',
+            self._sample_problem(),
+            tmp_path,
+            1,
+        )
+        assert result["check_pass"] is True
+        assert result["verify_pass"] is False
+
+
+class TestRunSingleProblemAver:
+    def _mock_client(self, text):
+        client = MagicMock()
+        client.complete.return_value = LLMResponse(
+            text=text,
+            input_tokens=100,
+            output_tokens=50,
+            wall_time_s=1.0,
+            model="mock",
+        )
+        return client
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_aver_language(self, mock_run, tmp_path):
+        from vera_bench.runner import run_single_problem
+
+        mock_run.side_effect = [
+            MagicMock(returncode=0, stdout="", stderr=""),  # check
+            MagicMock(returncode=0, stdout="", stderr=""),  # verify
+        ]
+        client = self._mock_client(
+            'module T\n    intent = "t"\n\nfn test(x: Int) -> Int\n    x\n'
+        )
+        results = run_single_problem(
+            problem={
+                "id": "VB-T1-001",
+                "description": "Test",
+                "entry_point": "test",
+                "test_cases": [],
+            },
+            client=client,
+            skill_md="spec",
+            vera=None,
+            work_dir=tmp_path,
+            language="aver",
+        )
+        assert len(results) == 1
+        assert results[0].language == "aver"
+        assert results[0].check_pass is True
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_aver_no_retry_on_tooling_error(self, mock_run, tmp_path):
+        from vera_bench.runner import run_single_problem
+
+        mock_run.side_effect = FileNotFoundError
+        client = self._mock_client("fn bad() -> Int\n    1\n")
+        results = run_single_problem(
+            problem={
+                "id": "VB-T1-001",
+                "description": "Test",
+                "entry_point": "bad",
+                "test_cases": [],
+            },
+            client=client,
+            skill_md="spec",
+            vera=None,
+            work_dir=tmp_path,
+            language="aver",
+        )
+        # Only 1 attempt — no retry on tooling error
+        assert len(results) == 1
+        assert results[0].check_pass is False
+        assert client.complete.call_count == 1
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_aver_retry_on_check_failure(self, mock_run, tmp_path):
+        from vera_bench.runner import run_single_problem
+
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="", stderr="error: type mismatch"
+        )
+        client = self._mock_client("fn bad() -> Int\n    true\n")
+        results = run_single_problem(
+            problem={
+                "id": "VB-T1-001",
+                "description": "Test",
+                "entry_point": "bad",
+                "test_cases": [],
+            },
+            client=client,
+            skill_md="spec",
+            vera=None,
+            work_dir=tmp_path,
+            language="aver",
+        )
+        # 2 attempts — retry on actual check failure
+        assert len(results) == 2
+        assert client.complete.call_count == 2
+
+    def test_unknown_language_raises(self, tmp_path):
+        from vera_bench.runner import run_single_problem
+
+        client = MagicMock()
+        client.complete.return_value = LLMResponse(
+            text="code",
+            input_tokens=10,
+            output_tokens=10,
+            wall_time_s=0.1,
+            model="mock",
+        )
+        with pytest.raises(ValueError, match="Unknown language"):
+            run_single_problem(
+                problem={
+                    "id": "VB-T1-001",
+                    "description": "Test",
+                    "entry_point": "test",
+                    "test_cases": [],
+                },
+                client=client,
+                skill_md="",
+                vera=None,
+                work_dir=tmp_path,
+                language="rust",
+            )
+
+
+class TestAverPrompt:
+    def test_build_aver_prompt(self):
+        from vera_bench.prompts import build_aver_prompt
+
+        problem = {
+            "description": "Compute absolute value",
+            "description_neutral": "Return the absolute value of an integer.",
+            "entry_point": "absolute_value",
+        }
+        result = build_aver_prompt(problem, "# Aver spec")
+        assert "absolute_value" in result["user"]
+        assert "Aver" in result["system"]
+        assert "# Aver spec" in result["system"]
+        assert "Return the absolute value" in result["user"]
+
+    def test_aver_prompt_uses_neutral(self):
+        from vera_bench.prompts import build_aver_prompt
+
+        problem = {
+            "description": "Vera-flavoured description with @Int",
+            "description_neutral": "Neutral description",
+            "entry_point": "test",
+        }
+        result = build_aver_prompt(problem, "spec")
+        assert "Neutral description" in result["user"]
+        assert "Vera-flavoured" not in result["user"]
+
+    def test_build_aver_fix_prompt(self):
+        from vera_bench.prompts import build_aver_fix_prompt
+
+        result = build_aver_fix_prompt("bad code", "type error", "spec")
+        assert "bad code" in result["user"]
+        assert "type error" in result["user"]
+        assert "Fix" in result["user"]
+
+
+class TestAverCLI:
+    def test_baselines_command_accepts_aver(self):
+        from click.testing import CliRunner
+
+        from vera_bench.cli import main
+
+        # Just test that --language aver is accepted (will fail on
+        # missing aver binary, but that's the expected path)
+        result = CliRunner().invoke(
+            main, ["baselines", "--language", "aver"]
+        )
+        # Should fail with "aver not found" not "invalid choice"
+        assert "invalid" not in (result.output or "").lower()
+
+    def test_run_command_accepts_aver(self):
+        from click.testing import CliRunner
+
+        from vera_bench.cli import main
+
+        result = CliRunner().invoke(
+            main, ["run", "--model", "claude-haiku-4-5-20251001",
+                   "--language", "aver"]
+        )
+        # Should not fail with "invalid choice"
+        assert "invalid" not in (result.output or "").lower()
+
+
+class TestAverOutputMatches:
+    def test_exact_int_match(self):
+        from vera_bench.baseline_runner import _aver_output_matches
+
+        assert _aver_output_matches("42", 42) is True
+
+    def test_bool_true_from_int(self):
+        from vera_bench.baseline_runner import _aver_output_matches
+
+        assert _aver_output_matches("true", 1) is True
+
+    def test_bool_false_from_int(self):
+        from vera_bench.baseline_runner import _aver_output_matches
+
+        assert _aver_output_matches("false", 0) is True
+
+    def test_int_not_treated_as_bool(self):
+        from vera_bench.baseline_runner import _aver_output_matches
+
+        # 42 should NOT match "true" even though it's truthy
+        assert _aver_output_matches("true", 42) is False
+
+    def test_negative_match(self):
+        from vera_bench.baseline_runner import _aver_output_matches
+
+        assert _aver_output_matches("-5", -5) is True
+
+    def test_string_match(self):
+        from vera_bench.baseline_runner import _aver_output_matches
+
+        assert _aver_output_matches("hello", "hello") is True
+
+    def test_bool_literal_match(self):
+        from vera_bench.baseline_runner import _aver_output_matches
+
+        assert _aver_output_matches("true", True) is True
+        assert _aver_output_matches("false", False) is True
 
 
 class TestRunBenchmarkIntegration:

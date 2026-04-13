@@ -481,13 +481,16 @@ def run_aver_baseline(
             check_pass=True,
             run_correct=False,
             tests_total=len(test_cases),
-            error_message=(run_result.stderr[:200] if run_result.stderr else "Non-zero exit"),
+            error_message=(
+                run_result.stderr[:200] if run_result.stderr else "Non-zero exit"
+            ),
             wall_time_s=elapsed,
             timestamp=_now(),
         )
 
     # Parse output: each line corresponds to one test case result
-    output_lines = run_result.stdout.strip().split("\n") if run_result.stdout.strip() else []
+    stdout = run_result.stdout.strip()
+    output_lines = stdout.split("\n") if stdout else []
     tests_passed = 0
 
     for i, tc in enumerate(test_cases):
