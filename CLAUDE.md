@@ -62,7 +62,7 @@ vera run solutions/vera/VB-T1-001_absolute_value.vera --fn absolute_value -- -42
 - **State handlers**: `put`/`get` must be inlined in the `in { ... }` block. Calling a separate function with `effects(<State<T>>)` from inside a handler body causes a WASM codegen error.
 - **`Exn<String>` doesn't work** — use `Exn<Int>` for exception values.
 - **Bare `None`/`Err`** can fail type inference — use typed let bindings.
-- **`vera test` input generation** is limited to `Int`, `Nat`, `Bool`, `Byte` parameters — it cannot generate `String`, `Float64`, or compound types (issue #169). The benchmark uses `vera run`, not `vera test`.
+- **`vera test` input generation** supports `Int`, `Nat`, `Bool`, `String`, and `Float64` parameters (since vera v0.0.106). ADT generation is not yet supported (issue #440). The benchmark uses `vera run`, not `vera test`.
 - **`map_new()` / `set_new()`** need type context — provide via let bindings or annotations.
 
 ## Test case bool gotcha
