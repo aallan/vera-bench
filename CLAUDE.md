@@ -8,7 +8,6 @@ VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aall
 - **The Vera repo** (https://github.com/aallan/vera) is the compiler. Do not modify it from here.
 - **DESIGN.md** has the design rationale: prior art, tier definitions, key decisions.
 - **ROADMAP.md** has forward-looking milestones and open issues.
-- **BRIEFING.md** is the original bootstrap document (kept for historical reference).
 - **SKILL.md** is fetched from `https://veralang.dev/SKILL.md` at runtime (no local cache). Override with `--skill-md /path/to/local/SKILL.md`.
 - **Aver's llms.txt** is fetched from `https://averlang.dev/llms.txt` at runtime (equivalent of SKILL.md for Aver).
 
@@ -63,6 +62,8 @@ vera run solutions/vera/VB-T1-001_absolute_value.vera --fn absolute_value -- -42
 - **State handlers**: `put`/`get` must be inlined in the `in { ... }` block. Calling a separate function with `effects(<State<T>>)` from inside a handler body causes a WASM codegen error.
 - **`Exn<String>` doesn't work** — use `Exn<Int>` for exception values.
 - **Bare `None`/`Err`** can fail type inference — use typed let bindings.
+- **`vera test` input generation** is limited to `Int`, `Nat`, `Bool`, `Byte` parameters — it cannot generate `String`, `Float64`, or compound types (issue #169). The benchmark uses `vera run`, not `vera test`.
+- **`map_new()` / `set_new()`** need type context — provide via let bindings or annotations.
 
 ## Test case bool gotcha
 

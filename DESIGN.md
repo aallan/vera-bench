@@ -91,3 +91,6 @@ Aggregate rates are computed per tier and overall. Cross-language baselines (Pyt
 - HumanEval: https://github.com/openai/human-eval
 - MBPP: https://github.com/google-research/google-research/tree/master/mbpp
 - DafnyBench: https://github.com/sun-wendy/DafnyBench (paper: arXiv:2406.08467)
+- VerifyThisBench: https://openreview.net/pdf/b0715e58c2fe690e0c0ba80f5c9ca783df3098f5.pdf
+- VERINA: https://arxiv.org/pdf/2505.23135
+- CLEVER: https://arxiv.org/pdf/2505.13938

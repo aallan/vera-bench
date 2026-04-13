@@ -16,7 +16,6 @@ knowledge_base:
     enabled: true
     filePatterns:
       - "CLAUDE.md"
-      - "BRIEFING.md"
 
 chat:
   auto_reply: true
@@ -89,7 +88,7 @@ reviews:
     - label: "ci"
       instructions: "Apply when files under .github/ or scripts/ are changed."
     - label: "docs"
-      instructions: "Apply when README.md, BRIEFING.md, or CLAUDE.md are changed."
+      instructions: "Apply when README.md or CLAUDE.md are changed."
 
   tools:
     ruff:
