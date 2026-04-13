@@ -70,14 +70,14 @@ For each problem, we measure:
 - **fix@1** — Given the error message, can the model fix it in one turn?
 - **run_correct** — Does execution produce the correct output?
 
-The same problems are also run in Python, TypeScript, and [Aver](https://github.com/pchj/aver-lang) as baselines. Aver is a Haskell-inspired language with zero LLM training data, providing a second data point alongside Vera for the zero-training-data thesis.
+The same problems are also run in Python, TypeScript, and [Aver](https://github.com/jasisz/aver) as baselines. Aver is a Haskell-inspired language with zero LLM training data, providing a second data point alongside Vera for the zero-training-data thesis.
 
 ## Prerequisites
 
 * Python 3.11+
 * Git
 * Node.js 22+ *(optional, for TypeScript baselines and generation)*
-* [Aver](https://github.com/pchj/aver-lang) *(optional, for Aver baselines and generation)*
+* [Aver](https://github.com/jasisz/aver) *(optional, for Aver baselines and generation)*
 
 ## Installation
 

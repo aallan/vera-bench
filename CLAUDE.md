@@ -1,6 +1,6 @@
 # CLAUDE.md — VeraBench
 
-VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aallan/vera), a programming language designed for LLMs. It measures whether LLMs write better code in Vera than in Python, TypeScript, or other comparison languages (currently also [Aver](https://github.com/pchj/aver-lang)).
+VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aallan/vera), a programming language designed for LLMs. It measures whether LLMs write better code in Vera than in Python, TypeScript, or other comparison languages (currently also [Aver](https://github.com/jasisz/aver)).
 
 ## Quick orientation
 
@@ -88,7 +88,7 @@ The pattern for adding a new language is established by the Python, TypeScript, 
 
 ### Aver
 
-[Aver](https://github.com/pchj/aver-lang) is a Haskell-inspired language with strong typing, similar zero-training-data properties to Vera. Its reference doc (`llms.txt`) is fetched from `https://averlang.dev/llms.txt`. The `aver` command must be on `$PATH`.
+[Aver](https://github.com/jasisz/aver) is a Haskell-inspired language with strong typing, similar zero-training-data properties to Vera. Its reference doc (`llms.txt`) is fetched from `https://averlang.dev/llms.txt`. The `aver` command must be on `$PATH`.
 
 ### Tier 5 cross-language caveat
 
