@@ -165,7 +165,7 @@ def _run(cmd: list[str], env: dict, timeout: int = 3600) -> tuple[int, float]:
         elapsed = time.monotonic() - t0
         finish_ts = datetime.now(timezone.utc)
         print(f"\nTIMEOUT after {_format_duration(elapsed)}")
-        print(f"Finished: {finish_ts.strftime('%H:%M:%S UTC')}")
+        print(f"Timed out at: {finish_ts.strftime('%H:%M:%S UTC')}")
         return 1, elapsed
     elapsed = time.monotonic() - t0
     finish_ts = datetime.now(timezone.utc)
@@ -174,7 +174,7 @@ def _run(cmd: list[str], env: dict, timeout: int = 3600) -> tuple[int, float]:
     return result.returncode, elapsed
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run the full VeraBench benchmark suite"
     )
@@ -300,9 +300,11 @@ def main():
     # Write timing.json
     timing_path = Path("results") / "timing.json"
     timing_path.parent.mkdir(parents=True, exist_ok=True)
+    run_end_ts = datetime.now(timezone.utc)
     timing_data = {
         "model": model,
         "started_at": run_start_ts.isoformat(),
+        "finished_at": run_end_ts.isoformat(),
         "total_seconds": round(total_elapsed, 1),
         "targets": {
             name: {
