@@ -153,18 +153,24 @@ def _run(cmd: list[str], env: dict, timeout: int = 3600) -> tuple[int, float]:
     Returns:
         Tuple of (return_code, elapsed_seconds).
     """
+    start_ts = datetime.now(timezone.utc)
     print(f"\n{'=' * 60}")
     print(f"Running: {' '.join(cmd)}")
+    print(f"Started: {start_ts.strftime('%H:%M:%S UTC')}")
     print(f"{'=' * 60}\n")
     t0 = time.monotonic()
     try:
         result = subprocess.run(cmd, env=env, check=False, timeout=timeout)
     except subprocess.TimeoutExpired:
         elapsed = time.monotonic() - t0
-        print(f"\nTIMEOUT after {_format_duration(elapsed)}: {' '.join(cmd)}")
+        finish_ts = datetime.now(timezone.utc)
+        print(f"\nTIMEOUT after {_format_duration(elapsed)}")
+        print(f"Finished: {finish_ts.strftime('%H:%M:%S UTC')}")
         return 1, elapsed
     elapsed = time.monotonic() - t0
+    finish_ts = datetime.now(timezone.utc)
     print(f"\nCompleted in {_format_duration(elapsed)}")
+    print(f"Finished: {finish_ts.strftime('%H:%M:%S UTC')}")
     return result.returncode, elapsed
 
 
@@ -270,6 +276,7 @@ def main():
 
     # Run all targets
     results: dict[str, dict] = {}
+    run_start_ts = datetime.now(timezone.utc)
     run_start = time.monotonic()
     for name, cmd in targets:
         rc, elapsed = _run(cmd, env)
@@ -295,7 +302,7 @@ def main():
     timing_path.parent.mkdir(parents=True, exist_ok=True)
     timing_data = {
         "model": model,
-        "started_at": datetime.now(timezone.utc).isoformat(),
+        "started_at": run_start_ts.isoformat(),
         "total_seconds": round(total_elapsed, 1),
         "targets": {
             name: {
