@@ -23,6 +23,7 @@ def generate_report(results_dir: Path) -> str:
 
     all_model_results: dict[str, list[dict]] = {}
     all_model_metrics: dict[str, BenchmarkMetrics] = {}
+    all_model_metrics_t1t4: dict[str, BenchmarkMetrics] = {}
 
     for jf in jsonl_files:
         model_name = jf.stem
@@ -30,13 +31,16 @@ def generate_report(results_dir: Path) -> str:
         if results:
             all_model_results[model_name] = results
             all_model_metrics[model_name] = compute_metrics(results)
+            all_model_metrics_t1t4[model_name] = compute_metrics(
+                results, exclude_tiers={5}
+            )
 
     if not all_model_metrics:
         return "No results to report.\n"
 
     sections = [
         "# VeraBench Results\n",
-        _summary_table(all_model_metrics),
+        _summary_table(all_model_metrics, all_model_metrics_t1t4),
         _tier_breakdown(all_model_metrics),
         _per_problem_detail(all_model_results),
     ]
@@ -55,23 +59,56 @@ def _pct(rate: float | None) -> str:
     return f"{rate * 100:.0f}%"
 
 
+_SUMMARY_HEADER = "| Model | check@1 | verify@1 | fix@1 | run_correct | Problems |"
+_SUMMARY_SEP = "|-------|---------|----------|-------|-------------|----------|"
+
+
+def _summary_row(model: str, m: BenchmarkMetrics) -> str:
+    return (
+        f"| {model} "
+        f"| {_pct(m.check_rate)} "
+        f"| {_pct(m.verify_rate)} "
+        f"| {_pct(m.fix_rate)} "
+        f"| {_pct(m.run_correct_rate)} "
+        f"| {m.total_problems} |"
+    )
+
+
 def _summary_table(
     all_metrics: dict[str, BenchmarkMetrics],
+    comparable_metrics: dict[str, BenchmarkMetrics] | None = None,
 ) -> str:
     lines = [
         "## Summary\n",
-        "| Model | check@1 | verify@1 | fix@1 | run_correct | Problems |",
-        "|-------|---------|----------|-------|-------------|----------|",
+        "### All Tiers (T1\u2013T5)\n",
+        _SUMMARY_HEADER,
+        _SUMMARY_SEP,
     ]
     for model, m in sorted(all_metrics.items()):
-        lines.append(
-            f"| {model} "
-            f"| {_pct(m.check_rate)} "
-            f"| {_pct(m.verify_rate)} "
-            f"| {_pct(m.fix_rate)} "
-            f"| {_pct(m.run_correct_rate)} "
-            f"| {m.total_problems} |"
+        lines.append(_summary_row(model, m))
+
+    if comparable_metrics:
+        lines.extend(
+            [
+                "",
+                "### Comparable (T1\u2013T4)\n",
+                _SUMMARY_HEADER,
+                _SUMMARY_SEP,
+            ]
         )
+        for model, m in sorted(comparable_metrics.items()):
+            lines.append(_summary_row(model, m))
+        lines.extend(
+            [
+                "",
+                "> **Note:** Tier 5 tests algebraic effect handlers "
+                "(State, Exn, IO) unique to Vera. Other languages solve "
+                "these with native idioms (try/except, Result types). "
+                "T1\u2013T4 is the primary cross-language comparison; "
+                "T5 is reported separately.",
+            ]
+        )
+
     return "\n".join(lines) + "\n"
 
 

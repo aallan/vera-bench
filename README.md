@@ -72,6 +72,8 @@ For each problem, we measure:
 
 The same problems are also run in Python, TypeScript, and [Aver](https://github.com/jasisz/aver) as baselines. Aver is a Haskell-inspired language with zero LLM training data, providing a second data point alongside Vera for the zero-training-data thesis.
 
+> **Cross-language comparison:** For cross-language headline rates, use the T1–T4 aggregate. Tier 5 tests Vera's algebraic effect handlers, which other languages solve with fundamentally different native idioms. See [#50](https://github.com/aallan/vera-bench/issues/50).
+
 ## Prerequisites
 
 * Python 3.11+

@@ -227,6 +227,43 @@ class TestMetrics:
         assert m.total_problems == 0
         assert m.check_rate is None
 
+    def test_exclude_tiers(self):
+        results = self._make_results() + [
+            {
+                "problem_id": "VB-T5-001",
+                "attempt": 1,
+                "check_pass": True,
+                "verify_pass": True,
+                "run_correct": True,
+            },
+        ]
+        m_all = compute_metrics(results)
+        m_no_t5 = compute_metrics(results, exclude_tiers={5})
+
+        assert m_all.total_problems == 5
+        assert 5 in m_all.by_tier
+        assert m_no_t5.total_problems == 4
+        assert 5 not in m_no_t5.by_tier
+        assert m_no_t5.check_rate == 0.5
+
+    def test_exclude_tiers_none_is_default(self):
+        results = self._make_results()
+        m1 = compute_metrics(results)
+        m2 = compute_metrics(results, exclude_tiers=None)
+        assert m1.total_problems == m2.total_problems
+        assert m1.check_rate == m2.check_rate
+
+    def test_exclude_tiers_empty_set(self):
+        results = self._make_results() + [
+            {
+                "problem_id": "VB-T5-001",
+                "attempt": 1,
+                "check_pass": True,
+            },
+        ]
+        m = compute_metrics(results, exclude_tiers=set())
+        assert m.total_problems == 5
+
     def test_jsonl_round_trip(self, tmp_path):
         results = self._make_results()
         path = tmp_path / "test.jsonl"
@@ -276,7 +313,44 @@ class TestReport:
             assert "VeraBench Results" in report
             assert "test-model" in report
             assert "VB-T1-001" in report
+            assert "All Tiers" in report
+            assert "Comparable" in report
             assert (Path(d) / "summary.md").exists()
+
+    def test_report_t1t4_shows_different_counts(self):
+        from vera_bench.report import generate_report
+
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "test-model.jsonl"
+            lines = [
+                json.dumps(
+                    {
+                        "problem_id": "VB-T1-001",
+                        "attempt": 1,
+                        "check_pass": True,
+                        "run_correct": True,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "problem_id": "VB-T5-001",
+                        "attempt": 1,
+                        "check_pass": True,
+                        "run_correct": True,
+                    }
+                ),
+            ]
+            p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            report = generate_report(Path(d))
+            all_section, comparable_section = report.split(
+                "### Comparable",
+                1,
+            )
+            # All tiers: 2 problems
+            assert "| test-model | 100% | - | - | 100% | 2 |" in all_section
+            # T1-T4 comparable: 1 problem
+            assert "| test-model | 100% | - | - | 100% | 1 |" in comparable_section
+            assert "Tier 5 tests algebraic effect handlers" in report
 
 
 # === run_single_problem with mocks ===

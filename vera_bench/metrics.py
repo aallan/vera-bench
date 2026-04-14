@@ -38,13 +38,30 @@ def load_results(path: Path) -> list[dict]:
     return results
 
 
-def compute_metrics(results: list[dict]) -> BenchmarkMetrics:
-    """Compute aggregate metrics from result records."""
+def compute_metrics(
+    results: list[dict],
+    *,
+    exclude_tiers: set[int] | None = None,
+) -> BenchmarkMetrics:
+    """Compute aggregate metrics from result records.
+
+    If exclude_tiers is provided, problems in those tiers are filtered out
+    before computing aggregates. Useful for T1-T4 cross-language comparison
+    where T5 tests fundamentally different capabilities per language.
+    """
     # Group by problem_id
     by_problem: dict[str, list[dict]] = {}
     for r in results:
         pid = r.get("problem_id", "")
         by_problem.setdefault(pid, []).append(r)
+
+    # Filter out excluded tiers
+    if exclude_tiers:
+        by_problem = {
+            pid: attempts
+            for pid, attempts in by_problem.items()
+            if _tier_from_id(pid) not in exclude_tiers
+        }
 
     total = len(by_problem)
     if total == 0:
