@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-04-16
+
 ### Added
 
 - Report shows separate "All Tiers (T1–T5)" and "Comparable (T1–T4)" summary
@@ -159,7 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.9...HEAD
+[0.0.9]: https://github.com/aallan/vera-bench/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/aallan/vera-bench/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/aallan/vera-bench/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/aallan/vera-bench/compare/v0.0.5...v0.0.6
