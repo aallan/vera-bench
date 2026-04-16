@@ -18,6 +18,15 @@ _WRITE_INSTRUCTION = (
 SKILL_MD_URL = "https://veralang.dev/SKILL.md"
 AVER_LLMS_TXT_URL = "https://averlang.dev/llms.txt"
 
+_USER_AGENT = "vera-bench/0.0.9"
+
+
+def _fetch_url(url: str, *, timeout: int = 10) -> str:
+    """Fetch a URL with a proper User-Agent (avoids Cloudflare 403s)."""
+    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        return resp.read().decode("utf-8")
+
 
 def load_skill_md(source: str | Path | None = None) -> str:
     """Load SKILL.md from a URL or local file.
@@ -32,10 +41,7 @@ def load_skill_md(source: str | Path | None = None) -> str:
     source_str = str(source)
     if source_str.startswith("http"):
         try:
-            with urllib.request.urlopen(  # noqa: S310
-                source_str, timeout=10
-            ) as resp:
-                return resp.read().decode("utf-8")
+            return _fetch_url(source_str)
         except (urllib.error.URLError, OSError) as e:
             raise RuntimeError(
                 f"Failed to fetch SKILL.md from {source_str}: {e}\n"
@@ -58,10 +64,7 @@ def load_aver_llms_txt(source: str | Path | None = None) -> str:
     source_str = str(source)
     if source_str.startswith("http"):
         try:
-            with urllib.request.urlopen(  # noqa: S310
-                source_str, timeout=10
-            ) as resp:
-                return resp.read().decode("utf-8")
+            return _fetch_url(source_str)
         except (urllib.error.URLError, OSError) as e:
             raise RuntimeError(
                 f"Failed to fetch llms.txt from {source_str}: {e}\n"
