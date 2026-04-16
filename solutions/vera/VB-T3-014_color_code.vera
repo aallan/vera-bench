@@ -15,8 +15,8 @@ public fn color_code(@Int -> @Int)
   ensures(true)
   effects(pure)
 {
-  let c: Color = if @Int.0 == 0 then { Red } else { if @Int.0 == 1 then { Green } else { if @Int.0 == 2 then { Blue } else { Black } } };
-  match c {
+  let @Color = if @Int.0 == 0 then { Red } else { if @Int.0 == 1 then { Green } else { if @Int.0 == 2 then { Blue } else { Black } } };
+  match @Color.0 {
     Red -> 16711680,
     Green -> 65280,
     Blue -> 255,

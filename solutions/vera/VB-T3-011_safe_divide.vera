@@ -13,8 +13,8 @@ public fn safe_divide(@Int, @Int -> @Int)
   ensures(true)
   effects(pure)
 {
-  let r: Result = if @Int.0 == 0 then { Failure } else { Success(@Int.1 / @Int.0) };
-  match r {
+  let @Result = if @Int.0 == 0 then { Failure } else { Success(@Int.1 / @Int.0) };
+  match @Result.0 {
     Failure -> -1,
     Success(@Int) -> @Int.0
   }

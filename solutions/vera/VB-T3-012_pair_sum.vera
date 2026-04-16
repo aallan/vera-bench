@@ -12,8 +12,8 @@ public fn pair_sum(@Int, @Int -> @Int)
   ensures(true)
   effects(pure)
 {
-  let p: Pair = MkPair(@Int.1, @Int.0);
-  match p {
+  let @Pair = MkPair(@Int.1, @Int.0);
+  match @Pair.0 {
     MkPair(@Int, @Int) -> @Int.1 + @Int.0
   }
 }
