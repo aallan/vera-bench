@@ -1,0 +1,24 @@
+module PairSum
+    intent = "Construct a pair from two integers and sum them using pattern matching."
+    exposes [pair_sum]
+
+type Pair = MkPair(Int, Int)
+
+fn pair_sum(a: Int, b: Int) -> Int
+    ? "Constructs a pair and returns the sum of both components."
+    let p = MkPair(a, b)
+    match p
+        MkPair(x, y) -> x + y
+
+verify pair_sum
+    pair_sum(3, 4) => 7
+    pair_sum(0, 0) => 0
+    pair_sum(-5, 5) => 0
+    pair_sum(10, -3) => 7
+    pair_sum(100, 200) => 300
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(pair_sum(3, 4))
+    Console.print(pair_sum(0, 0))
+    Console.print(pair_sum(-5, 5))

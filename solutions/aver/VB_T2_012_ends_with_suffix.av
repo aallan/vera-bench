@@ -1,0 +1,19 @@
+module EndsWithSuffix
+    intent = "Checks if a string ends with a given suffix."
+    exposes [ends_with_suffix]
+
+fn ends_with_suffix(haystack: String, suffix: String) -> Bool
+    ? "Returns true when haystack ends with suffix."
+    String.ends_with(haystack, suffix)
+
+verify ends_with_suffix
+    ends_with_suffix("hello", "llo") => true
+    ends_with_suffix("hello", "world") => false
+    ends_with_suffix("", "") => true
+    ends_with_suffix("abc", "abcd") => false
+    ends_with_suffix("abc", "") => true
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(ends_with_suffix("hello", "llo"))
+    Console.print(ends_with_suffix("hello", "world"))

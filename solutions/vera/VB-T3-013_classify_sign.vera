@@ -1,0 +1,23 @@
+-- VeraBench VB-T3-013: Classify Sign
+-- Classify an integer's sign using an enum ADT and pattern matching.
+
+private data Sign {
+  Negative,
+  Zero,
+  Positive
+}
+
+-- Parameters: classify_sign(n)
+-- @Int.0 = n
+public fn classify_sign(@Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  let s: Sign = if @Int.0 < 0 then { Negative } else { if @Int.0 == 0 then { Zero } else { Positive } };
+  match s {
+    Negative -> -1,
+    Zero -> 0,
+    Positive -> 1
+  }
+}

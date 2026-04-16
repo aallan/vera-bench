@@ -1,0 +1,27 @@
+module ColorCode
+    intent = "Map an integer to a Color ADT variant and return the RGB value via pattern matching."
+    exposes [color_code]
+
+type Color = Red | Green | Blue | Black
+
+fn color_code(code: Int) -> Int
+    ? "Returns the RGB integer for the given color code."
+    let c = if code == 0 then Red else if code == 1 then Green else if code == 2 then Blue else Black
+    match c
+        Red -> 16711680
+        Green -> 65280
+        Blue -> 255
+        Black -> 0
+
+verify color_code
+    color_code(0) => 16711680
+    color_code(1) => 65280
+    color_code(2) => 255
+    color_code(3) => 0
+    color_code(-1) => 0
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(color_code(0))
+    Console.print(color_code(1))
+    Console.print(color_code(2))

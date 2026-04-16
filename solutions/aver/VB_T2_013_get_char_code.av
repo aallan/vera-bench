@@ -1,0 +1,19 @@
+module GetCharCode
+    intent = "Returns the ASCII character code at a given index in a string."
+    exposes [get_char_code]
+
+fn get_char_code(s: String, index: Int) -> Int
+    ? "Returns the ASCII code of the character at the given index."
+    Char.to_int(String.char_at(s, index))
+
+verify get_char_code
+    get_char_code("A", 0) => 65
+    get_char_code("hello", 0) => 104
+    get_char_code("hello", 4) => 111
+    get_char_code("Z", 0) => 90
+    get_char_code("abc", 2) => 99
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(get_char_code("A", 0))
+    Console.print(get_char_code("hello", 0))

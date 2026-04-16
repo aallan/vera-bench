@@ -1,0 +1,21 @@
+-- VeraBench VB-T3-011: Safe Divide
+-- Integer division returning -1 for division by zero, using ADT + match.
+
+private data Result {
+  Failure,
+  Success(Int)
+}
+
+-- Parameters: safe_divide(a, b)
+-- @Int.0 = b (divisor), @Int.1 = a (dividend)
+public fn safe_divide(@Int, @Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  let r: Result = if @Int.0 == 0 then { Failure } else { Success(@Int.1 / @Int.0) };
+  match r {
+    Failure -> -1,
+    Success(@Int) -> @Int.0
+  }
+}

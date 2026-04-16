@@ -13,6 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sections for cross-language comparison (#50)
 - `exclude_tiers` parameter on `compute_metrics()` for tier-filtered aggregation
 - Methodology note explaining why T5 is reported separately
+- 10 new problems: 5 Tier 2 (VB-T2-011 through VB-T2-015) and 5 Tier 3
+  (VB-T3-011 through VB-T3-015), bringing total to 60 problems across 5 tiers
+- Test cases for VB-T2-004 (is_empty_string) and VB-T2-005 (contains_substring)
+- All new problems have testable signatures (primitive inputs/outputs) so
+  `run_correct` can be evaluated via `vera run --fn`
+- New T3 problems use Int-only signatures with internal ADT construction,
+  testing pattern matching without requiring ADT CLI argument support
+- Canonical solutions for all new problems in Vera, Python, TypeScript, and Aver
 
 ### Changed
 

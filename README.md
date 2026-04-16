@@ -119,7 +119,7 @@ this should return v0.0.108 or later.
 Once Vera is installed you can run the benchmark from the terminal,
 
 ```bash
-# Validate all 50 problems and canonical solutions
+# Validate all 60 problems and canonical solutions
 vera-bench validate
 
 # Run benchmark against a model

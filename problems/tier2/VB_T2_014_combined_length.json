@@ -1,0 +1,25 @@
+{
+  "id": "VB-T2-014",
+  "tier": 2,
+  "title": "Combined String Length",
+  "description": "Write a Vera function that returns the combined length of two strings. Use the string_length built-in function on each string and add the results.",
+  "description_neutral": "Return the combined length of two strings.",
+  "signature": "public fn combined_length(@String, @String -> @Nat)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "combined_length",
+  "tags": ["string", "builtin-discovery", "string-length", "composition", "two-string-params"],
+  "test_cases": [
+    {"args": ["hello", "world"], "expected": 10},
+    {"args": ["", ""], "expected": 0},
+    {"args": ["a", "bc"], "expected": 3},
+    {"args": ["test", ""], "expected": 4},
+    {"args": ["", "xyz"], "expected": 3}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": false,
+  "notes": "Tests composing string_length with addition. String operations fall to Tier 3 runtime."
+}

@@ -1,0 +1,25 @@
+{
+  "id": "VB-T2-012",
+  "tier": 2,
+  "title": "Ends With Suffix",
+  "description": "Write a Vera function that checks if the first string ends with the second string as a suffix. Use the string_ends_with built-in function. The first parameter is the haystack, the second is the suffix.",
+  "description_neutral": "Check if the first string ends with the second string as a suffix.",
+  "signature": "public fn ends_with_suffix(@String, @String -> @Bool)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "ends_with_suffix",
+  "tags": ["string", "builtin-discovery", "string-ends-with", "two-string-params"],
+  "test_cases": [
+    {"args": ["hello", "llo"], "expected": 1},
+    {"args": ["hello", "world"], "expected": 0},
+    {"args": ["", ""], "expected": 1},
+    {"args": ["abc", "abcd"], "expected": 0},
+    {"args": ["abc", ""], "expected": 1}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests discovery of string_ends_with."
+}

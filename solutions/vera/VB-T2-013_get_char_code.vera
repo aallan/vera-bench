@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-013: Get Char Code
+-- Return the ASCII character code at a given index in a string.
+public fn get_char_code(@String, @Int -> @Nat)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_char_code(@String.0, @Int.0)
+}

@@ -1,0 +1,25 @@
+{
+  "id": "VB-T3-013",
+  "tier": 3,
+  "title": "Classify Sign",
+  "description": "Define an algebraic data type Sign with three constructors: Negative, Zero, and Positive (all nullary). Write a function that classifies an integer by constructing the appropriate Sign variant using if-then-else, then uses pattern matching to return -1 for Negative, 0 for Zero, and 1 for Positive.",
+  "description_neutral": "Classify an integer by its sign using an algebraic data type with three variants (Negative, Zero, Positive). Construct the appropriate variant, then use pattern matching to return -1 for negative, 0 for zero, and 1 for positive.",
+  "signature": "public fn classify_sign(@Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "classify_sign",
+  "tags": ["adt", "pattern-matching", "data-definition", "enum", "classification"],
+  "test_cases": [
+    {"args": [42], "expected": 1},
+    {"args": [-7], "expected": -1},
+    {"args": [0], "expected": 0},
+    {"args": [1], "expected": 1},
+    {"args": [-100], "expected": -1}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Parameters: classify_sign(n). @Int.0=n. The function must define a Sign enum ADT, construct the right variant via nested if-then-else (no elif in Vera), and match to map each variant to its integer code."
+}

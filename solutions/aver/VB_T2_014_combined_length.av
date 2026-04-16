@@ -1,0 +1,19 @@
+module CombinedLength
+    intent = "Returns the combined length of two strings."
+    exposes [combined_length]
+
+fn combined_length(a: String, b: String) -> Int
+    ? "Returns the sum of the lengths of both strings."
+    String.len(a) + String.len(b)
+
+verify combined_length
+    combined_length("hello", "world") => 10
+    combined_length("", "") => 0
+    combined_length("a", "bc") => 3
+    combined_length("test", "") => 4
+    combined_length("", "xyz") => 3
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(combined_length("hello", "world"))
+    Console.print(combined_length("", ""))

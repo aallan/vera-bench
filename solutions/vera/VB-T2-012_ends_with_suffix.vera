@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-012: Ends With Suffix
+-- Check if a string ends with a given suffix.
+public fn ends_with_suffix(@String, @String -> @Bool)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_ends_with(@String.1, @String.0)
+}

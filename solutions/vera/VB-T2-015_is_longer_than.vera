@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-015: Is Longer Than
+-- Check if a string is longer than a given threshold.
+public fn is_longer_than(@String, @Nat -> @Bool)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_length(@String.0) > @Nat.0
+}

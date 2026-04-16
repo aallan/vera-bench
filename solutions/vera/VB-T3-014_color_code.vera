@@ -1,0 +1,25 @@
+-- VeraBench VB-T3-014: Color to RGB Code
+-- Map an integer to a Color ADT variant and match to return RGB value.
+
+private data Color {
+  Red,
+  Green,
+  Blue,
+  Black
+}
+
+-- Parameters: color_code(code)
+-- @Int.0 = code
+public fn color_code(@Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  let c: Color = if @Int.0 == 0 then { Red } else { if @Int.0 == 1 then { Green } else { if @Int.0 == 2 then { Blue } else { Black } } };
+  match c {
+    Red -> 16711680,
+    Green -> 65280,
+    Blue -> 255,
+    Black -> 0
+  }
+}

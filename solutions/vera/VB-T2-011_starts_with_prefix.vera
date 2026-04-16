@@ -1,0 +1,9 @@
+-- VeraBench VB-T2-011: Starts With Prefix
+-- Check if a string starts with a given prefix.
+public fn starts_with_prefix(@String, @String -> @Bool)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  string_starts_with(@String.1, @String.0)
+}

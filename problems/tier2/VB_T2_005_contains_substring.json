@@ -12,7 +12,13 @@
   },
   "entry_point": "contains_substring",
   "tags": ["string", "builtin-discovery", "string-contains", "two-string-params"],
-  "test_cases": [],
+  "test_cases": [
+    {"args": ["hello world", "world"], "expected": 1},
+    {"args": ["hello world", "mars"], "expected": 0},
+    {"args": ["abcdef", "cde"], "expected": 1},
+    {"args": ["abc", ""], "expected": 1},
+    {"args": ["", "a"], "expected": 0}
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
   "notes": "Tests discovery of string_contains. The slot ordering is: @String.0=needle, @String.1=haystack. But string_contains takes (haystack, needle), so the call must be string_contains(@String.1, @String.0)."
