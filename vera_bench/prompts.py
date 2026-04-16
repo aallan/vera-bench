@@ -23,7 +23,7 @@ _USER_AGENT = "vera-bench/0.0.9"
 
 def _fetch_url(url: str, *, timeout: int = 10) -> str:
     """Fetch a URL with a proper User-Agent (avoids Cloudflare 403s)."""
-    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})  # noqa: S310
     with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
         return resp.read().decode("utf-8")
 
