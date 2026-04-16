@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Report shows separate "All Tiers (T1–T5)" and "Comparable (T1–T4)" summary
+  sections for cross-language comparison (#50)
+- `exclude_tiers` parameter on `compute_metrics()` for tier-filtered aggregation
+- Methodology note explaining why T5 is reported separately
+
+### Changed
+
+- Comparable section is suppressed when no T1–T4 problems are present
+
 ## [0.0.8] - 2026-04-13
 
 ### Added

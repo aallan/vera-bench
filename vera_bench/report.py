@@ -88,26 +88,31 @@ def _summary_table(
         lines.append(_summary_row(model, m))
 
     if comparable_metrics:
-        lines.extend(
-            [
-                "",
-                "### Comparable (T1\u2013T4)\n",
-                _SUMMARY_HEADER,
-                _SUMMARY_SEP,
-            ]
-        )
-        for model, m in sorted(comparable_metrics.items()):
-            lines.append(_summary_row(model, m))
-        lines.extend(
-            [
-                "",
-                "> **Note:** Tier 5 tests algebraic effect handlers "
-                "(State, Exn, IO) unique to Vera. Other languages solve "
-                "these with native idioms (try/except, Result types). "
-                "T1\u2013T4 is the primary cross-language comparison; "
-                "T5 is reported separately.",
-            ]
-        )
+        comparable_rows = [
+            _summary_row(model, m)
+            for model, m in sorted(comparable_metrics.items())
+            if m.total_problems > 0
+        ]
+        if comparable_rows:
+            lines.extend(
+                [
+                    "",
+                    "### Comparable (T1\u2013T4)\n",
+                    _SUMMARY_HEADER,
+                    _SUMMARY_SEP,
+                ]
+            )
+            lines.extend(comparable_rows)
+            lines.extend(
+                [
+                    "",
+                    "> **Note:** Tier 5 tests algebraic effect handlers "
+                    "(State, Exn, IO) unique to Vera. Other languages solve "
+                    "these with native idioms (try/except, Result types). "
+                    "T1\u2013T4 is the primary cross-language comparison; "
+                    "T5 is reported separately.",
+                ]
+            )
 
     return "\n".join(lines) + "\n"
 

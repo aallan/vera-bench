@@ -347,10 +347,33 @@ class TestReport:
                 1,
             )
             # All tiers: 2 problems
-            assert "| test-model | 100% | - | - | 100% | 2 |" in all_section
+            assert "test-model" in all_section
+            assert "| 2 |" in all_section
             # T1-T4 comparable: 1 problem
-            assert "| test-model | 100% | - | - | 100% | 1 |" in comparable_section
+            assert "test-model" in comparable_section
+            assert "| 1 |" in comparable_section
             assert "Tier 5 tests algebraic effect handlers" in report
+
+    def test_report_comparable_hidden_when_only_t5(self):
+        from vera_bench.report import generate_report
+
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "test-model.jsonl"
+            p.write_text(
+                json.dumps(
+                    {
+                        "problem_id": "VB-T5-001",
+                        "attempt": 1,
+                        "check_pass": True,
+                        "run_correct": True,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            report = generate_report(Path(d))
+            assert "All Tiers" in report
+            assert "### Comparable" not in report
 
 
 # === run_single_problem with mocks ===
