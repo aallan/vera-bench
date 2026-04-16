@@ -2,14 +2,18 @@ module SafeDivide
     intent = "Integer division returning -1 for division by zero, using ADT and pattern matching."
     exposes [safe_divide]
 
-type DivResult = Failure | Success(Int)
+type DivResult
+    Failure
+    Success(Int)
 
 fn safe_divide(a: Int, b: Int) -> Int
     ? "Returns a / b, or -1 if b is zero."
-    let r = if b == 0 then Failure else Success(a / b)
+    r: DivResult = match b == 0
+        true  -> DivResult.Failure
+        false -> DivResult.Success(a / b)
     match r
-        Failure -> -1
-        Success(v) -> v
+        DivResult.Failure -> -1
+        DivResult.Success(v) -> v
 
 verify safe_divide
     safe_divide(10, 2) => 5

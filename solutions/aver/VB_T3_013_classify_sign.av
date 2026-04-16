@@ -2,15 +2,22 @@ module ClassifySign
     intent = "Classify an integer's sign using an enum ADT and pattern matching."
     exposes [classify_sign]
 
-type Sign = Negative | Zero | Positive
+type Sign
+    Negative
+    Zero
+    Positive
 
 fn classify_sign(n: Int) -> Int
     ? "Returns -1 for negative, 0 for zero, 1 for positive."
-    let s = if n < 0 then Negative else if n == 0 then Zero else Positive
+    s: Sign = match n < 0
+        true  -> Sign.Negative
+        false -> match n == 0
+            true  -> Sign.Zero
+            false -> Sign.Positive
     match s
-        Negative -> -1
-        Zero -> 0
-        Positive -> 1
+        Sign.Negative -> -1
+        Sign.Zero -> 0
+        Sign.Positive -> 1
 
 verify classify_sign
     classify_sign(42) => 1
