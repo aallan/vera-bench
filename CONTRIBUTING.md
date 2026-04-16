@@ -100,7 +100,7 @@ This installs hooks that run on every commit: trailing whitespace, YAML/JSON val
 pytest                          # run all tests
 pytest -v                       # verbose output
 pytest --cov=vera_bench         # with coverage
-vera-bench validate             # validate all 50 problems
+vera-bench validate             # validate all 60 problems
 ```
 
 ### Linting

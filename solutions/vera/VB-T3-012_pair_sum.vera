@@ -1,0 +1,19 @@
+-- VeraBench VB-T3-012: Pair Sum
+-- Construct a pair from two integers, match to extract and sum them.
+
+private data Pair {
+  MkPair(Int, Int)
+}
+
+-- Parameters: pair_sum(a, b)
+-- @Int.0 = b, @Int.1 = a
+public fn pair_sum(@Int, @Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  let @Pair = MkPair(@Int.1, @Int.0);
+  match @Pair.0 {
+    MkPair(@Int, @Int) -> @Int.1 + @Int.0
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "VB-T2-013",
+  "tier": 2,
+  "title": "Get Char Code",
+  "description": "Write a Vera function that returns the ASCII character code at a given index in a string. Use the string_char_code built-in function. The first parameter is the string, the second is the index.",
+  "description_neutral": "Return the ASCII character code at a given index in a string.",
+  "signature": "public fn get_char_code(@String, @Int -> @Nat)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "get_char_code",
+  "tags": ["string", "builtin-discovery", "string-char-code", "mixed-params"],
+  "test_cases": [
+    {"args": ["A", 0], "expected": 65},
+    {"args": ["hello", 0], "expected": 104},
+    {"args": ["hello", 4], "expected": 111},
+    {"args": ["Z", 0], "expected": 90},
+    {"args": ["abc", 2], "expected": 99}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests discovery of string_char_code. Contracts are trivial (ensures(true)) so Z3-verifiable at Tier 1. String operations are in the body only, not in contracts."
+}

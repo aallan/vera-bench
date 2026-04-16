@@ -1,0 +1,25 @@
+{
+  "id": "VB-T3-012",
+  "tier": 3,
+  "title": "Pair Sum",
+  "description": "Define an algebraic data type Pair with a single constructor MkPair(Int, Int). Write a function that takes two integers, constructs a Pair, then uses pattern matching to extract both components and return their sum. Inside MkPair(@Int, @Int), @Int.0 is the second field and @Int.1 is the first field (De Bruijn indexing).",
+  "description_neutral": "Construct a pair from two integers, then use pattern matching to extract both components and return their sum.",
+  "signature": "public fn pair_sum(@Int, @Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "pair_sum",
+  "tags": ["adt", "pattern-matching", "data-definition", "two-params", "pair", "de-bruijn"],
+  "test_cases": [
+    {"args": [3, 4], "expected": 7},
+    {"args": [0, 0], "expected": 0},
+    {"args": [-5, 5], "expected": 0},
+    {"args": [10, -3], "expected": 7},
+    {"args": [100, 200], "expected": 300}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Parameters: pair_sum(a, b). @Int.0=b, @Int.1=a. The function constructs MkPair(@Int.1, @Int.0) then matches. Inside MkPair(@Int, @Int), @Int.0 is the second field (b) and @Int.1 is the first field (a). Tests De Bruijn indexing inside multi-field constructors."
+}

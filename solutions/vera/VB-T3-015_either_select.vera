@@ -1,0 +1,21 @@
+-- VeraBench VB-T3-015: Either Select
+-- Conditionally wrap a value in Left or Right, then match to extract it.
+
+private data Either {
+  Left(Int),
+  Right(Int)
+}
+
+-- Parameters: either_select(a, b, selector)
+-- @Int.0 = selector, @Int.1 = b, @Int.2 = a
+public fn either_select(@Int, @Int, @Int -> @Int)
+  requires(true)
+  ensures(true)
+  effects(pure)
+{
+  let @Either = if @Int.0 > 0 then { Left(@Int.2) } else { Right(@Int.1) };
+  match @Either.0 {
+    Left(@Int) -> @Int.0,
+    Right(@Int) -> @Int.0
+  }
+}

@@ -1,0 +1,19 @@
+module IsLongerThan
+    intent = "Checks if a string is longer than a given threshold."
+    exposes [is_longer_than]
+
+fn is_longer_than(s: String, threshold: Int) -> Bool
+    ? "Returns true when the string length is strictly greater than the threshold."
+    String.len(s) > threshold
+
+verify is_longer_than
+    is_longer_than("hello", 3) => true
+    is_longer_than("hi", 5) => false
+    is_longer_than("", 0) => false
+    is_longer_than("test", 4) => false
+    is_longer_than("test", 3) => true
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(is_longer_than("hello", 3))
+    Console.print(is_longer_than("hi", 5))

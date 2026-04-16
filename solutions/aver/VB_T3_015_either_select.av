@@ -1,0 +1,29 @@
+module EitherSelect
+    intent = "Conditionally wrap a value in Left or Right, then extract it via pattern matching."
+    exposes [either_select]
+
+type Choice
+    Left(Int)
+    Right(Int)
+
+fn either_select(a: Int, b: Int, selector: Int) -> Int
+    ? "Returns a if selector > 0, otherwise b, using an Either-like ADT."
+    e: Choice = match selector > 0
+        true  -> Choice.Left(a)
+        false -> Choice.Right(b)
+    match e
+        Choice.Left(v) -> v
+        Choice.Right(v) -> v
+
+verify either_select
+    either_select(10, 20, 1) => 10
+    either_select(10, 20, 0) => 20
+    either_select(10, 20, -5) => 20
+    either_select(42, 99, 100) => 42
+    either_select(0, 0, 1) => 0
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(either_select(10, 20, 1))
+    Console.print(either_select(10, 20, 0))
+    Console.print(either_select(42, 99, 100))

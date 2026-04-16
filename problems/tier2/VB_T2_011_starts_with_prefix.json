@@ -1,0 +1,25 @@
+{
+  "id": "VB-T2-011",
+  "tier": 2,
+  "title": "Starts With Prefix",
+  "description": "Write a Vera function that checks if the first string starts with the second string as a prefix. Use the string_starts_with built-in function. The first parameter is the haystack, the second is the prefix.",
+  "description_neutral": "Check if the first string starts with the second string as a prefix.",
+  "signature": "public fn starts_with_prefix(@String, @String -> @Bool)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "starts_with_prefix",
+  "tags": ["string", "builtin-discovery", "string-starts-with", "two-string-params"],
+  "test_cases": [
+    {"args": ["hello", "hel"], "expected": 1},
+    {"args": ["hello", "world"], "expected": 0},
+    {"args": ["", ""], "expected": 1},
+    {"args": ["abc", "abcd"], "expected": 0},
+    {"args": ["abc", ""], "expected": 1}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Tests discovery of string_starts_with. The slot ordering is: @String.0=prefix (nearest/rightmost), @String.1=haystack. But string_starts_with takes (haystack, prefix), so the call must be string_starts_with(@String.1, @String.0)."
+}

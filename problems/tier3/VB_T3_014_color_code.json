@@ -1,0 +1,25 @@
+{
+  "id": "VB-T3-014",
+  "tier": 3,
+  "title": "Color to RGB Code",
+  "description": "Define an algebraic data type Color with four nullary constructors: Red, Green, Blue, and Black. Write a function that maps an integer code to a Color variant (0=Red, 1=Green, 2=Blue, anything else=Black) using nested if-then-else, then uses pattern matching to return the corresponding RGB integer value: Red=16711680, Green=65280, Blue=255, Black=0.",
+  "description_neutral": "Map an integer code (0=Red, 1=Green, 2=Blue, anything else=Black) to an RGB integer value using an algebraic data type. Construct the appropriate color variant, then pattern match to return: Red=16711680, Green=65280, Blue=255, Black=0.",
+  "signature": "public fn color_code(@Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "color_code",
+  "tags": ["adt", "pattern-matching", "data-definition", "enum", "four-variants", "mapping"],
+  "test_cases": [
+    {"args": [0], "expected": 16711680},
+    {"args": [1], "expected": 65280},
+    {"args": [2], "expected": 255},
+    {"args": [3], "expected": 0},
+    {"args": [-1], "expected": 0}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Parameters: color_code(code). @Int.0=code. Tests a 4-variant enum ADT with nested if-then-else construction (Vera has no elif) and exhaustive pattern matching. The RGB values are 0xFF0000=16711680, 0x00FF00=65280, 0x0000FF=255, 0x000000=0."
+}

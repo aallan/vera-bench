@@ -1,0 +1,33 @@
+module ClassifySign
+    intent = "Classify an integer's sign using an enum ADT and pattern matching."
+    exposes [classify_sign]
+
+type Sign
+    Negative
+    Zero
+    Positive
+
+fn classify_sign(n: Int) -> Int
+    ? "Returns -1 for negative, 0 for zero, 1 for positive."
+    s: Sign = match n < 0
+        true  -> Sign.Negative
+        false -> match n == 0
+            true  -> Sign.Zero
+            false -> Sign.Positive
+    match s
+        Sign.Negative -> -1
+        Sign.Zero -> 0
+        Sign.Positive -> 1
+
+verify classify_sign
+    classify_sign(42) => 1
+    classify_sign(-7) => -1
+    classify_sign(0) => 0
+    classify_sign(1) => 1
+    classify_sign(-100) => -1
+
+fn main() -> Unit
+    ! [Console.print]
+    Console.print(classify_sign(42))
+    Console.print(classify_sign(-7))
+    Console.print(classify_sign(0))

@@ -1,0 +1,25 @@
+{
+  "id": "VB-T3-015",
+  "tier": 3,
+  "title": "Either Select",
+  "description": "Define an algebraic data type Either with two constructors: Left(Int) and Right(Int). Write a function that takes three integer parameters (a, b, selector). If selector > 0, construct Left(a); otherwise construct Right(b). Use pattern matching to extract and return the contained integer. Parameters use De Bruijn indexing: @Int.0=selector, @Int.1=b, @Int.2=a.",
+  "description_neutral": "Given three integers (a, b, selector), if selector > 0 wrap the first value in a Left variant, otherwise wrap the second value in a Right variant. Use pattern matching on the result to extract and return the contained integer.",
+  "signature": "public fn either_select(@Int, @Int, @Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "either_select",
+  "tags": ["adt", "pattern-matching", "data-definition", "three-params", "either", "de-bruijn", "conditional-construction"],
+  "test_cases": [
+    {"args": [10, 20, 1], "expected": 10},
+    {"args": [10, 20, 0], "expected": 20},
+    {"args": [10, 20, -5], "expected": 20},
+    {"args": [42, 99, 100], "expected": 42},
+    {"args": [0, 0, 1], "expected": 0}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Parameters: either_select(a, b, selector). @Int.0=selector, @Int.1=b, @Int.2=a. Tests three-parameter De Bruijn indexing combined with conditional ADT construction and matching. Inside Left(@Int) or Right(@Int), @Int.0 refers to the matched payload."
+}

@@ -7,12 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-04-16
+
 ### Added
 
 - Report shows separate "All Tiers (T1–T5)" and "Comparable (T1–T4)" summary
   sections for cross-language comparison (#50)
 - `exclude_tiers` parameter on `compute_metrics()` for tier-filtered aggregation
 - Methodology note explaining why T5 is reported separately
+- 10 new problems: 5 Tier 2 (VB-T2-011 through VB-T2-015) and 5 Tier 3
+  (VB-T3-011 through VB-T3-015), bringing total to 60 problems across 5 tiers
+- Test cases for VB-T2-004 (is_empty_string) and VB-T2-005 (contains_substring)
+- All new problems have testable signatures (primitive inputs/outputs) so
+  `run_correct` can be evaluated via `vera run --fn`
+- New T3 problems use Int-only signatures with internal ADT construction,
+  testing pattern matching without requiring ADT CLI argument support
+- Canonical solutions for all new problems in Vera, Python, TypeScript, and Aver
 
 ### Changed
 
@@ -151,7 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.9...HEAD
+[0.0.9]: https://github.com/aallan/vera-bench/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/aallan/vera-bench/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/aallan/vera-bench/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/aallan/vera-bench/compare/v0.0.5...v0.0.6

@@ -1,0 +1,25 @@
+{
+  "id": "VB-T3-011",
+  "tier": 3,
+  "title": "Safe Divide",
+  "description": "Define an algebraic data type Result with two constructors: Failure (no payload) and Success(Int). Write a function that performs integer division of the first parameter by the second. If the divisor is zero, construct Failure; otherwise construct Success with the quotient. Use pattern matching on the Result to return -1 for Failure or the quotient for Success.",
+  "description_neutral": "Perform integer division, returning the quotient if the divisor is non-zero, or -1 if division by zero. Internally, represent the outcome as an algebraic data type with success and failure variants, and use pattern matching to extract the result.",
+  "signature": "public fn safe_divide(@Int, @Int -> @Int)",
+  "contracts": {
+    "requires": ["true"],
+    "ensures": ["true"],
+    "effects": "pure"
+  },
+  "entry_point": "safe_divide",
+  "tags": ["adt", "pattern-matching", "data-definition", "two-params", "division", "error-handling"],
+  "test_cases": [
+    {"args": [10, 2], "expected": 5},
+    {"args": [7, 3], "expected": 2},
+    {"args": [10, 0], "expected": -1},
+    {"args": [0, 5], "expected": 0},
+    {"args": [-6, 3], "expected": -2}
+  ],
+  "vera_check_must_pass": true,
+  "vera_verify_tier1": true,
+  "notes": "Parameters: safe_divide(a, b). @Int.0=b (divisor), @Int.1=a (dividend). The function must define a private Result ADT, construct it based on the divisor, and pattern match to extract the value. Inside Success(@Int), @Int.0 refers to the matched quotient."
+}
