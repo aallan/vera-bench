@@ -148,30 +148,61 @@ at the end if any failed. This makes partial-run recovery straightforward.
 
 ## `plot_results.py` — benchmark comparison chart
 
-Produces `assets/benchmark_v{VERSION}.png`: a four-panel chart showing
+Produces `assets/results-graph.png`: a four-panel chart showing
 `run_correct` rates across six models × four modes (Vera full-spec, Vera
-spec-from-NL, Python, TypeScript).
+spec-from-NL, Python, TypeScript). This is the canonical chart shown in
+the top-level README.
+
+> **Heads up:** the committed `assets/results-graph.png` is pinned to the
+> **v0.0.7** data (to match the v0.0.7 narrative in the top-level
+> README). Running `python scripts/plot_results.py` with no args will
+> regenerate it from the *current* pyproject bench version (v0.0.9), so
+> it overwrites the pinned image. Don't commit that overwrite until the
+> v0.0.9 writeup is ready; regenerate the pinned image with
+> `--version 0.0.7 --output assets/results-graph.png` to restore it.
 
 ### Usage
 
 ```bash
-# Regenerate the chart for the version declared in pyproject.toml
+# Default: regenerate the canonical chart from pyproject.toml's bench version
+# -> assets/results-graph.png (committed; overwritten on each run)
 python scripts/plot_results.py
 
-# Explicit version (works for any past bench version whose JSONL files are in results/)
-python scripts/plot_results.py --version 0.0.9
+# Include Aver as an extra comparison language (off by default)
+# -> assets/results-graph_with-aver.png (gitignored)
+python scripts/plot_results.py --extra aver
+
+# Historical bench version (requires JSONL files from that era in results/)
+# -> assets/results-graph_v0.0.7.png (gitignored)
 python scripts/plot_results.py --version 0.0.7
 
-# Include Aver as an extra comparison language (off by default)
+# Combination
+# -> assets/results-graph_v0.0.9_with-aver.png (gitignored)
 python scripts/plot_results.py --version 0.0.9 --extra aver
-# -> assets/benchmark_v0.0.9_with-aver.png
 
-# Custom output path
-python scripts/plot_results.py --version 0.0.9 --output /tmp/draft.png
+# Custom output path (bypasses the convention)
+python scripts/plot_results.py --output /tmp/draft.png
 
 # Custom results directory
 python scripts/plot_results.py --results-dir path/to/archive
 ```
+
+### Filename convention
+
+Only the **canonical chart** (`assets/results-graph.png`) is committed to
+the repo — it gets replaced in-place every time you regenerate from the
+current release's JSONL data. Any variant — historical `--version` or extra
+`--extra` language — produces a suffixed filename that is gitignored:
+
+| Invocation | Output path | Committed? |
+|------------|-------------|------------|
+| (no flags) | `assets/results-graph.png` | ✅ |
+| `--extra aver` | `assets/results-graph_with-aver.png` | ❌ gitignored |
+| `--version 0.0.7` | `assets/results-graph_v0.0.7.png` | ❌ gitignored |
+| `--version 0.0.7 --extra aver` | `assets/results-graph_v0.0.7_with-aver.png` | ❌ gitignored |
+
+The `--output` flag overrides this convention entirely if you want a custom
+path (useful for draft charts written to `/tmp/`).
 
 ### Default mode set vs. optional comparison languages
 
@@ -182,22 +213,11 @@ functional language available via `--extra aver`:
 
 ```bash
 # Default: Python + TypeScript only (+ Vera, Vera NL)
-python scripts/plot_results.py --version 0.0.9
+python scripts/plot_results.py
 
 # With Aver added as a fifth mode
-python scripts/plot_results.py --version 0.0.9 --extra aver
+python scripts/plot_results.py --extra aver
 ```
-
-Output filenames are suffixed to distinguish variants:
-
-| Invocation | Output path |
-|------------|-------------|
-| `--version 0.0.9` (no extras) | `assets/benchmark_v0.0.9.png` |
-| `--version 0.0.9 --extra aver` | `assets/benchmark_v0.0.9_with-aver.png` |
-| `--extra aver --extra rust` | `assets/benchmark_v0.0.9_with-aver-rust.png` (future) |
-
-The `--output` flag overrides this convention entirely if you want a custom
-path.
 
 ### Adding a new optional language
 
@@ -318,22 +338,29 @@ Pulled from `veralang.dev`:
 
 ### Historical charts
 
-`assets/benchmark_v0.0.7.png` is the canonical snapshot for v0.0.7 — do not
-regenerate it (it's pinned in the README). The script will still produce a
-v0.0.7 chart on demand if you pass `--version 0.0.7`; this is useful for
-confirming that a refactor hasn't changed the historical data rendering, but
-write the output to `/tmp/` unless you're intentionally replacing the
-snapshot.
+For any bench version earlier than the pyproject default, pass `--version
+X.Y.Z` — the output filename picks up a `_v{X.Y.Z}` suffix and lands in
+`assets/`, but is gitignored so it stays local. Useful for confirming a
+refactor hasn't changed how historical data renders:
+
+```bash
+python scripts/plot_results.py --version 0.0.7
+# -> assets/results-graph_v0.0.7.png (local only)
+```
+
+The canonical historical snapshot for v0.0.7 lives at its GitHub tag URL:
+<https://github.com/aallan/vera-bench/blob/v0.0.7/assets/benchmark_v0.0.7.png>.
 
 ### Reproducibility
 
 Because the script reads from JSONL files rather than hardcoded numbers,
 regenerating a chart requires the corresponding result files to be present
 in `results/`. Note that `results/*.jsonl` is **gitignored** — only the
-committed canonical chart PNGs in `assets/` are version-controlled. To
-reproduce a historical chart, rerun the relevant `vera-bench run` /
-`vera-bench baselines` commands against the target bench version and
-compiler to regenerate the JSONL files locally, then run this script.
+committed canonical chart (`assets/results-graph.png`) is
+version-controlled. To reproduce a historical chart, rerun the relevant
+`vera-bench run` / `vera-bench baselines` commands against the target
+bench version and compiler to regenerate the JSONL files locally, then run
+this script.
 
 ---
 

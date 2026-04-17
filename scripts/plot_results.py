@@ -443,7 +443,7 @@ def main():
         "--output", default=None,
         help=(
             "Output PNG path "
-            "(default: assets/benchmark_v{version}[_with-{extras}].png)"
+            "(default: assets/results-graph[_v{version}][_with-{extras}].png)"
         ),
     )
     parser.add_argument(
@@ -458,18 +458,25 @@ def main():
 
     results_dir = Path(args.results_dir)
     version = args.version
+    current_version = _default_version()
     extras = [OPTIONAL_COMPARISON_MODES[k] for k in args.extra]
 
     comparison_modes = [*DEFAULT_COMPARISON_MODES, *extras]
     all_modes = ["Vera", "Vera NL", *comparison_modes]
 
+    # Default canonical filename: assets/results-graph.png. Any variant
+    # (historical version, optional comparison language) gets a suffix —
+    # `assets/results-graph_*` is gitignored so only the canonical chart
+    # is committed.
     if args.output:
         out = args.output
-    elif extras:
-        suffix = "_with-" + "-".join(k for k in args.extra)
-        out = f"assets/benchmark_v{version}{suffix}.png"
     else:
-        out = f"assets/benchmark_v{version}.png"
+        suffixes = []
+        if version != current_version:
+            suffixes.append(f"_v{version}")
+        if args.extra:
+            suffixes.append("_with-" + "-".join(args.extra))
+        out = f"assets/results-graph{''.join(suffixes)}.png"
 
     flagship, sonnet, warnings = extract_data(results_dir, version, all_modes)
     if warnings:

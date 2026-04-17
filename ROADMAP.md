@@ -8,13 +8,13 @@
 
 ## Milestone 1: Publication-ready benchmark (current)
 
-- [x] Run against 6 models across 3 providers — Claude Opus 4 / Sonnet 4, GPT-4.1 / 4o, Kimi K2.5 / K2 Turbo ([v0.0.7 release](https://github.com/aallan/vera-bench/releases/tag/v0.0.7), [results section](README.md#results), [chart](assets/benchmark_v0.0.7.png))
+- [x] Run against 6 models across 3 providers — Claude Opus 4 / Sonnet 4, GPT-4.1 / 4o, Kimi K2.5 / K2 Turbo ([v0.0.7 release](https://github.com/aallan/vera-bench/releases/tag/v0.0.7), [results section](README.md#results), [chart](https://github.com/aallan/vera-bench/blob/v0.0.7/assets/benchmark_v0.0.7.png))
 - [ ] Expand provider coverage — Mistral, xAI Grok, DeepSeek, Gemini (issue [#24](https://github.com/aallan/vera-bench/issues/24))
 - [ ] Refactor `models.py` to a provider registry before adding more (issue [#45](https://github.com/aallan/vera-bench/issues/45))
 - [x] Run spec-from-NL mode comparison (issue #7)
 - [x] TypeScript baseline runner and LLM generation
 - [x] Aver language support — generation, baselines, `description_neutral` field ([PR #48](https://github.com/aallan/vera-bench/pull/48))
-- [x] Generate paper-quality figures — [`scripts/plot_results.py`](scripts/plot_results.py) produces [`assets/benchmark_v0.0.7.png`](assets/benchmark_v0.0.7.png) with veralang.dev site palette (v0.0.7)
+- [x] Generate paper-quality figures — [`scripts/plot_results.py`](scripts/plot_results.py) produces [`assets/results-graph.png`](assets/results-graph.png) with veralang.dev site palette ([v0.0.7 snapshot](https://github.com/aallan/vera-bench/blob/v0.0.7/assets/benchmark_v0.0.7.png))
 - [ ] Hugging Face dataset export
 - [x] [`CITATION.cff`](CITATION.cff)
 - [ ] MoonBit support (issue [#49](https://github.com/aallan/vera-bench/issues/49))
