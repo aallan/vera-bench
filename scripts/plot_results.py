@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Generate benchmark comparison charts from VeraBench results.
 
-Reads JSONL files in `results/` (via `vera_bench.metrics.compute_metrics`) and
-produces a run_correct comparison chart at `assets/benchmark_v{VERSION}.png`.
+Reads JSONL files in `results/` (via `vera_bench.metrics.compute_metrics`)
+and produces a run_correct comparison chart. The canonical committed chart
+is `assets/results-graph.png`; variant suffixes (`_v{VERSION}`,
+`_with-{lang}`) are gitignored.
 
 Usage:
-    python scripts/plot_results.py                    # uses pyproject version
-    python scripts/plot_results.py --version 0.0.9    # explicit bench version
-    python scripts/plot_results.py --version 0.0.7    # re-render historical chart
-    python scripts/plot_results.py --output my.png    # custom output path
+    python scripts/plot_results.py
+        # -> assets/results-graph.png (pyproject version)
+    python scripts/plot_results.py --version 0.0.7
+        # -> assets/results-graph_v0.0.7.png (historical snapshot)
+    python scripts/plot_results.py --extra aver
+        # -> assets/results-graph_with-aver.png (include Aver)
+    python scripts/plot_results.py --output my.png
+        # -> my.png (explicit path)
 
 To add a new model, append it to MODELS below. File naming follows the
 convention described in scripts/README.md.
@@ -150,7 +156,7 @@ def _load_jsonl(path: Path) -> list[dict]:
 
 def extract_data(
     results_dir: Path, version: str, modes: list[str]
-) -> tuple[dict, dict, list[str]]:
+) -> tuple[dict, dict, list[str], list[Path]]:
     """Extract run_correct percentages for every MODEL × MODE.
 
     Args:
@@ -159,13 +165,19 @@ def extract_data(
         modes: Mode labels to extract, in display order. Must be keys in
             MODE_PATTERNS.
 
-    Returns (flagship, sonnet, warnings).
+    Returns (flagship, sonnet, warnings, used_paths).
     flagship/sonnet: dict[display_name] -> dict[mode_label] -> int percentage
     warnings: human-readable list of missing files.
+    used_paths: the actual JSONL files consulted (one per successful lookup).
+        Downstream code should derive subtitle metadata (compiler version,
+        problem count) from this list rather than re-globbing — re-globbing
+        can pick up stale files that _find_result_file's mtime tie-breaker
+        would have rejected.
     """
     flagship: dict[str, dict[str, int]] = {}
     sonnet: dict[str, dict[str, int]] = {}
     warnings: list[str] = []
+    used_paths: list[Path] = []
 
     for model in MODELS:
         row: dict[str, int] = {}
@@ -177,13 +189,14 @@ def extract_data(
                 )
                 row[mode] = 0
                 continue
+            used_paths.append(path)
             metrics = compute_metrics(_load_jsonl(path))
             rate = metrics.run_correct_rate or 0.0
             row[mode] = round(rate * 100)
 
         (flagship if model.tier == "flagship" else sonnet)[model.display] = row
 
-    return flagship, sonnet, warnings
+    return flagship, sonnet, warnings, used_paths
 
 
 def _style_ax(ax):
@@ -395,25 +408,35 @@ def plot_all_modes(ax, flagship: dict, sonnet: dict, modes: list[str]):
     ax.legend(loc="lower left", fontsize=8, ncol=2, framealpha=0.8, edgecolor=BROWN_300)
 
 
-def _detect_vera_version(results_dir: Path, version: str) -> str:
-    """Return the most common Vera compiler version across Vera result files."""
+def _detect_vera_version(used_paths: list[Path]) -> str:
+    """Return the most common Vera compiler version among the files plotted.
+
+    Operates on the Path list returned by extract_data() so the subtitle
+    reflects the files the chart actually uses, not whatever else happens to
+    match the glob in results/.
+    """
     from collections import Counter
 
-    ver = _version_to_filename(version)
     counter: Counter[str] = Counter()
-    for path in results_dir.glob(f"*-bench-{ver}-vera-*.jsonl"):
-        # Filename ends with "...-vera-X-Y-Z.jsonl"
+    for path in used_paths:
+        # Only Vera-mode files have a "-vera-X-Y-Z" suffix we can parse.
         stem = path.stem
+        if "-vera-" not in stem:
+            continue
         tail = stem.rsplit("-vera-", 1)[-1]
         counter[tail.replace("-", ".")] += 1
     return counter.most_common(1)[0][0] if counter else "?"
 
 
-def _detect_problem_count(results_dir: Path, version: str) -> int:
-    """Infer the problem set size from the longest Vera result file."""
-    ver = _version_to_filename(version)
+def _detect_problem_count(used_paths: list[Path]) -> int:
+    """Infer the problem set size from the actual files plotted.
+
+    Returns the max unique problem_id count across the used files. Operating
+    on used_paths (rather than re-globbing) ensures consistency with the
+    files _find_result_file() actually selected.
+    """
     counts = []
-    for path in results_dir.glob(f"*-bench-{ver}-vera-*.jsonl"):
+    for path in used_paths:
         ids = {json.loads(line)["problem_id"] for line in path.read_text().splitlines()}
         counts.append(len(ids))
     return max(counts) if counts else 0
@@ -488,14 +511,16 @@ def main():
             suffixes.append("_with-" + "-".join(args.extra))
         out = f"assets/results-graph{''.join(suffixes)}.png"
 
-    flagship, sonnet, warnings = extract_data(results_dir, version, all_modes)
+    flagship, sonnet, warnings, used_paths = extract_data(
+        results_dir, version, all_modes
+    )
     if warnings:
         print("Warnings:")
         for w in warnings:
             print(w)
 
-    vera_version = _detect_vera_version(results_dir, version)
-    problem_count = _detect_problem_count(results_dir, version)
+    vera_version = _detect_vera_version(used_paths)
+    problem_count = _detect_problem_count(used_paths)
     subtitle = (
         f"{problem_count} problems \u00d7 {len(MODELS)} models "
         f"\u00d7 {len(all_modes)} modes"

@@ -318,10 +318,17 @@ new mode is Vera- or Aver-style (i.e. the result filename carries a
 
 The chart has four panels, arranged vertically:
 
-1. **Flagship Tier** (top-left) — bars for the three flagship models
-2. **Sonnet Tier** (top-right) — bars for the three secondary models
-3. **Does Vera beat Python / TypeScript?** — horizontal delta bars per model
-4. **All Models × All Modes** — grouped bars showing all four modes per model
+1. **Flagship Tier** (top-left) — grouped bars for the three flagship
+   models across Vera + each comparison language
+2. **Sonnet Tier** (top-right) — same for the three secondary models
+3. **"Does Vera beat …?"** — horizontal delta bars per model, one row per
+   comparison language. The panel title is generated from the active
+   comparison set, so the default chart shows *"Does Vera beat Python /
+   TypeScript?"* and `--extra aver` extends it to *"Does Vera beat Python /
+   TypeScript / Aver?"*. The x-axis auto-expands if deltas exceed ±22pp.
+4. **All Models × All Modes** — grouped bars showing every mode
+   (Vera, Vera NL, and the comparison languages) per model. Bar count per
+   model grows with `--extra` flags; default is four.
 
 See `DESIGN.md` for rationale on the tier split.
 
