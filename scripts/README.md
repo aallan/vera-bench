@@ -225,16 +225,21 @@ Example: adding Rust later.
 
 1. Run the benchmark with `--language rust` so a JSONL file exists.
 2. Add the mode to `MODE_PATTERNS` with its filename fragment:
+
    ```python
    "Rust": "rust-",
    ```
+
 3. If the Rust compiler stamps a version into the filename (like Vera or
    Aver do), add it to `_COMPILER_SUFFIXED`:
+
    ```python
    _COMPILER_SUFFIXED = {"Vera": "vera", "Vera NL": "vera", "Aver": "aver", "Rust": "rust"}
    ```
+
 4. Add a colour to `COLORS`.
 5. Register the `--extra` choice:
+
    ```python
    OPTIONAL_COMPARISON_MODES = {"aver": "Aver", "rust": "Rust"}
    ```
