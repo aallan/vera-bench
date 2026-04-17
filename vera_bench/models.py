@@ -82,7 +82,13 @@ class AnthropicClient:
             response = self._client.messages.create(
                 model=self._model,
                 max_tokens=max_tokens,
-                system=system,
+                system=[
+                    {
+                        "type": "text",
+                        "text": system,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 messages=[{"role": "user", "content": user}],
                 timeout=timeout,
             )
