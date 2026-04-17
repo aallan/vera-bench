@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -421,12 +422,18 @@ def _detect_problem_count(results_dir: Path, version: str) -> int:
 
 
 def _default_version() -> str:
-    """Pull the bench version from pyproject.toml."""
+    """Pull the bench version from pyproject.toml via tomllib (stdlib 3.11+)."""
     pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
-    for line in pyproject.read_text().splitlines():
-        if line.startswith("version"):
-            return line.split("=", 1)[1].strip().strip('"').strip("'")
-    return "0.0.0"
+    try:
+        with pyproject.open("rb") as f:
+            data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return "0.0.0"
+    # PEP 621 (canonical for this project) first; fall back to poetry-style.
+    version = data.get("project", {}).get("version")
+    if not version:
+        version = data.get("tool", {}).get("poetry", {}).get("version")
+    return version or "0.0.0"
 
 
 def main():

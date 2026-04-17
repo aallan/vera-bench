@@ -272,7 +272,7 @@ Vera full-spec results.
 
 If a file is missing, the script prints a warning like
 
-```
+```text
 Warnings:
   Kimi K2.5 / Vera NL: no file matching bench-0.0.9
 ```
@@ -307,9 +307,12 @@ out correctly. If you want four-and-four, adjust the subplot sizing in
 
 ### Adding a new mode
 
-Add an entry to `MODE_PATTERNS` *and* add the colour to `COLORS`. You'll
-also need to update the three `plot_*` functions, which currently assume
-four modes.
+Add an entry to `MODE_PATTERNS` *and* add the colour to `COLORS`. The
+three `plot_*` functions already accept dynamic mode lists via their
+`comparison_modes` / `modes` parameters — no edits needed there. If the
+new mode is Vera- or Aver-style (i.e. the result filename carries a
+`-{compiler}-{version}` suffix), also add it to `_COMPILER_SUFFIXED` so
+`_find_result_file` can resolve the glob pattern.
 
 ### Chart layout
 
