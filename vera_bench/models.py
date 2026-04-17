@@ -97,10 +97,13 @@ class AnthropicClient:
 
         elapsed = time.monotonic() - start
         text = response.content[0].text if response.content else ""
+        usage = response.usage
+        cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
+        cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
         return LLMResponse(
             text=text,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
+            input_tokens=usage.input_tokens + cache_creation + cache_read,
+            output_tokens=usage.output_tokens,
             wall_time_s=round(elapsed, 2),
             model=response.model,
         )

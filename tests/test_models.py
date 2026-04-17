@@ -104,6 +104,8 @@ class TestAnthropicComplete:
         mock_resp.content = [MagicMock(text="hello")]
         mock_resp.usage.input_tokens = 100
         mock_resp.usage.output_tokens = 50
+        mock_resp.usage.cache_creation_input_tokens = 0
+        mock_resp.usage.cache_read_input_tokens = 0
         mock_resp.model = "claude-test"
         client._client.messages.create = MagicMock(return_value=mock_resp)
 
