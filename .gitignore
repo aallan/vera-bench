@@ -21,3 +21,11 @@ htmlcov/
 tmp/
 results/*.jsonl
 results/summary.md
+results/timing.json
+
+# Generated chart variants — regenerate with scripts/plot_results.py.
+# Only assets/results-graph.png (the canonical chart shown in README) is
+# committed. Historical (--version) or extra-language (--extra) variants
+# produce a suffixed filename and stay local.
+assets/results-graph_*.png
+assets/benchmark_*.png
