@@ -329,9 +329,11 @@ snapshot.
 
 Because the script reads from JSONL files rather than hardcoded numbers,
 regenerating a chart requires the corresponding result files to be present
-in `results/`. If you're reviewing an old release and the JSONL files aren't
-in the working tree, `git checkout` the tag or release commit first — the
-results files are committed.
+in `results/`. Note that `results/*.jsonl` is **gitignored** — only the
+committed canonical chart PNGs in `assets/` are version-controlled. To
+reproduce a historical chart, rerun the relevant `vera-bench run` /
+`vera-bench baselines` commands against the target bench version and
+compiler to regenerate the JSONL files locally, then run this script.
 
 ---
 

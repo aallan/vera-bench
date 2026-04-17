@@ -21,3 +21,4 @@ htmlcov/
 tmp/
 results/*.jsonl
 results/summary.md
+results/timing.json
