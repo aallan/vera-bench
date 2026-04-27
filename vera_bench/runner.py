@@ -576,23 +576,49 @@ def _strip_module_effects(code: str) -> str:
     common `effects []` for "pure" modules). Stripping the line
     returns the module to legacy / no-boundary mode where the
     injected main type-checks.
+
+    Scoped to the module-header window: we start matching after a
+    top-level `module X` line and stop at the next top-level item
+    (a non-indented, non-blank, non-comment line). Outside that
+    window any `effects [...]` we see is left alone — it isn't the
+    boundary declaration this strip was written for.
     """
     lines = code.split("\n")
     out = []
+    in_module_header = False
     skip_until_close = False
     for line in lines:
         stripped = line.strip()
+        indent_len = len(line) - len(line.lstrip(" "))
+
         if skip_until_close:
             # Multi-line `effects [\n  ...\n]` — drop everything up to
             # and including the line that closes the bracket.
             if stripped.endswith("]"):
                 skip_until_close = False
             continue
-        # Module-header `effects [...]` lives at indent > 0 directly
-        # under `module X`. Match by prefix; we don't bother tracking
-        # the header window because effect-list lines never appear
-        # outside a module header in valid Aver.
-        if stripped.startswith("effects [") or stripped.startswith("effects["):
+
+        # Track the module-header window. The header runs from the
+        # `module X` line through the last indented line before the
+        # next top-level item (mirrors how the Aver parser scopes
+        # `intent` / `exposes` / `depends` / `effects`).
+        if indent_len == 0 and stripped.startswith("module "):
+            in_module_header = True
+            out.append(line)
+            continue
+        if (
+            in_module_header
+            and indent_len == 0
+            and stripped
+            and not stripped.startswith("//")
+        ):
+            in_module_header = False
+
+        if (
+            in_module_header
+            and indent_len > 0
+            and (stripped.startswith("effects [") or stripped.startswith("effects["))
+        ):
             if stripped.endswith("]"):
                 continue
             skip_until_close = True

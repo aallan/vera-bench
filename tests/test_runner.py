@@ -936,6 +936,35 @@ class TestStripModuleEffects:
         result = _strip_module_effects(code)
         assert result == code
 
+    def test_no_op_when_no_module_declaration(self):
+        # Without a `module X` header there is no module-effect
+        # boundary to strip; an `effects [...]` token at the top
+        # level is something else, so we must leave the code
+        # untouched. The bench-side wrapper synthesises a `module
+        # Test{safe_id}` for these cases — it never owned the
+        # boundary in the first place.
+        code = 'effects [Console.print]\n\nfn f() -> Unit\n    Console.print("hi")\n'
+        result = _strip_module_effects(code)
+        assert result == code
+
+    def test_only_strips_inside_module_header(self):
+        # An `effects [...]`-shaped line that appears below a
+        # function body must not be removed; only the module-header
+        # occurrence is the bench's concern.
+        code = (
+            "module M\n"
+            '    intent = "t"\n'
+            "    effects [Console.print]\n"
+            "\n"
+            "fn f() -> Unit\n"
+            "    effects [Console.print]\n"
+            '    Console.print("hi")\n'
+        )
+        result = _strip_module_effects(code)
+        lines = result.split("\n")
+        # Header `effects` line gone, fn-body `effects` line kept.
+        assert sum(1 for line in lines if "effects [Console.print]" in line) == 1
+
 
 class TestEvaluateAverCode:
     def _sample_problem(self, test_cases=None):
