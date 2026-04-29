@@ -986,6 +986,50 @@ class TestStripModuleEffects:
         # Header `effects` line gone, fn-body `effects` line kept.
         assert sum(1 for line in lines if "effects [Console.print]" in line) == 1
 
+    def test_strips_inline_effects_with_trailing_comment(self):
+        # Aver allows `// ...` line comments; an inline `effects
+        # [...] // comment` declaration must be detected as
+        # single-line, not fall into the multi-line skip path that
+        # would chew through the function body.
+        code = (
+            "module M\n"
+            '    intent = "t"\n'
+            "    effects [Console.print] // pure module\n"
+            "\n"
+            "fn f() -> Unit\n"
+            "    ! [Console.print]\n"
+            '    Console.print("hi")\n'
+        )
+        result = _strip_module_effects(code)
+        # Header `effects` line is gone.
+        assert "effects [Console.print]" not in result
+        # And critically: the function body is intact, NOT eaten by
+        # a runaway skip_until_close.
+        assert "fn f() -> Unit" in result
+        assert 'Console.print("hi")' in result
+
+    def test_strips_multiline_effects_with_trailing_comment_on_close(self):
+        # Same hazard on the closing line of a multi-line list:
+        # `]` can be followed by a trailing comment.
+        code = (
+            "module M\n"
+            '    intent = "t"\n'
+            "    effects [\n"
+            "        Console.print,\n"
+            "    ] // pure module\n"
+            "\n"
+            "fn f() -> Unit\n"
+            "    ! [Console.print]\n"
+            '    Console.print("hi")\n'
+        )
+        result = _strip_module_effects(code)
+        # Whole effects block gone (header through close).
+        assert "effects [" not in result
+        assert "Console.print," not in result
+        # Function body intact.
+        assert "fn f() -> Unit" in result
+        assert 'Console.print("hi")' in result
+
 
 class TestEvaluateAverCode:
     def _sample_problem(self, test_cases=None):

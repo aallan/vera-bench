@@ -596,8 +596,11 @@ def _strip_module_effects(code: str) -> str:
 
         if skip_until_close:
             # Multi-line `effects [\n  ...\n]` — drop everything up to
-            # and including the line that closes the bracket.
-            if stripped.endswith("]"):
+            # and including the line that closes the bracket. Use
+            # presence rather than `endswith("]")` so a trailing line
+            # comment (Aver's `// ...` syntax) doesn't make us miss
+            # the close and chew through the rest of the file.
+            if "]" in stripped:
                 skip_until_close = False
             continue
 
@@ -622,7 +625,11 @@ def _strip_module_effects(code: str) -> str:
             and indent_len > 0
             and _AVER_EFFECTS_OPEN_RE.match(stripped)
         ):
-            if stripped.endswith("]"):
+            # Same `]`-presence rule as the skip_until_close branch —
+            # tolerates `effects [...] // pure module` (single-line
+            # declaration with a trailing comment) without falling into
+            # the multi-line skip path that would eat the function body.
+            if "]" in stripped:
                 continue
             skip_until_close = True
             continue
