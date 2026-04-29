@@ -2,6 +2,8 @@
 
 ## Where we are
 
+**v0.0.10** — Aver evaluation harness strips module-header `effects [...]` declarations before injecting the test main, so canonical and LLM-generated solutions continue to compile under Aver 0.13's enforced effects boundary. No-op on Aver 0.12 and earlier; methodology change documented in CHANGELOG.
+
 **v0.0.9** — 60 problems across 5 tiers (10 new T2/T3 problems with testable signatures). T1–T4 `run_correct` pool expanded from 18 to 30 testable problems. New T3 problems use Int-only signatures with internal ADT construction for CLI testability.
 
 **v0.0.8** — 50 problems across 5 tiers with strengthened postconditions and explicit slot ordering descriptions. Working LLM harness (Anthropic, OpenAI, Moonshot), Python, TypeScript, and Aver baseline runners, cross-language generation comparison. Full benchmark runner script. SKILL.md and Aver's llms.txt fetched at runtime. Language-neutral problem descriptions (`description_neutral`) for fair cross-language prompting.

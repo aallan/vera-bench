@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: "VeraBench: a benchmark suite for LLM code generation in Vera"
 message: "If you use this benchmark, please cite it as below."
 type: software
-version: "0.0.9"
-date-released: "2026-04-16"
+version: "0.0.10"
+date-released: "2026-04-29"
 authors:
   - given-names: Alasdair
     family-names: Allan

@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.10] - 2026-04-29
+
+### Changed
+
+- Aver evaluation harness strips module-header `effects [...]` declarations
+  before injecting the test main (#62). The injected main needs
+  `! [Console.print]`, which would violate any narrower boundary the LLM
+  declared (including the common `effects []` for "pure" modules) once
+  Aver 0.13 ships and enforces the boundary as a hard type error.
+- The strip is window-scoped (only fires inside the module-header block,
+  not on `effects [...]`-shaped lines elsewhere), tolerates arbitrary
+  whitespace between `effects` and `[`, and tolerates trailing line
+  comments after the closing `]`.
+
+### Compatibility note
+
+This is a methodology change for Aver scoring: the same LLM output now
+goes through an extra strip pass before reaching the compiler. On Aver
+0.12 and earlier the strip is a no-op (LLMs don't emit module-level
+`effects [...]` because the docs don't yet describe it), so today's
+Aver scores are byte-identical to v0.0.9. Once Aver 0.13 ships and the
+boundary becomes part of the doc nudge to models, Aver `run_correct`
+rates from v0.0.10 onwards will diverge from any v0.0.9-tagged Aver
+results run against Aver 0.13+ — the strip will activate on a measurable
+fraction of generations and prevent the underdeclared-effects type
+error. Result files are tagged with `bench_version` so cross-version
+comparisons can detect this boundary.
+
+Vera, Vera spec-from-NL, Python, and TypeScript scoring is unaffected.
+
 ## [0.0.9] - 2026-04-16
 
 ### Added
@@ -161,7 +191,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.9...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.10...HEAD
+[0.0.10]: https://github.com/aallan/vera-bench/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/aallan/vera-bench/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/aallan/vera-bench/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/aallan/vera-bench/compare/v0.0.6...v0.0.7
