@@ -1,0 +1,16 @@
+module benchmark/solution
+
+func add(a: int, b: int) -> int = a + b
+
+func acc_loop(i: int, n: int, acc: int) -> int =
+  if i > n then acc
+  else acc_loop(i + 1, n, add(acc, i))
+
+export func sum_with_state(n: int) -> int = acc_loop(1, n, 0)
+
+export func main() -> () ! {IO} {
+  println(show(sum_with_state(5)));
+  println(show(sum_with_state(0)));
+  println(show(sum_with_state(1)));
+  println(show(sum_with_state(10)))
+}

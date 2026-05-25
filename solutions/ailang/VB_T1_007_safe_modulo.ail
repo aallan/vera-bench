@@ -1,0 +1,10 @@
+module benchmark/solution
+
+export func safe_modulo(a: int, b: int) -> int = a % b
+
+export func main() -> () ! {IO} {
+  println(show(safe_modulo(10, 3)));
+  println(show(safe_modulo(7, 2)));
+  println(show(safe_modulo(6, 3)));
+  println(show(safe_modulo(5, 7)))
+}

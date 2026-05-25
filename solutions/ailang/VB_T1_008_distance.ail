@@ -1,0 +1,13 @@
+module benchmark/solution
+
+export func distance(a: int, b: int) -> int = {
+  let diff = a - b;
+  if diff < 0 then -diff else diff
+}
+
+export func main() -> () ! {IO} {
+  println(show(distance(3, 7)));
+  println(show(distance(7, 3)));
+  println(show(distance(5, 5)));
+  println(show(distance(-3, 3)))
+}

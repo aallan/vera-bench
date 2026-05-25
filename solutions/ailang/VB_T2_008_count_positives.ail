@@ -1,0 +1,9 @@
+module benchmark/solution
+
+import std/list (filter, length)
+
+func isPos(x: int) -> bool = x > 0
+
+export func count_positives(xs: [int]) -> int = length(filter(isPos, xs))
+
+export func main() -> () ! {IO} = ()

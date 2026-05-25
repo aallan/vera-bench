@@ -1,0 +1,13 @@
+module benchmark/solution
+
+export func count_digits(n: int) -> int =
+  if n < 10 then 1
+  else 1 + count_digits(n / 10)
+
+export func main() -> () ! {IO} {
+  println(show(count_digits(0)));
+  println(show(count_digits(9)));
+  println(show(count_digits(42)));
+  println(show(count_digits(12345)));
+  println(show(count_digits(1000000)))
+}

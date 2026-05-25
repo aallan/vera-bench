@@ -1,0 +1,11 @@
+module benchmark/solution
+
+import std/list (nth)
+
+export func safe_index(xs: [int], i: int) -> int =
+  match nth(xs, i) {
+    Some(v) => v,
+    None => -1
+  }
+
+export func main() -> () ! {IO} = ()

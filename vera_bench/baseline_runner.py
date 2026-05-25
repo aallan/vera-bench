@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,7 +20,7 @@ from vera_bench.runner import ProblemResult
 
 console = Console()
 
-_EXT = {"python": ".py", "typescript": ".ts", "aver": ".av"}
+_EXT = {"python": ".py", "typescript": ".ts", "aver": ".av", "ailang": ".ail"}
 
 
 def _snake_to_camel(name: str) -> str:
@@ -551,6 +552,204 @@ def _aver_output_matches(actual: str, expected) -> bool:
     return False
 
 
+def run_ailang_baseline(
+    problem: dict,
+    solutions_dir: Path,
+    work_dir: Path,
+    timeout: int = 30,
+) -> ProblemResult:
+    """Run an AILANG baseline solution against test cases.
+
+    Mirrors the Aver pattern: the .ail baseline file has an
+    `export func main() -> () ! {IO}` that prints each test case's
+    result on its own line; the runner compares stdout line-by-line
+    against the expected values.
+    """
+    problem_id = problem["id"]
+    test_cases = problem.get("test_cases", [])
+
+    baseline_path = _find_baseline_file(problem_id, solutions_dir, "ailang")
+    if baseline_path is None:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="ailang",
+            attempt=1,
+            check_pass=False,
+            error_message=f"No AILANG baseline found for {problem_id}",
+            timestamp=_now(),
+        )
+
+    # AILANG_TRACE=off suppresses the OTLP probe + tracing overhead on every
+    # invocation — significant when running 60 problems in sequence.
+    run_env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+    run_env["AILANG_TRACE"] = "off"
+    start = time.monotonic()
+
+    # For problems without test cases we only need check (no execution).
+    # For problems WITH test cases, skip the separate check call —
+    # `ailang run` already validates parse + types before executing, so
+    # an explicit check is redundant. This halves the process-spawn count
+    # for the typical case (~60 spawns -> ~30 spawns across the suite).
+    if not test_cases:
+        try:
+            check_result = subprocess.run(  # noqa: S603
+                ["ailang", "check", "--relax-modules", str(baseline_path)],  # noqa: S607
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+                env=run_env,
+            )
+        except FileNotFoundError:
+            return ProblemResult(
+                problem_id=problem_id,
+                model="baseline",
+                language="ailang",
+                attempt=1,
+                check_pass=False,
+                error_message="ailang not found on PATH",
+                timestamp=_now(),
+            )
+        except subprocess.TimeoutExpired:
+            return ProblemResult(
+                problem_id=problem_id,
+                model="baseline",
+                language="ailang",
+                attempt=1,
+                check_pass=False,
+                error_message="ailang check timed out",
+                wall_time_s=round(time.monotonic() - start, 2),
+                timestamp=_now(),
+            )
+
+        if check_result.returncode != 0:
+            err = (check_result.stderr or check_result.stdout)[:200]
+            return ProblemResult(
+                problem_id=problem_id,
+                model="baseline",
+                language="ailang",
+                attempt=1,
+                check_pass=False,
+                error_message=err,
+                wall_time_s=round(time.monotonic() - start, 2),
+                timestamp=_now(),
+            )
+
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="ailang",
+            attempt=1,
+            check_pass=True,
+            run_correct=None,
+            wall_time_s=round(time.monotonic() - start, 2),
+            timestamp=_now(),
+        )
+
+    # `ailang run` executes the file's `main` function. The IO capability
+    # is required for println output. Also validates parse + types
+    # internally (so we don't need a separate `ailang check` call here).
+    try:
+        run_result = subprocess.run(  # noqa: S603
+            [  # noqa: S607
+                "ailang",
+                "run",
+                "--relax-modules",
+                "--quiet",
+                "--caps",
+                "IO",
+                "--entry",
+                "main",
+                str(baseline_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+            env=run_env,
+        )
+    except FileNotFoundError:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="ailang",
+            attempt=1,
+            check_pass=False,
+            error_message="ailang not found on PATH",
+            timestamp=_now(),
+        )
+    except subprocess.TimeoutExpired:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="ailang",
+            attempt=1,
+            check_pass=True,
+            run_correct=False,
+            tests_total=len(test_cases),
+            error_message="ailang run timed out",
+            wall_time_s=round(time.monotonic() - start, 2),
+            timestamp=_now(),
+        )
+
+    elapsed = round(time.monotonic() - start, 2)
+
+    if run_result.returncode != 0:
+        # Distinguish compile-time errors (check_pass=False) from runtime
+        # errors by stderr inspection. AILANG's diagnostics are tagged
+        # `Error XXX_NNN` (compile) or other prefixes (runtime/operator).
+        # Use a word-boundary regex rather than substring match so a future
+        # AILANG release adding `Error PARSER_` wouldn't accidentally
+        # match `Error PAR` and silently reclassify runtime → compile.
+        # Known compile-error tag prefixes (extend when AILANG adds more):
+        err = (run_result.stderr or "")[:400]
+        compile_tags = ("PAR", "TC", "MOD", "ELB", "LINK", "TY")
+        tag_match = re.search(r"\bError ([A-Z]+)_", err)
+        if tag_match:
+            is_compile_error = tag_match.group(1) in compile_tags
+        else:
+            is_compile_error = False
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="ailang",
+            attempt=1,
+            check_pass=not is_compile_error,
+            run_correct=False,
+            tests_total=len(test_cases),
+            error_message=err[:200] if err else "Non-zero exit",
+            wall_time_s=elapsed,
+            timestamp=_now(),
+        )
+
+    # Parse stdout: each line corresponds to one test case result.
+    # Reuses the Aver output-matching logic (handles bool 1/0 vs "true"/"false").
+    stdout = run_result.stdout.strip()
+    output_lines = stdout.split("\n") if stdout else []
+    tests_passed = 0
+
+    for i, tc in enumerate(test_cases):
+        expected = tc.get("expected")
+        if i < len(output_lines):
+            actual = output_lines[i].strip()
+            if _aver_output_matches(actual, expected):
+                tests_passed += 1
+
+    return ProblemResult(
+        problem_id=problem_id,
+        model="baseline",
+        language="ailang",
+        attempt=1,
+        check_pass=True,
+        run_correct=(tests_passed == len(test_cases)),
+        tests_total=len(test_cases),
+        tests_passed=tests_passed,
+        wall_time_s=elapsed,
+        timestamp=_now(),
+    )
+
+
 def run_all_baselines(
     problems: list[dict],
     solutions_dir: Path,
@@ -567,7 +766,7 @@ def run_all_baselines(
             baselines historically left it empty, which made them hard to
             attribute across version boundaries (#66).
     """
-    if language not in ("python", "typescript", "aver"):
+    if language not in ("python", "typescript", "aver", "ailang"):
         raise NotImplementedError(
             f"Baseline runner for {language!r} not yet implemented"
         )
@@ -578,6 +777,8 @@ def run_all_baselines(
         runner = run_typescript_baseline
     elif language == "aver":
         runner = run_aver_baseline
+    elif language == "ailang":
+        runner = run_ailang_baseline
 
     all_results: list[ProblemResult] = []
 

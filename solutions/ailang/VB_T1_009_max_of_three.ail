@@ -1,0 +1,15 @@
+module benchmark/solution
+
+func max_of_two(a: int, b: int) -> int =
+  if a > b then a else b
+
+export func max_of_three(a: int, b: int, c: int) -> int =
+  max_of_two(max_of_two(a, b), c)
+
+export func main() -> () ! {IO} {
+  println(show(max_of_three(3, 7, 5)));
+  println(show(max_of_three(9, 1, 4)));
+  println(show(max_of_three(2, 2, 8)));
+  println(show(max_of_three(5, 5, 5)));
+  println(show(max_of_three(-1, -2, -3)))
+}

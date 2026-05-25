@@ -1,0 +1,13 @@
+module benchmark/solution
+
+export func power(base: int, exp: int) -> int =
+  if exp <= 0 then 1
+  else base * power(base, exp - 1)
+
+export func main() -> () ! {IO} {
+  println(show(power(2, 10)));
+  println(show(power(3, 0)));
+  println(show(power(5, 1)));
+  println(show(power(2, 0)));
+  println(show(power(1, 100)))
+}

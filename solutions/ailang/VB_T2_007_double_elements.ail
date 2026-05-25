@@ -1,0 +1,9 @@
+module benchmark/solution
+
+import std/list (map)
+
+func dbl(x: int) -> int = x * 2
+
+export func double_elements(xs: [int]) -> [int] = map(dbl, xs)
+
+export func main() -> () ! {IO} = ()

@@ -1,0 +1,12 @@
+module benchmark/solution
+
+export func gcd(a: int, b: int) -> int =
+  if b == 0 then a
+  else gcd(b, a % b)
+
+export func main() -> () ! {IO} {
+  println(show(gcd(12, 8)));
+  println(show(gcd(7, 0)));
+  println(show(gcd(0, 5)));
+  println(show(gcd(100, 75)))
+}

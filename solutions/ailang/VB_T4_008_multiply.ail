@@ -1,0 +1,12 @@
+module benchmark/solution
+
+export func multiply(a: int, b: int) -> int =
+  if b <= 0 then 0
+  else a + multiply(a, b - 1)
+
+export func main() -> () ! {IO} {
+  println(show(multiply(7, 6)));
+  println(show(multiply(0, 5)));
+  println(show(multiply(3, 0)));
+  println(show(multiply(1, 1)))
+}

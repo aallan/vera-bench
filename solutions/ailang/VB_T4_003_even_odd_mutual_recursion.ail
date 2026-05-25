@@ -1,0 +1,16 @@
+module benchmark/solution
+
+func is_odd(n: int) -> bool =
+  if n == 0 then false
+  else is_even(n - 1)
+
+export func is_even(n: int) -> bool =
+  if n == 0 then true
+  else is_odd(n - 1)
+
+export func main() -> () ! {IO} {
+  println(show(is_even(0)));
+  println(show(is_even(1)));
+  println(show(is_even(4)));
+  println(show(is_even(7)))
+}

@@ -1,0 +1,12 @@
+module benchmark/solution
+
+func join_helper(xs: [string], sep: string) -> string =
+  match xs {
+    [] => "";
+    [x] => x;
+    [x, ...rest] => "${x}${sep}${join_helper(rest, sep)}"
+  }
+
+export func join_strings(xs: [string], sep: string) -> string = join_helper(xs, sep)
+
+export func main() -> () ! {IO} = ()

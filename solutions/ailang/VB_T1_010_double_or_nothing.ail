@@ -1,0 +1,11 @@
+module benchmark/solution
+
+export func double_or_nothing(x: int) -> int =
+  if x > 0 then x * 2 else 0
+
+export func main() -> () ! {IO} {
+  println(show(double_or_nothing(5)));
+  println(show(double_or_nothing(0)));
+  println(show(double_or_nothing(-3)));
+  println(show(double_or_nothing(1)))
+}

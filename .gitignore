@@ -34,3 +34,6 @@ assets/benchmark_*.png
 # Script is committed; rendered PNGs are talk-prep ephemera and go into
 # the speaker's slide deck rather than the repo.
 assets/vera-bench_slide_*.png
+
+# AILANG runtime cache (created by `ailang run` in solutions/ailang/)
+solutions/ailang/.ailang/

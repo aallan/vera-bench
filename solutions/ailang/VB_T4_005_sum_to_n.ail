@@ -1,0 +1,12 @@
+module benchmark/solution
+
+export func sum_to_n(n: int) -> int =
+  if n <= 0 then 0
+  else n + sum_to_n(n - 1)
+
+export func main() -> () ! {IO} {
+  println(show(sum_to_n(0)));
+  println(show(sum_to_n(1)));
+  println(show(sum_to_n(5)));
+  println(show(sum_to_n(10)))
+}

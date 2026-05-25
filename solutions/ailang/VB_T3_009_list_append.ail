@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyList = MyNil | MyCons(int, MyList)
+
+export func list_append(xs: MyList, ys: MyList) -> MyList =
+  match xs {
+    MyNil => ys,
+    MyCons(h, t) => MyCons(h, list_append(t, ys))
+  }
+
+export func main() -> () ! {IO} = ()

@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyList = MyNil | MyCons(int, MyList)
+
+export func list_nth(xs: MyList, i: int) -> int =
+  match xs {
+    MyNil => -1,
+    MyCons(h, t) => if i == 0 then h else list_nth(t, i - 1)
+  }
+
+export func main() -> () ! {IO} = ()

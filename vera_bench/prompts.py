@@ -18,6 +18,11 @@ _WRITE_INSTRUCTION = (
 SKILL_MD_URL = "https://veralang.dev/SKILL.md"
 AVER_LLMS_TXT_URL = "https://averlang.dev/llms.txt"
 
+# AILANG ships its teaching prompt embedded in the `ailang` CLI binary.
+# `load_ailang_prompt()` shells out to `ailang prompt --source embedded`
+# to retrieve the canonical, version-locked prompt content for the
+# installed AILANG version. No URL fetching required.
+
 _USER_AGENT = "vera-bench/0.0.9"
 
 
@@ -230,5 +235,94 @@ def build_fix_prompt(original_code: str, error_output: str) -> dict:
     )
     return {
         "system": SYSTEM_PROMPT,
+        "user": user_msg,
+    }
+
+
+AILANG_SYSTEM_PROMPT = (
+    "You are an expert AILANG programmer. "
+    "Write correct, concise AILANG code. "
+    "AILANG is not in your training data — use the teaching prompt "
+    "below as the authoritative language reference."
+)
+
+
+def load_ailang_prompt(source: str | Path | None = None) -> str:
+    """Load AILANG's teaching prompt.
+
+    If source is None, shells out to `ailang prompt --source embedded`
+    to retrieve the canonical, version-locked prompt content. This
+    matches how the AILANG eval-harness loads its own prompt and
+    guarantees alignment with the installed CLI version.
+
+    If source is a local file path, reads from disk.
+    """
+    if source is None:
+        import subprocess
+
+        try:
+            result = subprocess.run(  # noqa: S603
+                ["ailang", "prompt", "--source", "embedded"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except FileNotFoundError as e:
+            raise RuntimeError(
+                "ailang not found on PATH. "
+                "Install AILANG: https://github.com/sunholo-data/ailang"
+            ) from e
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(
+                "`ailang prompt --source embedded` timed out after 10s. "
+                "Check your ailang installation."
+            ) from e
+        if result.returncode != 0:
+            # `ailang prompt` may report failures on stdout (some CLI versions),
+            # so coalesce both streams rather than indexing into a possibly-None
+            # `stderr`.
+            err = (result.stderr or result.stdout or "")[:200]
+            raise RuntimeError(f"`ailang prompt` failed: {err or 'non-zero exit'}")
+        return result.stdout
+
+    return Path(source).read_text(encoding="utf-8")
+
+
+def build_ailang_prompt(problem: dict, ailang_prompt: str) -> dict:
+    """Build a prompt asking the model to write AILANG.
+
+    Same approach as Aver/Python/TypeScript: language-neutral problem
+    description + entry-point name. The AILANG teaching prompt in the
+    system message replaces training data.
+    """
+    entry_point = problem["entry_point"]
+    user_msg = (
+        f"{_neutral_description(problem)}\n\n"
+        f"Write an AILANG module that **exports** a function named "
+        f"`{entry_point}` matching the description above. Start with "
+        f"`module benchmark/solution` and use `export func`. Do NOT "
+        f"include a `main` function — the harness adds one per test "
+        f"case. Output only the AILANG code, no explanation."
+    )
+    return {
+        "system": f"{AILANG_SYSTEM_PROMPT}\n\n{ailang_prompt}",
+        "user": user_msg,
+    }
+
+
+def build_ailang_fix_prompt(
+    original_code: str, error_output: str, ailang_prompt: str
+) -> dict:
+    """Build a retry prompt after a failed AILANG check or run."""
+    user_msg = (
+        "The AILANG code you wrote:\n\n"
+        f"```ailang\n{original_code}\n```\n\n"
+        f"produced this error:\n\n{error_output}\n\n"
+        "Fix the code. Output only the corrected AILANG code, "
+        "no explanation."
+    )
+    return {
+        "system": f"{AILANG_SYSTEM_PROMPT}\n\n{ailang_prompt}",
         "user": user_msg,
     }

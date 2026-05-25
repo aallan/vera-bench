@@ -1,0 +1,14 @@
+module benchmark/solution
+
+import std/string (contains)
+
+export func contains_substring(hay: string, needle: string) -> bool =
+  contains(hay, needle)
+
+export func main() -> () ! {IO} {
+  println(show(contains_substring("hello world", "world")));
+  println(show(contains_substring("hello world", "mars")));
+  println(show(contains_substring("abcdef", "cde")));
+  println(show(contains_substring("abc", "")));
+  println(show(contains_substring("", "a")))
+}

@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyTree = MyLeaf(int) | MyBranch(MyTree, MyTree)
+
+export func tree_sum(t: MyTree) -> int =
+  match t {
+    MyLeaf(n) => n,
+    MyBranch(l, r) => tree_sum(l) + tree_sum(r)
+  }
+
+export func main() -> () ! {IO} = ()

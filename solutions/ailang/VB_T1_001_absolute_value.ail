@@ -1,0 +1,15 @@
+module benchmark/solution
+
+-- VB-T1-001: Absolute Value
+-- Compute |x|. AILANG: simple if-as-expression, no Nat subtype so we return int.
+
+export func absolute_value(x: int) -> int =
+  if x < 0 then -x else x
+
+export func main() -> () ! {IO} {
+  println(show(absolute_value(0)));
+  println(show(absolute_value(42)));
+  println(show(absolute_value(-42)));
+  println(show(absolute_value(1)));
+  println(show(absolute_value(-1)))
+}

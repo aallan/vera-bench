@@ -1,0 +1,20 @@
+module benchmark/solution
+
+import std/bytes (fromString, byteAt)
+
+-- Uses std/bytes.byteAt (added in AILANG v0.21.0) to extract the ASCII
+-- byte value at the given string index. byteAt returns Option[int]; we
+-- default to 0 for out-of-bounds (test cases use in-bounds indices).
+export func get_char_code(s: string, i: int) -> int =
+  match byteAt(fromString(s), i) {
+    Some(b) => b,
+    None => 0
+  }
+
+export func main() -> () ! {IO} {
+  println(show(get_char_code("A", 0)));
+  println(show(get_char_code("hello", 0)));
+  println(show(get_char_code("hello", 4)));
+  println(show(get_char_code("Z", 0)));
+  println(show(get_char_code("abc", 2)))
+}

@@ -19,6 +19,7 @@ from rich.progress import Progress
 
 from vera_bench.models import LLMClient
 from vera_bench.prompts import (
+    build_ailang_fix_prompt,
     build_aver_fix_prompt,
     build_aver_prompt,
     build_fix_prompt,
@@ -33,7 +34,8 @@ from vera_bench.vera_runner import VeraRunner
 console = Console()
 
 _FENCE_RE = re.compile(
-    r"```(?:vera|aver|python|py|typescript|ts)?\s*\n(.*?)\n?```", re.DOTALL
+    r"```(?:vera|aver|ailang|ail|python|py|typescript|ts)?\s*\n(.*?)\n?```",
+    re.DOTALL,
 )
 
 
@@ -546,6 +548,290 @@ def _evaluate_aver_code(
     return result
 
 
+_IS_MAIN_DEF_RE = re.compile(r"^(\s*)(export\s+)?(pure\s+)?func\s+main\b")
+_BARE_CLOSE_BRACE_RE = re.compile(r"^\s*\}\s*(--.*)?$")
+
+
+def _strip_ailang_main(code: str) -> str:
+    """Remove any top-level `main` function from AILANG code.
+
+    Handles all three forms the LLM produces:
+      - single-line `= expr`:            `export func main() -> () = ()`
+      - single-line block `{ … }`:       `export func main() ! {IO} { println("x") }`
+      - multi-line block `{` … `}`:      with body indented and a `}` on a later line
+      - multi-line equals form `=` …:    body indented across multiple lines
+
+    Strategy: don't try to count braces — `! {IO}` effect annotations
+    contain balanced braces which fooled the previous brace-counting
+    heuristic into mis-classifying the def line and leaving the body
+    behind as orphan code (the original bug; CR-flagged 2026-05-22 as
+    C1 on PR #70).
+
+    Instead, after matching the main def line, consume body lines using
+    indentation + structural rules:
+      - blank lines are part of the body block
+      - lines strictly more indented than the def line are the body
+      - a bare `}` (block-close, possibly with a trailing `-- comment`)
+        is the body's close-brace and ends the swallow loop
+      - any other line at the def's indent level (sibling definitions,
+        comments-attached-to-the-next-def) ends the swallow loop
+
+    The harness wraps the LLM's function with its own per-test-case main,
+    so any main the LLM supplied is stripped to avoid name conflicts.
+    """
+    out: list[str] = []
+    lines = code.split("\n")
+    i, n = 0, len(lines)
+    while i < n:
+        m = _IS_MAIN_DEF_RE.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+
+        def_indent = len(m.group(1))
+        i += 1  # skip the def line itself
+
+        # Consume the body until the next sibling top-level item.
+        while i < n:
+            line = lines[i]
+            stripped = line.strip()
+            if stripped == "":
+                # Blank lines between the def and its body — keep
+                # swallowing so the result doesn't accumulate trailing
+                # blanks where main used to live.
+                i += 1
+                continue
+            cur_indent = len(line) - len(line.lstrip())
+            if cur_indent > def_indent:
+                # Indented continuation = body.
+                i += 1
+                continue
+            if cur_indent == def_indent and _BARE_CLOSE_BRACE_RE.match(line):
+                # Block-form close brace at def-indent — swallow and stop.
+                i += 1
+                break
+            # Sibling top-level item or comment attached to the next def.
+            # Stop swallowing; outer loop resumes with this line preserved.
+            break
+    return "\n".join(out)
+
+
+def _ailang_literal(value: object) -> str:
+    """Convert a Python value to an AILANG literal expression."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        if value < 0:
+            return f"({value})"
+        return str(value)
+    if isinstance(value, float):
+        return repr(value)
+    if isinstance(value, str):
+        escaped = (
+            value.replace("\\", "\\\\")
+            .replace('"', '\\"')
+            .replace("\n", "\\n")
+            .replace("\t", "\\t")
+        )
+        return f'"{escaped}"'
+    if isinstance(value, list):
+        items = ", ".join(_ailang_literal(v) for v in value)
+        return f"[{items}]"
+    return str(value)
+
+
+def _evaluate_ailang_code(
+    code: str,
+    problem: dict,
+    work_dir: Path,
+    attempt: int,
+) -> dict:
+    """Wrap the LLM's AILANG code with a per-test-case main and grade.
+
+    Mirrors the Aver pattern: the prompt asks for the function ONLY
+    (no main), the harness strips any main the LLM provided anyway,
+    then for each test case writes a fresh .ail file that defines the
+    LLM's function plus an `export func main() ! {IO}` that calls
+    entry_point(args) and prints the result. The harness compares
+    that stdout against the expected value per test case.
+    """
+    entry_point = problem.get("entry_point", "")
+    test_cases = problem.get("test_cases", [])
+
+    result: dict = {
+        "check_pass": False,
+        "verify_pass": None,
+        "verify_tier1": 0,
+        "verify_tier3": 0,
+        "run_correct": None,
+        "tests_total": 0,
+        "tests_passed": 0,
+        "error_message": None,
+    }
+
+    safe_id = problem["id"].replace("-", "_")
+    run_env = {k: v for k, v in os.environ.items() if not k.endswith("_API_KEY")}
+    run_env["AILANG_TRACE"] = "off"
+
+    code_without_main = _strip_ailang_main(code)
+    # If the LLM forgot a `module ...` line, add one. AILANG requires
+    # the module declaration as the first non-blank/comment line.
+    has_module = any(
+        line.strip().startswith("module ")
+        for line in code_without_main.split("\n")
+        if not line.strip().startswith("--")
+    )
+    if not has_module:
+        code_without_main = f"module benchmark/solution\n\n{code_without_main}"
+
+    # Guard against empty / missing-entry-point modules: an empty module
+    # type-checks but downstream test invocations would fail with
+    # `undefined variable`. Catch this here and report as a clear check
+    # failure rather than a generic runtime error per test case.
+    entry_point_re = re.compile(
+        rf"^\s*(export\s+)?(pure\s+)?func\s+{re.escape(entry_point)}\b"
+    )
+    has_entry_point = any(
+        entry_point_re.match(line) for line in code_without_main.split("\n")
+    )
+    if not has_entry_point:
+        result["check_pass"] = False
+        result["error_message"] = (
+            f"LLM did not define entry point `{entry_point}` "
+            "(empty module or missing function definition)"
+        )
+        if not test_cases:
+            return result
+        result["tests_total"] = len(test_cases)
+        result["run_correct"] = False
+        return result
+
+    # First, type-check the bare module (without any main) — failures here
+    # are compile errors and we don't need to attempt test cases.
+    check_path = work_dir / f"{safe_id}_check_attempt{attempt}.ail"
+    check_path.write_text(code_without_main, encoding="utf-8")
+    try:
+        check_proc = subprocess.run(  # noqa: S603
+            [  # noqa: S607
+                "ailang",
+                "check",
+                "--relax-modules",
+                str(check_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+            env=run_env,
+        )
+    except FileNotFoundError:
+        result["error_message"] = "ailang not found on PATH"
+        return result
+    except subprocess.TimeoutExpired:
+        result["error_message"] = "ailang check timed out"
+        return result
+
+    # When checking without a main, AILANG may complain about a missing
+    # entrypoint or pure-only module — that's the ONE non-zero exit we
+    # tolerate, since the harness adds a per-test-case main below. Every
+    # other non-zero exit (tagged compile error OR untagged failure) is
+    # treated as check failure.
+    if check_proc.returncode != 0:
+        err = (check_proc.stderr or check_proc.stdout)[:500]
+        if "missing main" not in err.lower():
+            result["check_pass"] = False
+            result["error_message"] = err
+            if not test_cases:
+                return result
+            result["tests_total"] = len(test_cases)
+            result["run_correct"] = False
+            return result
+
+    result["check_pass"] = True
+
+    if not test_cases:
+        result["run_correct"] = None
+        return result
+
+    result["tests_total"] = len(test_cases)
+    tests_passed = 0
+    # Capture the first non-zero stderr from any test-case run for the
+    # all-tests-fail diagnostic case. Without this, a model that writes
+    # type-correct AILANG that crashes at runtime is indistinguishable
+    # in JSONL output from one with wrong logic (error_message=None,
+    # check_pass=True, run_correct=False, tests_passed=0). CR-flagged
+    # 2026-05-22 as C3 on PR #70. Issue #72 tracks the broader
+    # per-test-stderr-loss concern shared with the Aver path.
+    last_run_error: str | None = None
+
+    for i, tc in enumerate(test_cases):
+        if not isinstance(tc, dict):
+            continue
+        args = tc.get("args", [])
+        expected = tc.get("expected")
+        args_str = ", ".join(_ailang_literal(a) for a in args)
+
+        test_main = (
+            f"\n\nexport func main() -> () ! {{IO}} {{\n"
+            f"  println(show({entry_point}({args_str})))\n"
+            f"}}\n"
+        )
+        test_file = code_without_main + test_main
+        test_path = work_dir / f"{safe_id}_test{i}_attempt{attempt}.ail"
+        test_path.write_text(test_file, encoding="utf-8")
+
+        try:
+            run_proc = subprocess.run(  # noqa: S603
+                [  # noqa: S607
+                    "ailang",
+                    "run",
+                    "--relax-modules",
+                    "--quiet",
+                    "--caps",
+                    "IO",
+                    "--entry",
+                    "main",
+                    str(test_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+                env=run_env,
+            )
+        except subprocess.TimeoutExpired:
+            if last_run_error is None:
+                last_run_error = f"test {i}: ailang run timed out after 30s"
+            continue
+
+        if run_proc.returncode != 0:
+            if last_run_error is None:
+                # stderr-or-stdout coalesce: AILANG runtime errors land on
+                # stderr in most cases, but quiet mode + some compile-stage
+                # diagnostics land on stdout. Truncate to keep JSONL rows
+                # readable.
+                err = (run_proc.stderr or run_proc.stdout or "").strip()[:400]
+                last_run_error = (
+                    f"test {i}: {err}"
+                    if err
+                    else (f"test {i}: exit {run_proc.returncode} (no output)")
+                )
+            continue
+
+        actual = run_proc.stdout.strip()
+        if _aver_output_matches(actual, expected):
+            tests_passed += 1
+
+    result["tests_passed"] = tests_passed
+    result["run_correct"] = tests_passed == len(test_cases)
+    # Only attach last_run_error if we don't have a more upstream error
+    # (e.g. from the check step) — preserve the original failure mode.
+    if last_run_error is not None and not result.get("error_message"):
+        result["error_message"] = last_run_error
+    return result
+
+
 def _strip_aver_main(code: str) -> str:
     """Remove fn main() and its body from Aver code."""
     lines = code.split("\n")
@@ -686,6 +972,10 @@ def run_single_problem(
     # Build prompt
     if language == "aver":
         prompt = build_aver_prompt(problem, skill_md)
+    elif language == "ailang":
+        from vera_bench.prompts import build_ailang_prompt
+
+        prompt = build_ailang_prompt(problem, skill_md)
     elif language == "python":
         prompt = build_python_prompt(problem)
     elif language == "typescript":
@@ -724,6 +1014,8 @@ def run_single_problem(
 
     if language == "aver":
         eval_result = _evaluate_aver_code(code, problem, work_dir, attempt=1)
+    elif language == "ailang":
+        eval_result = _evaluate_ailang_code(code, problem, work_dir, attempt=1)
     elif language == "python":
         eval_result = _evaluate_python_code(code, problem, work_dir, attempt=1)
     elif language == "typescript":
@@ -753,8 +1045,10 @@ def run_single_problem(
 
     # Attempt 2: fix from error (Aver — only on actual check failures,
     # not tooling errors like "aver not found" or timeouts)
-    _aver_error = eval_result.get("error_message") or ""
-    _is_tooling_error = "aver not found" in _aver_error or "timed out" in _aver_error
+    _err = eval_result.get("error_message") or ""
+    _is_tooling_error = (
+        "aver not found" in _err or "ailang not found" in _err or "timed out" in _err
+    )
     if (
         language == "aver"
         and not eval_result["check_pass"]
@@ -788,6 +1082,60 @@ def run_single_problem(
 
         fix_code = extract_code(fix_response.text)
         fix_eval = _evaluate_aver_code(fix_code, problem, work_dir, attempt=2)
+
+        results.append(
+            ProblemResult(
+                problem_id=problem["id"],
+                model=fix_response.model,
+                language=language,
+                attempt=2,
+                input_tokens=fix_response.input_tokens,
+                output_tokens=fix_response.output_tokens,
+                wall_time_s=fix_response.wall_time_s,
+                timestamp=_now(),
+                bench_version=bench_version,
+                vera_version=vera_version,
+                **fix_eval,
+            )
+        )
+
+    # Attempt 2: fix from error (AILANG — mirrors the Aver retry path).
+    # The previous omission meant `--max-fix-attempts > 0` was silently
+    # ignored for AILANG, undercounting it vs Aver/Vera by the entire
+    # attempt-2 contribution. CR-flagged 2026-05-22 as C2 on PR #70.
+    if (
+        language == "ailang"
+        and not eval_result["check_pass"]
+        and max_fix_attempts > 0
+        and not _is_tooling_error
+    ):
+        fix_prompt = build_ailang_fix_prompt(
+            code, eval_result.get("error_message", ""), skill_md
+        )
+        try:
+            fix_response = client.complete(
+                system=fix_prompt["system"],
+                user=fix_prompt["user"],
+                max_tokens=max_tokens,
+            )
+        except Exception as e:
+            results.append(
+                ProblemResult(
+                    problem_id=problem["id"],
+                    model=llm_response.model,
+                    language=language,
+                    attempt=2,
+                    check_pass=False,
+                    error_message=f"Fix API error: {e}",
+                    timestamp=_now(),
+                    bench_version=bench_version,
+                    vera_version=vera_version,
+                )
+            )
+            return results
+
+        fix_code = extract_code(fix_response.text)
+        fix_eval = _evaluate_ailang_code(fix_code, problem, work_dir, attempt=2)
 
         results.append(
             ProblemResult(

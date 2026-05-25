@@ -1,0 +1,19 @@
+module benchmark/solution
+
+type MyEither = MyLeft(int) | MyRight(int)
+
+export func either_select(a: int, b: int, sel: int) -> int = {
+  let e = if sel > 0 then MyLeft(a) else MyRight(b);
+  match e {
+    MyLeft(v) => v,
+    MyRight(v) => v
+  }
+}
+
+export func main() -> () ! {IO} {
+  println(show(either_select(10, 20, 1)));
+  println(show(either_select(10, 20, 0)));
+  println(show(either_select(10, 20, -5)));
+  println(show(either_select(42, 99, 100)));
+  println(show(either_select(0, 0, 1)))
+}

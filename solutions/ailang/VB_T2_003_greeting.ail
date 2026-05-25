@@ -1,0 +1,5 @@
+module benchmark/solution
+
+export func greet(name: string) -> string = "Hello, ${name}!"
+
+export func main() -> () ! {IO} = ()

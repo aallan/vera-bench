@@ -1,0 +1,12 @@
+module benchmark/solution
+
+type Expr = Lit(int) | Add(Expr, Expr) | Neg(Expr)
+
+export func eval_expr(e: Expr) -> int =
+  match e {
+    Lit(n) => n,
+    Add(a, b) => eval_expr(a) + eval_expr(b),
+    Neg(x) => -eval_expr(x)
+  }
+
+export func main() -> () ! {IO} = ()

@@ -1,0 +1,13 @@
+module benchmark/solution
+
+export func div_natural(a: int, b: int) -> int =
+  if a < b then 0
+  else 1 + div_natural(a - b, b)
+
+export func main() -> () ! {IO} {
+  println(show(div_natural(17, 5)));
+  println(show(div_natural(10, 3)));
+  println(show(div_natural(0, 1)));
+  println(show(div_natural(7, 7)));
+  println(show(div_natural(3, 10)))
+}

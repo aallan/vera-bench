@@ -1,0 +1,13 @@
+module benchmark/solution
+
+import std/string (length)
+
+export func is_longer_than(s: string, threshold: int) -> bool = length(s) > threshold
+
+export func main() -> () ! {IO} {
+  println(show(is_longer_than("hello", 3)));
+  println(show(is_longer_than("hi", 5)));
+  println(show(is_longer_than("", 0)));
+  println(show(is_longer_than("test", 4)));
+  println(show(is_longer_than("test", 3)))
+}

@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyList = MyNil | MyCons(int, MyList)
+
+export func list_sum(xs: MyList) -> int =
+  match xs {
+    MyNil => 0,
+    MyCons(h, t) => h + list_sum(t)
+  }
+
+export func main() -> () ! {IO} = ()

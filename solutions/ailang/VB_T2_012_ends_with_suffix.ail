@@ -1,0 +1,13 @@
+module benchmark/solution
+
+import std/string (endsWith)
+
+export func ends_with_suffix(s: string, suffix: string) -> bool = endsWith(s, suffix)
+
+export func main() -> () ! {IO} {
+  println(show(ends_with_suffix("hello", "llo")));
+  println(show(ends_with_suffix("hello", "world")));
+  println(show(ends_with_suffix("", "")));
+  println(show(ends_with_suffix("abc", "abcd")));
+  println(show(ends_with_suffix("abc", "")))
+}

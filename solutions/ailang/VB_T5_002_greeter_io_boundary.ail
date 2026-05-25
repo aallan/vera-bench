@@ -1,0 +1,10 @@
+module benchmark/solution
+
+-- Pure helper: builds the greeting string
+func build_greeting(name: string) -> string = "Hello, ${name}!"
+
+-- Effectful wrapper: prints the greeting
+export func greet(name: string) -> () ! {IO} =
+  println(build_greeting(name))
+
+export func main() -> () ! {IO} = ()

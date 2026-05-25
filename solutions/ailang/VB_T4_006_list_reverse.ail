@@ -1,0 +1,13 @@
+module benchmark/solution
+
+type MyList = MyNil | MyCons(int, MyList)
+
+func rev_acc(xs: MyList, acc: MyList) -> MyList =
+  match xs {
+    MyNil => acc,
+    MyCons(h, t) => rev_acc(t, MyCons(h, acc))
+  }
+
+export func list_reverse(xs: MyList) -> MyList = rev_acc(xs, MyNil)
+
+export func main() -> () ! {IO} = ()

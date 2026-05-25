@@ -1,0 +1,11 @@
+module benchmark/solution
+
+import std/list (head)
+
+export func safe_head(xs: [int]) -> int =
+  match head(xs) {
+    Some(v) => v,
+    None => -1
+  }
+
+export func main() -> () ! {IO} = ()

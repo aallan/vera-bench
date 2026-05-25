@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyList = MyNil | MyCons(int, MyList)
+
+export func list_contains(xs: MyList, target: int) -> bool =
+  match xs {
+    MyNil => false,
+    MyCons(h, t) => if h == target then true else list_contains(t, target)
+  }
+
+export func main() -> () ! {IO} = ()

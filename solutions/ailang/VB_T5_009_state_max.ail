@@ -1,0 +1,30 @@
+module benchmark/solution
+
+import std/io (println)
+
+-- VB_T5_009 State Max — find max of 1..n.
+--
+-- The problem spec asks for `State<Int>` + handler in Vera. AILANG
+-- doesn't have a State effect; the analogous AILANG idiom is
+-- accumulator-threading via tail recursion:
+--   • `acc` plays the role of the state cell (initialized to 0)
+--   • `intMax(acc, i)` is the get/put step (update state)
+--   • the recursion replaces the explicit loop construct
+-- For n >= 1, max(1..n) = n, but we compute it the "stateful" way
+-- to mirror the spec's intent rather than short-circuiting.
+
+-- Pure max helper (per spec).
+pure func intMax(a: int, b: int) -> int = if a > b then a else b
+
+-- Tail-recursive loop threading `acc` (the state) from 1..n.
+func loop(i: int, n: int, acc: int) -> int =
+  if i > n then acc
+  else loop(i + 1, n, intMax(acc, i))
+
+export func state_max(n: int) -> int = loop(1, n, 0)
+
+export func main() -> () ! {IO} {
+  println(show(state_max(5)));
+  println(show(state_max(1)));
+  println(show(state_max(10)))
+}

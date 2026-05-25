@@ -1,0 +1,13 @@
+module benchmark/solution
+
+export func fibonacci(n: int) -> int =
+  if n <= 0 then 0
+  else if n == 1 then 1
+  else fibonacci(n - 1) + fibonacci(n - 2)
+
+export func main() -> () ! {IO} {
+  println(show(fibonacci(0)));
+  println(show(fibonacci(1)));
+  println(show(fibonacci(5)));
+  println(show(fibonacci(10)))
+}

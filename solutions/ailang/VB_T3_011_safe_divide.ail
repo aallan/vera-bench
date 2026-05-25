@@ -1,0 +1,19 @@
+module benchmark/solution
+
+type DivResult = OkDiv(int) | DivByZero
+
+export func safe_divide(a: int, b: int) -> int = {
+  let r = if b == 0 then DivByZero else OkDiv(a / b);
+  match r {
+    OkDiv(q) => q,
+    DivByZero => -1
+  }
+}
+
+export func main() -> () ! {IO} {
+  println(show(safe_divide(10, 2)));
+  println(show(safe_divide(7, 3)));
+  println(show(safe_divide(10, 0)));
+  println(show(safe_divide(0, 5)));
+  println(show(safe_divide(-6, 3)))
+}

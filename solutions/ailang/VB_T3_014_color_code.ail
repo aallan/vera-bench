@@ -1,0 +1,24 @@
+module benchmark/solution
+
+type Color = Red | Green | Blue | Black
+
+export func color_code(code: int) -> int = {
+  let c = if code == 0 then Red
+          else if code == 1 then Green
+          else if code == 2 then Blue
+          else Black;
+  match c {
+    Red => 16711680,
+    Green => 65280,
+    Blue => 255,
+    Black => 0
+  }
+}
+
+export func main() -> () ! {IO} {
+  println(show(color_code(0)));
+  println(show(color_code(1)));
+  println(show(color_code(2)));
+  println(show(color_code(3)));
+  println(show(color_code(-1)))
+}

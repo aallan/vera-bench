@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -12,6 +14,7 @@ from vera_bench.baseline_runner import (
     _build_python_wrapper,
     _find_baseline_file,
     _snake_to_camel,
+    run_ailang_baseline,
     run_python_baseline,
     run_typescript_baseline,
 )
@@ -265,3 +268,266 @@ class TestBaselinesCLI:
                 f"bench_version={row.get('bench_version')!r}, "
                 f"expected {vera_bench.__version__!r}"
             )
+
+
+class TestRunAilangBaseline:
+    """Mocked-subprocess tests for the AILANG baseline runner.
+
+    Mirrors the Aver test pattern: the AILANG binary is not assumed to
+    be on PATH in CI, so every subprocess call is intercepted at the
+    `vera_bench.baseline_runner.subprocess.run` boundary. The `solutions`
+    tree is also bypassed via `patch(_find_baseline_file)` since the
+    runner's real responsibility is dispatch/result-shape, not file I/O.
+    """
+
+    def _problem(
+        self, test_cases: list[dict[str, object]] | None = None
+    ) -> dict[str, object]:
+        return {
+            "id": "VB-T1-001",
+            "entry_point": "absolute_value",
+            "test_cases": test_cases or [],
+        }
+
+    def _proc(
+        self, returncode: int = 0, stdout: str = "", stderr: str = ""
+    ) -> MagicMock:
+        m = MagicMock()
+        m.returncode = returncode
+        m.stdout = stdout
+        m.stderr = stderr
+        return m
+
+    def test_baseline_file_missing(self, tmp_path):
+        # No solutions dir -> _find_baseline_file returns None.
+        result = run_ailang_baseline(self._problem(), tmp_path, tmp_path)
+        assert result.problem_id == "VB-T1-001"
+        assert result.language == "ailang"
+        assert result.model == "baseline"
+        assert result.check_pass is False
+        assert "No AILANG baseline" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_no_test_cases_check_pass(self, mock_run, mock_find, tmp_path):
+        # No test cases -> uses `ailang check` only
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.return_value = self._proc(returncode=0)
+
+        result = run_ailang_baseline(self._problem(), tmp_path, tmp_path)
+        assert result.check_pass is True
+        assert result.run_correct is None
+        # confirm it was the check command, not run
+        args = mock_run.call_args.args[0]
+        assert args[:2] == ["ailang", "check"]
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_no_test_cases_check_fail(self, mock_run, mock_find, tmp_path):
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.return_value = self._proc(
+            returncode=1, stderr="Error PAR_001: bad syntax"
+        )
+
+        result = run_ailang_baseline(self._problem(), tmp_path, tmp_path)
+        assert result.check_pass is False
+        assert "bad syntax" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_no_test_cases_ailang_not_found(self, mock_run, mock_find, tmp_path):
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.side_effect = FileNotFoundError
+
+        result = run_ailang_baseline(self._problem(), tmp_path, tmp_path)
+        assert result.check_pass is False
+        assert "ailang not found" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_no_test_cases_check_timeout(self, mock_run, mock_find, tmp_path):
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="ailang", timeout=30)
+
+        result = run_ailang_baseline(self._problem(), tmp_path, tmp_path)
+        assert result.check_pass is False
+        assert "timed out" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_with_test_cases_all_pass(self, mock_run, mock_find, tmp_path):
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        # 3 test cases -> stdout has 3 lines, all matching expected
+        mock_run.return_value = self._proc(returncode=0, stdout="0\n42\n42")
+
+        problem = self._problem(
+            test_cases=[
+                {"args": [0], "expected": 0},
+                {"args": [42], "expected": 42},
+                {"args": [-42], "expected": 42},
+            ]
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.check_pass is True
+        assert result.tests_total == 3
+        assert result.tests_passed == 3
+        assert result.run_correct is True
+
+        # confirm `ailang run` was invoked (with-test-cases path)
+        args = mock_run.call_args.args[0]
+        assert args[:2] == ["ailang", "run"]
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_with_test_cases_bool_normalisation(self, mock_run, mock_find, tmp_path):
+        """Pins the bool-normalisation contract for AILANG output: AILANG
+        prints `true`/`false` (lowercase) for booleans, and the baseline
+        runner reuses `_aver_output_matches`, which handles both the
+        string-expected and Vera-style int-expected (1/0) forms."""
+        baseline = tmp_path / "VB_T4_003.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        # AILANG's `println(show(true))` emits lowercase — same as Aver.
+        mock_run.return_value = self._proc(
+            returncode=0, stdout="true\nfalse\ntrue\nfalse"
+        )
+
+        problem = self._problem(
+            test_cases=[
+                # String-form expected (problem JSON often uses this)
+                {"args": [4], "expected": "true"},
+                {"args": [7], "expected": "false"},
+                # Vera-style int-form expected (1/0 -> true/false carve-out
+                # in _aver_output_matches)
+                {"args": [4], "expected": 1},
+                {"args": [7], "expected": 0},
+            ]
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.tests_total == 4
+        assert result.tests_passed == 4
+        assert result.run_correct is True
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_with_test_cases_partial_pass(self, mock_run, mock_find, tmp_path):
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        # 2nd test case fails
+        mock_run.return_value = self._proc(returncode=0, stdout="0\n99")
+
+        problem = self._problem(
+            test_cases=[
+                {"args": [0], "expected": 0},
+                {"args": [42], "expected": 42},
+            ]
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.tests_total == 2
+        assert result.tests_passed == 1
+        assert result.run_correct is False
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_with_test_cases_compile_error(self, mock_run, mock_find, tmp_path):
+        # AILANG compile error -> check_pass=False even from `ailang run`.
+        # Tagged errors (Error PAR/TC/MOD) are distinguished from runtime.
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.return_value = self._proc(
+            returncode=1, stderr="Error TC_042: type mismatch"
+        )
+
+        problem = self._problem(
+            test_cases=[{"args": [42], "expected": 42}],
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.check_pass is False  # compile error
+        assert result.run_correct is False
+        assert "type mismatch" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_with_test_cases_runtime_error(self, mock_run, mock_find, tmp_path):
+        # Non-tagged stderr -> runtime error -> check_pass stays True
+        # (the program compiled but blew up at runtime).
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.return_value = self._proc(
+            returncode=1, stderr="panic: division by zero"
+        )
+
+        problem = self._problem(
+            test_cases=[{"args": [42], "expected": 42}],
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.check_pass is True
+        assert result.run_correct is False
+        assert "division by zero" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_with_test_cases_run_timeout(self, mock_run, mock_find, tmp_path):
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd="ailang", timeout=30)
+
+        problem = self._problem(
+            test_cases=[{"args": [42], "expected": 42}],
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.check_pass is True
+        assert result.run_correct is False
+        assert "timed out" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_with_test_cases_ailang_not_found(self, mock_run, mock_find, tmp_path):
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.side_effect = FileNotFoundError
+
+        problem = self._problem(
+            test_cases=[{"args": [42], "expected": 42}],
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.check_pass is False
+        assert "ailang not found" in result.error_message
+
+    @patch("vera_bench.baseline_runner._find_baseline_file")
+    @patch("vera_bench.baseline_runner.subprocess.run")
+    def test_short_stdout_truncates_test_pass_count(
+        self, mock_run, mock_find, tmp_path
+    ):
+        # Fewer output lines than test cases -> missing ones count as fail.
+        baseline = tmp_path / "VB_T1_001.ail"
+        baseline.write_text("module M\n")
+        mock_find.return_value = baseline
+        mock_run.return_value = self._proc(returncode=0, stdout="0\n42")  # only 2 lines
+
+        problem = self._problem(
+            test_cases=[
+                {"args": [0], "expected": 0},
+                {"args": [42], "expected": 42},
+                {"args": [-42], "expected": 42},  # no stdout line for this
+            ]
+        )
+        result = run_ailang_baseline(problem, tmp_path, tmp_path)
+        assert result.tests_total == 3
+        assert result.tests_passed == 2
+        assert result.run_correct is False

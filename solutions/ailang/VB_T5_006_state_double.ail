@@ -1,0 +1,10 @@
+module benchmark/solution
+
+export func state_double(x: int) -> int = x * 2
+
+export func main() -> () ! {IO} {
+  println(show(state_double(21)));
+  println(show(state_double(0)));
+  println(show(state_double(5)));
+  println(show(state_double(-3)))
+}

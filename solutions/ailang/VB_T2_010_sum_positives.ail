@@ -1,0 +1,10 @@
+module benchmark/solution
+
+import std/list (filter, foldl)
+
+func isPos(x: int) -> bool = x > 0
+func add(acc: int, x: int) -> int = acc + x
+
+export func sum_positives(xs: [int]) -> int = foldl(add, 0, filter(isPos, xs))
+
+export func main() -> () ! {IO} = ()

@@ -1,0 +1,13 @@
+module benchmark/solution
+
+type MyList = MyNil | MyCons(int, MyList)
+type MyOption = MyNone | MySome(int)
+
+export func list_last(xs: MyList) -> MyOption =
+  match xs {
+    MyNil => MyNone,
+    MyCons(x, MyNil) => MySome(x),
+    MyCons(_, t) => list_last(t)
+  }
+
+export func main() -> () ! {IO} = ()

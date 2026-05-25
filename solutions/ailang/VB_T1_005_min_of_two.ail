@@ -1,0 +1,11 @@
+module benchmark/solution
+
+export func min_of_two(a: int, b: int) -> int =
+  if a < b then a else b
+
+export func main() -> () ! {IO} {
+  println(show(min_of_two(3, 7)));
+  println(show(min_of_two(7, 3)));
+  println(show(min_of_two(5, 5)));
+  println(show(min_of_two(-1, -5)))
+}

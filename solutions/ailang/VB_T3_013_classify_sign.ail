@@ -1,0 +1,22 @@
+module benchmark/solution
+
+type Sign = Negative | Zero | Positive
+
+export func classify_sign(x: int) -> int = {
+  let s = if x < 0 then Negative
+          else if x > 0 then Positive
+          else Zero;
+  match s {
+    Negative => -1,
+    Zero => 0,
+    Positive => 1
+  }
+}
+
+export func main() -> () ! {IO} {
+  println(show(classify_sign(42)));
+  println(show(classify_sign(-7)));
+  println(show(classify_sign(0)));
+  println(show(classify_sign(1)));
+  println(show(classify_sign(-100)))
+}

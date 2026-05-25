@@ -1,0 +1,12 @@
+module benchmark/solution
+
+import std/string (length)
+
+export func is_empty_string(s: string) -> bool = length(s) == 0
+
+export func main() -> () ! {IO} {
+  println(show(is_empty_string("")));
+  println(show(is_empty_string("hello")));
+  println(show(is_empty_string(" ")));
+  println(show(is_empty_string("0")))
+}

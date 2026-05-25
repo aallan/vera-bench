@@ -1,0 +1,13 @@
+module benchmark/solution
+
+export func clamp(value: int, lo: int, hi: int) -> int =
+  if value < lo then lo
+  else if value > hi then hi
+  else value
+
+export func main() -> () ! {IO} {
+  println(show(clamp(50, 0, 100)));
+  println(show(clamp(-5, 0, 100)));
+  println(show(clamp(150, 0, 100)));
+  println(show(clamp(0, 0, 0)))
+}

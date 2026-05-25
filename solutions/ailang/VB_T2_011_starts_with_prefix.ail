@@ -1,0 +1,13 @@
+module benchmark/solution
+
+import std/string (startsWith)
+
+export func starts_with_prefix(s: string, prefix: string) -> bool = startsWith(s, prefix)
+
+export func main() -> () ! {IO} {
+  println(show(starts_with_prefix("hello", "hel")));
+  println(show(starts_with_prefix("hello", "world")));
+  println(show(starts_with_prefix("", "")));
+  println(show(starts_with_prefix("abc", "abcd")));
+  println(show(starts_with_prefix("abc", "")))
+}

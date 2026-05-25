@@ -1,0 +1,18 @@
+module benchmark/solution
+
+type DivResult = OkDiv(int) | DivErr
+
+func checked_div(a: int, b: int) -> DivResult =
+  if b == 0 then DivErr else OkDiv(a / b)
+
+export func safe_div(a: int, b: int) -> int =
+  match checked_div(a, b) {
+    OkDiv(q) => q,
+    DivErr => -1
+  }
+
+export func main() -> () ! {IO} {
+  println(show(safe_div(10, 2)));
+  println(show(safe_div(7, 0)));
+  println(show(safe_div(0, 1)))
+}

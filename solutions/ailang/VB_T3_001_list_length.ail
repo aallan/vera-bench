@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyList = MyNil | MyCons(int, MyList)
+
+export func list_length(xs: MyList) -> int =
+  match xs {
+    MyNil => 0,
+    MyCons(_, rest) => 1 + list_length(rest)
+  }
+
+export func main() -> () ! {IO} = ()

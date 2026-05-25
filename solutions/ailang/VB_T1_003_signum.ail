@@ -1,0 +1,12 @@
+module benchmark/solution
+
+export func signum(x: int) -> int =
+  if x < 0 then -1
+  else if x > 0 then 1
+  else 0
+
+export func main() -> () ! {IO} {
+  println(show(signum(42)));
+  println(show(signum(-7)));
+  println(show(signum(0)))
+}

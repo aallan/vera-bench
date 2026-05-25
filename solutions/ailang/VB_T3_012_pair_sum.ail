@@ -1,0 +1,14 @@
+module benchmark/solution
+
+export func pair_sum(a: int, b: int) -> int = {
+  let p = (a, b);
+  match p { (x, y) => x + y }
+}
+
+export func main() -> () ! {IO} {
+  println(show(pair_sum(3, 4)));
+  println(show(pair_sum(0, 0)));
+  println(show(pair_sum(-5, 5)));
+  println(show(pair_sum(10, -3)));
+  println(show(pair_sum(100, 200)))
+}

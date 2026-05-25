@@ -1,0 +1,11 @@
+module benchmark/solution
+
+export func safe_non_negative(x: int) -> int =
+  if x < 0 then 0 else x
+
+export func main() -> () ! {IO} {
+  println(show(safe_non_negative(5)));
+  println(show(safe_non_negative(-3)));
+  println(show(safe_non_negative(0)));
+  println(show(safe_non_negative(100)))
+}

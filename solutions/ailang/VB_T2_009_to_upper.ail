@@ -1,0 +1,7 @@
+module benchmark/solution
+
+import std/string (toUpper)
+
+export func to_upper(s: string) -> string = toUpper(s)
+
+export func main() -> () ! {IO} = ()

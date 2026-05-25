@@ -1,0 +1,9 @@
+module benchmark/solution
+
+import std/list (foldl)
+
+func add(acc: int, x: int) -> int = acc + x
+
+export func sum_array(xs: [int]) -> int = foldl(add, 0, xs)
+
+export func main() -> () ! {IO} = ()

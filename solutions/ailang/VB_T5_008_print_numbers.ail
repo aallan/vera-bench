@@ -1,0 +1,12 @@
+module benchmark/solution
+
+func print_loop(i: int, n: int) -> () ! {IO} =
+  if i > n then ()
+  else {
+    println(show(i));
+    print_loop(i + 1, n)
+  }
+
+export func print_numbers(n: int) -> () ! {IO} = print_loop(1, n)
+
+export func main() -> () ! {IO} = ()

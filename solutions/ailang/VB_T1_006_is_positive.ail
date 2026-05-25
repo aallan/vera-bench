@@ -1,0 +1,10 @@
+module benchmark/solution
+
+export func is_positive(x: int) -> bool = x > 0
+
+export func main() -> () ! {IO} {
+  println(show(is_positive(5)));
+  println(show(is_positive(-3)));
+  println(show(is_positive(0)));
+  println(show(is_positive(1)))
+}

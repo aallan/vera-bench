@@ -1,0 +1,10 @@
+module benchmark/solution
+
+func next_count(n: int) -> int = n + 1
+
+export func count_three() -> int =
+  next_count(next_count(next_count(0)))
+
+export func main() -> () ! {IO} {
+  println(show(count_three()))
+}

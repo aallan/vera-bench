@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyOption = MyNone | MySome(int)
+
+export func option_unwrap_or(o: MyOption, default: int) -> int =
+  match o {
+    MyNone => default,
+    MySome(v) => v
+  }
+
+export func main() -> () ! {IO} = ()

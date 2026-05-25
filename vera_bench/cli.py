@@ -46,7 +46,7 @@ def validate(problems_dir: Path | None, solutions_dir: Path | None):
 @click.option("--problem", default=None, help="Run only this problem ID")
 @click.option(
     "--language",
-    type=click.Choice(["vera", "python", "typescript", "aver"]),
+    type=click.Choice(["vera", "python", "typescript", "aver", "ailang"]),
     default="vera",
     help="Target language for code generation",
 )
@@ -106,8 +106,10 @@ def run(
     from vera_bench.runner import run_benchmark
     from vera_bench.vera_runner import VeraRunner
 
-    # Warn on flags that are ignored for the selected language
-    if language not in ("vera", "aver"):
+    # Warn on flags that are ignored for the selected language.
+    # Languages that consume --skill-md as their language-reference doc are
+    # excluded: Vera (SKILL.md), Aver (llms.txt), AILANG (embedded prompt).
+    if language not in ("vera", "aver", "ailang"):
         if skill_md is not None:
             console.print(
                 f"[yellow]Warning: --skill-md is ignored "
@@ -164,6 +166,15 @@ def run(
         skill_content = load_aver_llms_txt(skill_md)
         content_hash = hashlib.sha256(skill_content.encode()).hexdigest()[:12]
         console.print(f"llms.txt: {source} ({content_hash})")
+    elif language == "ailang":
+        import hashlib
+
+        from vera_bench.prompts import load_ailang_prompt
+
+        source = str(skill_md) if skill_md else "ailang prompt --source embedded"
+        skill_content = load_ailang_prompt(skill_md)
+        content_hash = hashlib.sha256(skill_content.encode()).hexdigest()[:12]
+        console.print(f"AILANG prompt: {source} ({content_hash})")
 
     # Versions
     import vera_bench
@@ -203,6 +214,40 @@ def run(
             )
             raise SystemExit(1)
 
+    # Get AILANG version if running AILANG
+    ailang_ver = ""
+    if language == "ailang":
+        import subprocess as _sp
+
+        try:
+            _al_proc = _sp.run(  # noqa: S603
+                ["ailang", "--version"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+            if _al_proc.returncode != 0:
+                console.print(
+                    "[red]Error: ailang --version failed "
+                    f"(exit {_al_proc.returncode}). "
+                    "Check your ailang installation.[/red]"
+                )
+                raise SystemExit(1)
+            ailang_ver = _al_proc.stdout.strip().replace("ailang ", "")
+        except FileNotFoundError:
+            console.print(
+                "[red]Error: ailang not found on PATH. "
+                "Install from https://github.com/sunholo-data/ailang[/red]"
+            )
+            raise SystemExit(1)
+        except _sp.TimeoutExpired:
+            console.print(
+                "[red]Error: `ailang --version` timed out after 5s. "
+                "Check for a hung ailang process or slow startup.[/red]"
+            )
+            raise SystemExit(1)
+
     # Set up output — dots to hyphens in versions for clean filenames
     def _ver_slug(v: str) -> str:
         return v.replace(".", "-")
@@ -220,6 +265,8 @@ def run(
         parts.append(f"vera-{_ver_slug(vera_ver)}")
     if aver_ver and aver_ver != "unknown":
         parts.append(f"aver-{_ver_slug(aver_ver)}")
+    if ailang_ver and ailang_ver != "unknown":
+        parts.append(f"ailang-{_ver_slug(ailang_ver)}")
     output_path = output_dir / f"{'-'.join(parts)}.jsonl"
 
     # Truncate stale results from previous runs
@@ -234,6 +281,8 @@ def run(
         console.print(f"Aver:     v{aver_ver}")
     if vera_ver:
         console.print(f"Vera:     v{vera_ver}")
+    if ailang_ver:
+        console.print(f"AILANG:   v{ailang_ver}")
     console.print(f"Output:   {output_path}\n")
 
     # Run benchmark
@@ -307,7 +356,7 @@ def report(results_dir: Path):
 @main.command()
 @click.option(
     "--language",
-    type=click.Choice(["python", "typescript", "aver"]),
+    type=click.Choice(["python", "typescript", "aver", "ailang"]),
     default="python",
     help="Baseline language to run",
 )
@@ -355,6 +404,18 @@ def baselines(language: str, output_dir: Path | None):
             console.print(
                 "[red]Error: aver not found on PATH. "
                 "Install with: cargo install aver-lang[/red]"
+            )
+            raise SystemExit(1)
+
+    # Fail fast if ailang is not on PATH
+    if language == "ailang":
+        import shutil as _shutil
+
+        if _shutil.which("ailang") is None:
+            console.print(
+                "[red]Error: ailang not found on PATH. "
+                "Install from https://github.com/sunholo-data/ailang "
+                "(make install)[/red]"
             )
             raise SystemExit(1)
 

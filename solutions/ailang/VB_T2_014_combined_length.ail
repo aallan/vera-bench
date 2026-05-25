@@ -1,0 +1,13 @@
+module benchmark/solution
+
+import std/string (length)
+
+export func combined_length(a: string, b: string) -> int = length(a) + length(b)
+
+export func main() -> () ! {IO} {
+  println(show(combined_length("hello", "world")));
+  println(show(combined_length("", "")));
+  println(show(combined_length("a", "bc")));
+  println(show(combined_length("test", "")));
+  println(show(combined_length("", "xyz")))
+}

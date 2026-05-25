@@ -1,0 +1,11 @@
+module benchmark/solution
+
+type MyTree = MyLeaf | MyBranch(MyTree, MyTree)
+
+export func tree_count_leaves(t: MyTree) -> int =
+  match t {
+    MyLeaf => 1,
+    MyBranch(l, r) => tree_count_leaves(l) + tree_count_leaves(r)
+  }
+
+export func main() -> () ! {IO} = ()
