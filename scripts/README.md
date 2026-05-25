@@ -14,11 +14,11 @@ the installed package, but kept in-repo for reproducibility.
 
 ## `run_full_benchmark.py` — full matrix benchmark runner
 
-Runs all eight benchmark targets for a single model, writing result JSONLs to
+Runs all ten benchmark targets for a single model, writing result JSONLs to
 `results/` and a timing summary to `results/timing.json`. Running it once per
 model sweeps the full matrix used by `plot_results.py`.
 
-### The eight targets
+### The ten targets
 
 | # | Target | Uses |
 |---|--------|------|
@@ -27,11 +27,13 @@ model sweeps the full matrix used by `plot_results.py`.
 | 3 | Python LLM | model |
 | 4 | TypeScript LLM | model (via `npx tsx`) |
 | 5 | Aver LLM | model + Aver compiler + llms.txt |
-| 6 | Python baselines | canonical `solutions/python/*.py` |
-| 7 | TypeScript baselines | canonical `solutions/typescript/*.ts` |
-| 8 | Aver baselines | canonical `solutions/aver/*.av` |
+| 6 | AILANG LLM | model + AILANG compiler + embedded teaching prompt |
+| 7 | Python baselines | canonical `solutions/python/*.py` |
+| 8 | TypeScript baselines | canonical `solutions/typescript/*.ts` |
+| 9 | Aver baselines | canonical `solutions/aver/*.av` |
+| 10 | AILANG baselines | canonical `solutions/ailang/*.ail` |
 
-Targets 6–8 don't call an LLM — they just run the canonical solutions against
+Targets 7–10 don't call an LLM — they just run the canonical solutions against
 each problem's test cases to confirm the problem JSONs are self-consistent.
 Skip them with `--skip-baselines` when running multiple models back-to-back
 (they produce the same numbers every time).
@@ -95,6 +97,7 @@ done
 vera-bench baselines
 vera-bench baselines --language typescript
 vera-bench baselines --language aver
+vera-bench baselines --language ailang
 
 # Headline chart
 python scripts/plot_results.py
@@ -104,7 +107,7 @@ python scripts/plot_results.py
 
 Rough per-model totals observed on v0.0.9 (60 problems, 2026-04):
 
-| Provider / model | Full suite (8 targets) |
+| Provider / model | Full suite (10 targets) |
 |------------------|-----------------------|
 | Claude Opus 4 | ~17 min |
 | Claude Sonnet 4 | ~15 min |
@@ -119,7 +122,7 @@ once we have data to attribute.
 
 ### Output files
 
-For model `M` at bench version `V` and compiler versions `VV` / `AV`:
+For model `M` at bench version `V` and compiler versions `VV` (Vera) / `AV` (Aver) / `LV` (AILANG):
 
 | File | Contents |
 |------|----------|
@@ -128,7 +131,8 @@ For model `M` at bench version `V` and compiler versions `VV` / `AV`:
 | `results/{M}-python-bench-{V}.jsonl` | Python generation attempts |
 | `results/{M}-typescript-bench-{V}.jsonl` | TypeScript generation attempts |
 | `results/{M}-aver-bench-{V}-aver-{AV}.jsonl` | Aver generation attempts |
-| `results/{python,typescript,aver}-baseline.jsonl` | Canonical solution runs |
+| `results/{M}-ailang-bench-{V}-ailang-{LV}.jsonl` | AILANG generation attempts |
+| `results/{python,typescript,aver,ailang}-baseline.jsonl` | Canonical solution runs |
 | `results/timing.json` | Per-target wall-clock + status for the most recent run |
 
 Each JSONL line is **one attempt on one problem** — failed `vera check`/`aver
@@ -144,7 +148,7 @@ problems that already have a passing attempt on file.
 | `1` | One or more targets failed, or missing API key / unknown model |
 
 A failed target does **not** abort the rest — the script always runs all
-eight, writes `timing.json` with each target's status, then exits non-zero
+ten, writes `timing.json` with each target's status, then exits non-zero
 at the end if any failed. This makes partial-run recovery straightforward.
 
 ---
