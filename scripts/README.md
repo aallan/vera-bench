@@ -163,10 +163,11 @@ the top-level README.
 > **Heads up:** the committed `assets/results-graph.png` is pinned to the
 > **v0.0.7** data (to match the v0.0.7 narrative in the top-level
 > README). Running `python scripts/plot_results.py` with no args will
-> regenerate it from the *current* pyproject bench version (v0.0.9), so
-> it overwrites the pinned image. Don't commit that overwrite until the
-> v0.0.9 writeup is ready; regenerate the pinned image with
-> `--version 0.0.7 --output assets/results-graph.png` to restore it.
+> regenerate it from the *current* pyproject bench version, overwriting
+> the pinned image. Don't commit that overwrite until the README
+> narrative is rewritten against current-version data; regenerate the
+> pinned image with `--version 0.0.7 --output assets/results-graph.png`
+> to restore it.
 
 ### Usage
 

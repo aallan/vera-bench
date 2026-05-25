@@ -47,10 +47,12 @@ guidance is in issue #63.
 
 The canonical chart committed to the repo is currently pinned to
 **v0.0.7** content to match the v0.0.7 narrative in the top-level
-README. The benchmark itself is at v0.0.9 (60 problems vs 50), and the
+README. The benchmark itself has moved on since then — at the time of
+writing, 60 problems vs the v0.0.7 chart's 50, plus additional
+comparison languages (Aver, AILANG) and methodology changes — and the
 plotting script's default invocation regenerates from the *current*
-pyproject version — so running `python scripts/plot_results.py` with
-no args overwrites the pinned image with v0.0.9 content.
+`pyproject.toml` version. So running `python scripts/plot_results.py`
+with no args overwrites the pinned image with current-version content.
 
 If you accidentally overwrite the pin, restore with:
 
@@ -58,9 +60,11 @@ If you accidentally overwrite the pin, restore with:
 python scripts/plot_results.py --version 0.0.7 --output assets/results-graph.png
 ```
 
-**Removal trigger:** when the v0.0.9 narrative is written up in the
-top-level README, the pin can be released — `python scripts/plot_results.py`
-will then regenerate the canonical chart from current data each time.
+**Removal trigger:** when the top-level README narrative is rewritten
+against a current data release (with re-run results across the
+expanded problem set and comparison languages), the pin can be
+released — `python scripts/plot_results.py` will then regenerate the
+canonical chart from current data each time.
 
 ---
 

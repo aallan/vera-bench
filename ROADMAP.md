@@ -2,6 +2,8 @@
 
 ## Where we are
 
+**v0.0.12** — AILANG added as a fourth comparison language alongside Python, TypeScript, and Aver ([#70](https://github.com/aallan/vera-bench/pull/70)). Includes prompt builder, code evaluator, baseline runner, CLI plumbing, and 60 canonical reference solutions. `--parallel N` flag added for concurrent benchmark sweeps via `ThreadPoolExecutor` ([#73](https://github.com/aallan/vera-bench/pull/73)) — default `parallel=1` preserves sequential behaviour. OpenRouter client for AILANG-capable models. Worker crashes in parallel sweeps now write a crash row to JSONL with traceback (previously vanished silently). Compile-vs-runtime tag classification in the AILANG baseline runner is now regex-based with an explicit allow-list. Sequential and parallel paths share fault semantics.
+
 **v0.0.11** — Aver test-wrapper and 56 canonical baselines migrated to string interpolation (`Console.print("{x}")`) for compatibility with Aver 0.16's typed `Console.print`. Three previously-removed Aver baselines (T2-011/012/013) restored using Aver 0.15+ stdlib. Coverage-gap fix in 9 baselines whose `main()` printed only a subset of test cases. Methodology change documented in CHANGELOG.
 
 **v0.0.10** — Aver evaluation harness strips module-header `effects [...]` declarations before injecting the test main, so canonical and LLM-generated solutions continue to compile under Aver 0.13's enforced effects boundary. No-op on Aver 0.12 and earlier; methodology change documented in CHANGELOG.
@@ -18,6 +20,8 @@
 - [x] Run spec-from-NL mode comparison (issue #7)
 - [x] TypeScript baseline runner and LLM generation
 - [x] Aver language support — generation, baselines, `description_neutral` field ([PR #48](https://github.com/aallan/vera-bench/pull/48))
+- [x] AILANG language support — generation, baselines, OpenRouter client, 60 canonical solutions ([PR #70](https://github.com/aallan/vera-bench/pull/70))
+- [x] Parallel benchmark sweeps — `--parallel N` for `ThreadPoolExecutor`-based concurrent dispatch, useful for slow models ([PR #73](https://github.com/aallan/vera-bench/pull/73))
 - [x] Generate paper-quality figures — [`scripts/plot_results.py`](scripts/plot_results.py) produces [`assets/results-graph.png`](assets/results-graph.png) with veralang.dev site palette ([v0.0.7 snapshot](https://github.com/aallan/vera-bench/releases/download/v0.0.7/benchmark_v0.0.7.png))
 - [ ] Hugging Face dataset export
 - [x] [`CITATION.cff`](CITATION.cff)
