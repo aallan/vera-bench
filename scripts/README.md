@@ -14,11 +14,11 @@ the installed package, but kept in-repo for reproducibility.
 
 ## `run_full_benchmark.py` — full matrix benchmark runner
 
-Runs all eight benchmark targets for a single model, writing result JSONLs to
+Runs all ten benchmark targets for a single model, writing result JSONLs to
 `results/` and a timing summary to `results/timing.json`. Running it once per
 model sweeps the full matrix used by `plot_results.py`.
 
-### The eight targets
+### The ten targets
 
 | # | Target | Uses |
 |---|--------|------|
@@ -27,11 +27,13 @@ model sweeps the full matrix used by `plot_results.py`.
 | 3 | Python LLM | model |
 | 4 | TypeScript LLM | model (via `npx tsx`) |
 | 5 | Aver LLM | model + Aver compiler + llms.txt |
-| 6 | Python baselines | canonical `solutions/python/*.py` |
-| 7 | TypeScript baselines | canonical `solutions/typescript/*.ts` |
-| 8 | Aver baselines | canonical `solutions/aver/*.av` |
+| 6 | AILANG LLM | model + AILANG compiler + embedded teaching prompt |
+| 7 | Python baselines | canonical `solutions/python/*.py` |
+| 8 | TypeScript baselines | canonical `solutions/typescript/*.ts` |
+| 9 | Aver baselines | canonical `solutions/aver/*.av` |
+| 10 | AILANG baselines | canonical `solutions/ailang/*.ail` |
 
-Targets 6–8 don't call an LLM — they just run the canonical solutions against
+Targets 7–10 don't call an LLM — they just run the canonical solutions against
 each problem's test cases to confirm the problem JSONs are self-consistent.
 Skip them with `--skip-baselines` when running multiple models back-to-back
 (they produce the same numbers every time).
@@ -146,7 +148,7 @@ problems that already have a passing attempt on file.
 | `1` | One or more targets failed, or missing API key / unknown model |
 
 A failed target does **not** abort the rest — the script always runs all
-eight, writes `timing.json` with each target's status, then exits non-zero
+ten, writes `timing.json` with each target's status, then exits non-zero
 at the end if any failed. This makes partial-run recovery straightforward.
 
 ---
