@@ -247,6 +247,17 @@ def main() -> int:
                 "aver",
             ],
         ),
+        (
+            "AILANG LLM",
+            [
+                "vera-bench",
+                "run",
+                "--model",
+                model,
+                "--language",
+                "ailang",
+            ],
+        ),
     ]
 
     if not args.skip_baselines:
@@ -269,6 +280,15 @@ def main() -> int:
                         "baselines",
                         "--language",
                         "aver",
+                    ],
+                ),
+                (
+                    "AILANG baselines",
+                    [
+                        "vera-bench",
+                        "baselines",
+                        "--language",
+                        "ailang",
                     ],
                 ),
             ]

@@ -95,6 +95,7 @@ done
 vera-bench baselines
 vera-bench baselines --language typescript
 vera-bench baselines --language aver
+vera-bench baselines --language ailang
 
 # Headline chart
 python scripts/plot_results.py
@@ -104,7 +105,7 @@ python scripts/plot_results.py
 
 Rough per-model totals observed on v0.0.9 (60 problems, 2026-04):
 
-| Provider / model | Full suite (8 targets) |
+| Provider / model | Full suite (10 targets) |
 |------------------|-----------------------|
 | Claude Opus 4 | ~17 min |
 | Claude Sonnet 4 | ~15 min |
@@ -119,7 +120,7 @@ once we have data to attribute.
 
 ### Output files
 
-For model `M` at bench version `V` and compiler versions `VV` / `AV`:
+For model `M` at bench version `V` and compiler versions `VV` (Vera) / `AV` (Aver) / `LV` (AILANG):
 
 | File | Contents |
 |------|----------|
@@ -128,7 +129,8 @@ For model `M` at bench version `V` and compiler versions `VV` / `AV`:
 | `results/{M}-python-bench-{V}.jsonl` | Python generation attempts |
 | `results/{M}-typescript-bench-{V}.jsonl` | TypeScript generation attempts |
 | `results/{M}-aver-bench-{V}-aver-{AV}.jsonl` | Aver generation attempts |
-| `results/{python,typescript,aver}-baseline.jsonl` | Canonical solution runs |
+| `results/{M}-ailang-bench-{V}-ailang-{LV}.jsonl` | AILANG generation attempts |
+| `results/{python,typescript,aver,ailang}-baseline.jsonl` | Canonical solution runs |
 | `results/timing.json` | Per-target wall-clock + status for the most recent run |
 
 Each JSONL line is **one attempt on one problem** — failed `vera check`/`aver
