@@ -1,6 +1,6 @@
 # CLAUDE.md — VeraBench
 
-VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aallan/vera), a programming language designed for LLMs. It measures whether LLMs write better code in Vera than in Python, TypeScript, or other comparison languages (currently also [Aver](https://github.com/jasisz/aver)).
+VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aallan/vera), a programming language designed for LLMs. It measures whether LLMs write better code in Vera than in Python, TypeScript, or other comparison languages (currently also [Aver](https://github.com/jasisz/aver) and [AILANG](https://ailang.sunholo.com/)).
 
 ## Quick orientation
 
@@ -20,7 +20,7 @@ vera version   # should print vera 0.0.103 or later
 
 ## Problem structure
 
-Problems live in `problems/tier{1-5}/` as JSON files. Canonical solutions live in `solutions/{vera,python,typescript,aver}/`. Each problem JSON has: `id`, `tier`, `title`, `description`, `description_neutral`, `signature`, `contracts`, `entry_point`, `tags`, `test_cases`, `vera_check_must_pass`, `vera_verify_tier1`, `notes`.
+Problems live in `problems/tier{1-5}/` as JSON files. Canonical solutions live in `solutions/{vera,python,typescript,aver,ailang}/`. Each problem JSON has: `id`, `tier`, `title`, `description`, `description_neutral`, `signature`, `contracts`, `entry_point`, `tags`, `test_cases`, `vera_check_must_pass`, `vera_verify_tier1`, `notes`.
 
 ### `description` vs `description_neutral`
 
@@ -91,6 +91,22 @@ The pattern for adding a new language is established by the Python, TypeScript, 
 
 [Aver](https://github.com/jasisz/aver) is a Haskell-inspired language with strong typing, similar zero-training-data properties to Vera. Its reference doc (`llms.txt`) is fetched from `https://averlang.dev/llms.txt`. The `aver` command must be on `$PATH`.
 
+### AILANG
+
+[AILANG](https://ailang.sunholo.com/) is another zero-training-data language designed for LLM authorship. The `ailang` command must be on `$PATH`. Unlike SKILL.md (Vera) and llms.txt (Aver), the AILANG teaching prompt is **embedded in the `ailang` CLI binary** — `load_ailang_prompt()` shells out to `ailang prompt --source embedded` to retrieve the canonical, version-locked prompt content. This matches how the AILANG eval-harness loads its own prompt and guarantees alignment with the installed CLI version.
+
+AILANG-specific runtime flags used by the harness:
+- `--quiet` — suppresses standard tracing so stdout contains only `println` output (one line per test case)
+- `--caps IO` — grants the IO capability required for `println` in the harness-synthesised `main`
+- `--entry main` — invokes the harness's wrapper, not the LLM's main (which is stripped)
+- `--relax-modules` — required for the LLM-authored single-file solutions
+
+Plus `AILANG_TRACE=off` in the subprocess env. The `_evaluate_ailang_code` evaluator scrubs `*_API_KEY` env vars before invoking AILANG so credentials don't leak into the subprocess.
+
+### Adding more comparison languages
+
+OpenRouter models can be reached via the `OpenRouterClient` (`vera_bench/models.py`) using the OpenAI-compatible API. `MOONSHOT_API_KEY` and `OPENROUTER_API_KEY` are recognised provider env vars in addition to `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`.
+
 ### Tier 5 cross-language caveat
 
 Tier 5 problems test algebraic effect handlers in Vera (`State`, `Exn`, `IO`). Other languages solve these with native idioms (`try/except` in Python, `try/catch` in TypeScript, etc.). Cross-language T5 comparison is apples-to-oranges. See issue [#50](https://github.com/aallan/vera-bench/issues/50).
@@ -110,11 +126,16 @@ Tier 5 problems test algebraic effect handlers in Vera (`State`, `Exn`, `IO`). O
 vera-bench validate                    # check all problem JSONs + canonical solutions
 vera-bench run --model MODEL           # run benchmark
 vera-bench run --model MODEL --tier N  # run one tier
-vera-bench run --model MODEL --language python      # Python LLM generation
+vera-bench run --model MODEL --parallel 10           # parallel sweep (slow models)
+vera-bench run --model MODEL --language python       # Python LLM generation
 vera-bench run --model MODEL --language typescript   # TypeScript LLM generation
 vera-bench run --model MODEL --language aver         # Aver LLM generation
+vera-bench run --model MODEL --language ailang       # AILANG LLM generation
 vera-bench baselines                   # run canonical Python baselines
 vera-bench baselines --language typescript  # TypeScript baselines
 vera-bench baselines --language aver       # Aver baselines
+vera-bench baselines --language ailang     # AILANG baselines
 vera-bench report results/DIR/         # generate report
 ```
+
+`--parallel N` dispatches problems to a `ThreadPoolExecutor` with N workers. Default `parallel=1` preserves the sequential path. Workers are I/O-bound on LLM calls + subprocess `check`/`run`, so the GIL is not a bottleneck. Use this when sweeping slow models (e.g. Kimi K2.5 at ~50s/problem sequentially drops to ~5s/problem at `--parallel 10`). JSONL output ordering is by completion order in parallel mode; each line is self-contained (carries `problem_id`) so downstream consumers can sort if needed.

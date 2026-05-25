@@ -7,6 +7,100 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.12] - 2026-05-25
+
+### Added
+
+- **AILANG comparison language**
+  ([#70](https://github.com/aallan/vera-bench/pull/70),
+  [#75](https://github.com/aallan/vera-bench/pull/75)).
+  Fourth comparison language alongside Python, TypeScript, and Aver.
+  AILANG is another zero-training-data language, providing an additional
+  data point for the language-design-vs-training-data thesis. Includes:
+  prompt builder (`build_ailang_prompt` / `build_ailang_fix_prompt`),
+  code evaluator (`_evaluate_ailang_code` with per-test-case main
+  synthesis), baseline runner (`run_ailang_baseline`), CLI plumbing
+  (`--language ailang` for both `run` and `baselines`), and 60
+  canonical reference solutions (`solutions/ailang/*.ail`). The AILANG
+  teaching prompt is loaded via `ailang prompt --source embedded`
+  (matching the AILANG eval-harness pattern) — no URL fetching. The
+  full-benchmark sweep script (`scripts/run_full_benchmark.py`) now
+  includes AILANG LLM + AILANG baseline targets (#75), bringing the
+  matrix from 8 to 10 targets per model.
+- **`--parallel N` flag for concurrent benchmark sweeps**
+  ([#73](https://github.com/aallan/vera-bench/pull/73)). Dispatches
+  problems to a `ThreadPoolExecutor` with `N` workers. Each worker is
+  I/O-bound on its LLM call + subprocess `check`/`run`, so the GIL is
+  not a bottleneck. Default `parallel=1` preserves the existing
+  sequential code path. Validated with `click.IntRange(min=1)` to
+  reject 0/negative at parse time.
+- **OpenRouter client** for accessing AILANG-capable models via the
+  OpenAI-compatible OpenRouter API. Used by the AILANG LLM-eval mode
+  to reach models not directly available from Anthropic/OpenAI/Moonshot.
+  Explicit error handling for `AuthenticationError`, `RateLimitError`,
+  `BadRequestError`, `APIStatusError`, empty `choices`, and empty
+  `content` (with `finish_reason` surfaced).
+- **AILANG retry-on-error** in `run_single_problem`. The existing
+  `build_ailang_fix_prompt` was previously dispatched only as
+  unreachable code; now `--max-fix-attempts > 0` actually retries
+  AILANG failures (was silently no-op, undercounting AILANG vs
+  Aver/Vera by the entire attempt-2 contribution).
+- **Worker crash recording** in `run_benchmark`. Both sequential and
+  parallel paths now synthesise a `ProblemResult` with
+  `traceback.format_exc()` in `error_message` when
+  `run_single_problem` raises. Previously, parallel-path worker
+  crashes vanished silently from the JSONL — a 60-problem sweep with
+  2 crashes wrote 58 rows and downstream `vera-bench report` showed
+  "58/58 (100%)" with no record of the crashes.
+
+### Changed
+
+- **Per-test runtime error capture in AILANG evaluator**. The
+  `_evaluate_ailang_code` loop previously `continue`d on timeout and
+  non-zero exit, so a row where every test failed at runtime was
+  indistinguishable from one that compiled but produced wrong output
+  (both showed `check_pass=True, run_correct=False, tests_passed=0,
+  error_message=None`). Now captures the first non-zero
+  stderr/stdout/exit-N marker into `error_message` (truncated to 400
+  chars). Issue [#72](https://github.com/aallan/vera-bench/issues/72)
+  tracks the broader per-test stderr aggregation shared with the
+  Aver path.
+- **Compile-vs-runtime tag classification** in `baseline_runner.py`
+  is now regex-based (`re.search(r"\bError ([A-Z]+)_", err)`) with an
+  explicit `compile_tags = ("PAR", "TC", "MOD", "ELB", "LINK", "TY")`
+  allow-list. Previously used substring matching, which would have
+  silently misclassified a future AILANG release adding `Error
+  PARSER_` (matches `Error PAR`) or any new tag.
+- **Sequential and parallel run_benchmark paths now share fault
+  semantics**. Pre-#73, `--parallel 1` aborted on any worker
+  exception while `--parallel 2+` logged-and-continued. Now both
+  paths wrap `run_single_problem` in identical `try/except` and route
+  crashes through `_crash_result` + `_record` helpers.
+
+### Fixed
+
+- `_strip_ailang_main` brace-counter bug: the previous heuristic
+  mis-classified canonical AILANG main lines like
+  `export func main() -> () ! {IO} {` because `{IO}` provides
+  balanced braces, leaving the body as orphan code that broke the
+  injected per-test-case `main`. Replaced with indentation +
+  bare-`}` regex sentinel logic.
+- `_USER_AGENT` constant in `prompts.py` was stuck at `0.0.9` since
+  that release. Now matches the package version.
+
+### Compatibility note
+
+Vera, Vera spec-from-NL, Python, TypeScript, and Aver scoring is
+unaffected — `0.0.12` is purely additive for those languages. The
+AILANG baseline + LLM-eval mode is a new fourth comparison target;
+result files from `0.0.12` onwards include AILANG rows that
+`0.0.11`-and-earlier sweeps cannot have produced.
+
+The `--parallel N` flag is opt-in; default `parallel=1` exactly
+replicates the `0.0.11` sequential code path. JSONL line content is
+identical between sequential and parallel modes; only ordering may
+differ (parallel writes by completion order, not problem index).
+
 ## [0.0.11] - 2026-05-04
 
 ### Changed
@@ -248,7 +342,8 @@ Vera, Vera spec-from-NL, Python, and TypeScript scoring is unaffected.
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.11...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.12...HEAD
+[0.0.12]: https://github.com/aallan/vera-bench/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/aallan/vera-bench/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/aallan/vera-bench/compare/v0.0.9...v0.0.10
 [0.0.9]: https://github.com/aallan/vera-bench/compare/v0.0.8...v0.0.9

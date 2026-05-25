@@ -142,6 +142,9 @@ vera-bench run --model claude-sonnet-4-20250514 --language typescript
 vera-bench run --model claude-sonnet-4-20250514 --language aver
 vera-bench run --model claude-sonnet-4-20250514 --language ailang
 
+# Slow model? Dispatch problems concurrently (default is sequential)
+vera-bench run --model kimi-k2.5 --parallel 10
+
 # Run canonical baselines as a reference
 vera-bench baselines
 vera-bench baselines --language typescript
@@ -155,7 +158,7 @@ vera-bench report results/
 python scripts/run_full_benchmark.py
 ```
 
-Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), and [Kimi](https://platform.kimi.ai) (Moonshot). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `MOONSHOT_API_KEY`).
+Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/) (used for AILANG-capable models). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
 
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
 
