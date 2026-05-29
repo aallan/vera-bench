@@ -7,11 +7,11 @@ Usage:
 
   # Autonomous mode
   python scripts/run_full_benchmark.py \
-    --model claude-sonnet-4-20250514 --api-key sk-ant-...
+    --model claude-sonnet-4-6 --api-key sk-ant-...
 
   # Autonomous with env var
   ANTHROPIC_API_KEY=sk-ant-... \
-    python scripts/run_full_benchmark.py --model claude-sonnet-4-20250514
+    python scripts/run_full_benchmark.py --model claude-sonnet-4-6
 
 Runs all 10 targets:
   1. Vera full-spec
@@ -40,8 +40,8 @@ from pathlib import Path
 
 MODELS = {
     "anthropic": [
-        ("Claude Sonnet 4", "claude-sonnet-4-20250514"),
-        ("Claude Opus 4", "claude-opus-4-20250514"),
+        ("Claude Sonnet 4.6", "claude-sonnet-4-6"),
+        ("Claude Opus 4.8", "claude-opus-4-8"),
     ],
     "openai": [
         ("GPT-4o", "gpt-4o"),

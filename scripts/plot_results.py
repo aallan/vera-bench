@@ -94,14 +94,19 @@ class ModelSpec:
 
 MODELS: list[ModelSpec] = [
     # Flagship row — current top-tier model from each provider.
-    ModelSpec("Claude Opus 4", "claude-opus-4-20250514", "flagship"),
+    # Claude Opus 4.8 replaces the deprecated Opus 4 (claude-opus-4-20250514,
+    # retiring 2026-06-15) as Anthropic's flagship slot. Per Anthropic's
+    # 4.6-generation naming convention, the model ID is dateless and is itself
+    # a pinned snapshot, not an evergreen alias.
+    ModelSpec("Claude Opus 4.8", "claude-opus-4-8", "flagship"),
     ModelSpec("GPT-4.1", "gpt-4.1-2025-04-14", "flagship"),
     ModelSpec("Kimi K2.6", "moonshot-kimi-k2.6", "flagship"),
     # Sonnet row — previous-generation / secondary slot from each provider.
     # Kimi K2.5 moves here from flagship after Moonshot promoted K2.6 to
     # the active flagship-line slot (kimi-k2-turbo-preview deprecated
-    # 2026-05-25, see #68).
-    ModelSpec("Claude Sonnet 4", "claude-sonnet-4-20250514", "sonnet"),
+    # 2026-05-25, see #68). Claude Sonnet 4.6 replaces the deprecated
+    # Sonnet 4 (claude-sonnet-4-20250514, also retiring 2026-06-15).
+    ModelSpec("Claude Sonnet 4.6", "claude-sonnet-4-6", "sonnet"),
     ModelSpec("GPT-4o", "gpt-4o", "sonnet"),
     ModelSpec("Kimi K2.5", "moonshot-kimi-k2.5", "sonnet"),
 ]

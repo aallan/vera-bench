@@ -13,7 +13,7 @@ class TestCreateClient:
     def test_anthropic(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         with pytest.raises((ImportError, EnvironmentError)):
-            create_client("claude-sonnet-4-20250514")
+            create_client("claude-sonnet-4-6")
 
     def test_anthropic_prefix(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
@@ -69,7 +69,7 @@ class TestAnthropicClient:
             from vera_bench.models import AnthropicClient
 
             with pytest.raises(EnvironmentError, match="ANTHROPIC_API_KEY"):
-                AnthropicClient("claude-sonnet-4-20250514")
+                AnthropicClient("claude-sonnet-4-6")
         except ImportError:
             pytest.skip("anthropic package not installed")
 

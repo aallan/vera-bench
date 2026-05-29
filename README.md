@@ -125,22 +125,22 @@ vera-bench validate
 
 # Run benchmark against a model
 export ANTHROPIC_API_KEY=sk-ant-...
-vera-bench run --model claude-sonnet-4-20250514
+vera-bench run --model claude-sonnet-4-6
 
 # Run a single tier
-vera-bench run --model claude-sonnet-4-20250514 --tier 1
+vera-bench run --model claude-sonnet-4-6 --tier 1
 
 # Run a single problem
-vera-bench run --model claude-sonnet-4-20250514 --problem VB-T1-001
+vera-bench run --model claude-sonnet-4-6 --problem VB-T1-001
 
 # Spec-from-NL mode (agent writes its own contracts)
-vera-bench run --model claude-sonnet-4-20250514 --mode spec-from-nl
+vera-bench run --model claude-sonnet-4-6 --mode spec-from-nl
 
 # Ask the same model to write Python, TypeScript, Aver, or AILANG for comparison
-vera-bench run --model claude-sonnet-4-20250514 --language python
-vera-bench run --model claude-sonnet-4-20250514 --language typescript
-vera-bench run --model claude-sonnet-4-20250514 --language aver
-vera-bench run --model claude-sonnet-4-20250514 --language ailang
+vera-bench run --model claude-sonnet-4-6 --language python
+vera-bench run --model claude-sonnet-4-6 --language typescript
+vera-bench run --model claude-sonnet-4-6 --language aver
+vera-bench run --model claude-sonnet-4-6 --language ailang
 
 # Slow model? Dispatch problems concurrently (default is sequential)
 vera-bench run --model kimi-k2.5 --parallel 10
@@ -163,7 +163,7 @@ Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
 
 ```bash
-vera-bench run --model claude-sonnet-4-20250514 --skill-md /path/to/SKILL.md
+vera-bench run --model claude-sonnet-4-6 --skill-md /path/to/SKILL.md
 ```
 
 ## Report generation

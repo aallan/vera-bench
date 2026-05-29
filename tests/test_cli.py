@@ -37,7 +37,7 @@ class TestRunCommand:
             [
                 "run",
                 "--model",
-                "claude-sonnet-4-20250514",
+                "claude-sonnet-4-6",
                 "--language",
                 "python",
                 "--mode",
@@ -57,7 +57,7 @@ class TestRunCommand:
             [
                 "run",
                 "--model",
-                "claude-sonnet-4-20250514",
+                "claude-sonnet-4-6",
                 "--language",
                 "python",
                 "--skill-md",
