@@ -46,7 +46,7 @@ python scripts/run_full_benchmark.py
 
 # Autonomous mode (CI-friendly)
 ANTHROPIC_API_KEY=sk-ant-... \
-  python scripts/run_full_benchmark.py --model claude-sonnet-4-20250514
+  python scripts/run_full_benchmark.py --model claude-sonnet-4-6
 
 # Pass the key as a flag (avoid in shell history / CI logs — prefer env var)
 python scripts/run_full_benchmark.py \
@@ -54,7 +54,7 @@ python scripts/run_full_benchmark.py \
 
 # Skip baselines when sweeping multiple models
 python scripts/run_full_benchmark.py \
-  --model claude-opus-4-20250514 --skip-baselines
+  --model claude-opus-4-8 --skip-baselines
 ```
 
 ### Environment variables by provider
@@ -84,8 +84,8 @@ export MOONSHOT_API_KEY=...
 # Run baselines once (they don't depend on the model)
 # — or pass --skip-baselines on every call if they're already fresh.
 for model in \
-  claude-opus-4-20250514 \
-  claude-sonnet-4-20250514 \
+  claude-opus-4-8 \
+  claude-sonnet-4-6 \
   gpt-4.1-2025-04-14 \
   gpt-4o \
   moonshot/kimi-k2.5 \
@@ -273,8 +273,10 @@ each model × mode combination:
 | Aver (opt-in) | `{prefix}-aver-bench-{X-Y-Z}-aver-*.jsonl` |
 
 Where `{prefix}` is the model's `file_prefix` from the `MODELS` registry
-(e.g. `claude-opus-4-20250514`, `moonshot-kimi-k2.5`). Dots in the version
-are converted to dashes to match the filename convention.
+(e.g. `claude-opus-4-8`, `moonshot-kimi-k2.5`). Dots in the version are
+converted to dashes to match the filename convention; Anthropic's
+4.6-generation dateless IDs (e.g. `claude-opus-4-8`) already match the
+filename convention without conversion.
 
 If multiple files match (e.g. the same model was re-run against a newer Vera
 compiler), the most recently modified file wins. The Vera compiler version

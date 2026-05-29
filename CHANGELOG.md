@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Default Anthropic flagship migrated from Claude Opus 4 to Claude
+  Opus 4.8** (`claude-opus-4-20250514` → `claude-opus-4-8`). Opus 4
+  is deprecated and retires 2026-06-15. Per the 4.6-generation naming
+  convention, the new model ID is dateless and is itself a pinned
+  snapshot (not an evergreen alias).
+- **Default Anthropic Sonnet-tier migrated from Claude Sonnet 4 to
+  Claude Sonnet 4.6** (`claude-sonnet-4-20250514` →
+  `claude-sonnet-4-6`). Sonnet 4 is deprecated and retires the same
+  day as Opus 4 (2026-06-15); without this migration the Sonnet
+  benchmark slot would start returning 404 from the API.
+- Affected files: `scripts/run_full_benchmark.py` (`MODELS` dict +
+  docstring examples), `scripts/plot_results.py` (`MODEL_SPECS` list),
+  `scripts/README.md` (example commands + slug-convention prose),
+  `README.md` (Quick start examples — 9 occurrences, all swapped via
+  `replace_all` after verifying the historical v0.0.7 results table
+  on lines 24/31 uses the marketing names "Claude Opus 4" / "Claude
+  Sonnet 4" and is unaffected), and test fixtures in
+  `tests/test_models.py`, `tests/test_cli.py`, `tests/test_runner.py`.
+- Deliberately untouched: `scripts/plot_slide.py` (v0.0.7 talk-slide
+  renderer, pinned to the v0.0.7 lineup) and the historical results
+  table / narrative in `README.md` (locked to v0.0.7 data per the
+  chart-pin policy documented in `KNOWN_ISSUES.md`).
+
 ## [0.0.12] - 2026-05-25
 
 ### Added

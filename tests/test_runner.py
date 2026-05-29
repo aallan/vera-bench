@@ -134,7 +134,7 @@ class TestCreateClient:
     def test_anthropic_prefix(self, monkeypatch):
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         with pytest.raises((ImportError, EnvironmentError)):
-            create_client("claude-sonnet-4-20250514")
+            create_client("claude-sonnet-4-6")
 
     def test_openai_prefix(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
