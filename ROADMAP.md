@@ -2,6 +2,8 @@
 
 ## Where we are
 
+**v0.0.13** — Default Anthropic flagship migrated from Claude Opus 4 to Claude Opus 4.8 (`claude-opus-4-8`), and Sonnet-tier migrated from Claude Sonnet 4 to Claude Sonnet 4.6 (`claude-sonnet-4-6`) ([#76](https://github.com/aallan/vera-bench/pull/76)). Both predecessors are deprecated and retire 2026-06-15, so this migration is pre-emptive. Per the 4.6-generation naming convention, the new model IDs are dateless and are themselves pinned snapshots (not evergreen aliases). No methodology change — Vera/Python/TypeScript/Aver/AILANG scoring is unaffected.
+
 **v0.0.12** — AILANG added as a fourth comparison language alongside Python, TypeScript, and Aver ([#70](https://github.com/aallan/vera-bench/pull/70)). Includes prompt builder, code evaluator, baseline runner, CLI plumbing, and 60 canonical reference solutions. `--parallel N` flag added for concurrent benchmark sweeps via `ThreadPoolExecutor` ([#73](https://github.com/aallan/vera-bench/pull/73)) — default `parallel=1` preserves sequential behaviour. OpenRouter client for AILANG-capable models. Worker crashes in parallel sweeps now write a crash row to JSONL with traceback (previously vanished silently). Compile-vs-runtime tag classification in the AILANG baseline runner is now regex-based with an explicit allow-list. Sequential and parallel paths share fault semantics.
 
 **v0.0.11** — Aver test-wrapper and 56 canonical baselines migrated to string interpolation (`Console.print("{x}")`) for compatibility with Aver 0.16's typed `Console.print`. Three previously-removed Aver baselines (T2-011/012/013) restored using Aver 0.15+ stdlib. Coverage-gap fix in 9 baselines whose `main()` printed only a subset of test cases. Methodology change documented in CHANGELOG.
