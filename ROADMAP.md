@@ -1,16 +1,6 @@
 # Roadmap
 
-## Where we are
-
-**v0.0.12** — AILANG added as a fourth comparison language alongside Python, TypeScript, and Aver ([#70](https://github.com/aallan/vera-bench/pull/70)). Includes prompt builder, code evaluator, baseline runner, CLI plumbing, and 60 canonical reference solutions. `--parallel N` flag added for concurrent benchmark sweeps via `ThreadPoolExecutor` ([#73](https://github.com/aallan/vera-bench/pull/73)) — default `parallel=1` preserves sequential behaviour. OpenRouter client for AILANG-capable models. Worker crashes in parallel sweeps now write a crash row to JSONL with traceback (previously vanished silently). Compile-vs-runtime tag classification in the AILANG baseline runner is now regex-based with an explicit allow-list. Sequential and parallel paths share fault semantics.
-
-**v0.0.11** — Aver test-wrapper and 56 canonical baselines migrated to string interpolation (`Console.print("{x}")`) for compatibility with Aver 0.16's typed `Console.print`. Three previously-removed Aver baselines (T2-011/012/013) restored using Aver 0.15+ stdlib. Coverage-gap fix in 9 baselines whose `main()` printed only a subset of test cases. Methodology change documented in CHANGELOG.
-
-**v0.0.10** — Aver evaluation harness strips module-header `effects [...]` declarations before injecting the test main, so canonical and LLM-generated solutions continue to compile under Aver 0.13's enforced effects boundary. No-op on Aver 0.12 and earlier; methodology change documented in CHANGELOG.
-
-**v0.0.9** — 60 problems across 5 tiers (10 new T2/T3 problems with testable signatures). T1–T4 `run_correct` pool expanded from 18 to 30 testable problems. New T3 problems use Int-only signatures with internal ADT construction for CLI testability.
-
-**v0.0.8** — 50 problems across 5 tiers with strengthened postconditions and explicit slot ordering descriptions. Working LLM harness (Anthropic, OpenAI, Moonshot), Python, TypeScript, and Aver baseline runners, cross-language generation comparison. Full benchmark runner script. SKILL.md and Aver's llms.txt fetched at runtime. Language-neutral problem descriptions (`description_neutral`) for fair cross-language prompting.
+This file tracks **forward-looking** milestones. For what has shipped in each release, see [CHANGELOG.md](CHANGELOG.md).
 
 ## Milestone 1: Publication-ready benchmark (current)
 

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.13] - 2026-05-29
+
 ### Changed
 
 - **Default Anthropic flagship migrated from Claude Opus 4 to Claude
@@ -368,7 +370,8 @@ Vera, Vera spec-from-NL, Python, and TypeScript scoring is unaffected.
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.12...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.13...HEAD
+[0.0.13]: https://github.com/aallan/vera-bench/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/aallan/vera-bench/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/aallan/vera-bench/compare/v0.0.10...v0.0.11
 [0.0.10]: https://github.com/aallan/vera-bench/compare/v0.0.9...v0.0.10
