@@ -20,7 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   day as Opus 4 (2026-06-15); without this migration the Sonnet
   benchmark slot would start returning 404 from the API.
 - Affected files: `scripts/run_full_benchmark.py` (`MODELS` dict +
-  docstring examples), `scripts/plot_results.py` (`MODEL_SPECS` list),
+  docstring examples), `scripts/plot_results.py` (`MODELS` list of
+  `ModelSpec`s),
   `scripts/README.md` (example commands + slug-convention prose),
   `README.md` (Quick start examples — 9 occurrences, all swapped via
   `replace_all` after verifying the historical v0.0.7 results table
