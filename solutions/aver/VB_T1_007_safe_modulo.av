@@ -3,7 +3,7 @@ module SafeModulo
 
 fn safe_modulo(a: Int, b: Int) -> Int
     ? "Returns a modulo b. Assumes b != 0."
-    a - (a / b) * b
+    a - Result.withDefault(Int.div(a, b), 0) * b
 
 verify safe_modulo
     safe_modulo(10, 3) => 1
