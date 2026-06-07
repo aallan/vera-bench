@@ -8,9 +8,9 @@ type DivResult
 
 fn safe_divide(a: Int, b: Int) -> Int
     ? "Returns a / b, or -1 if b is zero."
-    r: DivResult = match b == 0
-        true  -> DivResult.Failure
-        false -> DivResult.Success(a / b)
+    r: DivResult = match Int.div(a, b)
+        Result.Ok(q)  -> DivResult.Success(q)
+        Result.Err(_) -> DivResult.Failure
     match r
         DivResult.Failure -> -1
         DivResult.Success(v) -> v

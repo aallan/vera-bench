@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.14] - 2026-06-03
+
+### Changed
+
+- **Aver baselines migrated from the integer `/` operator to
+  `Int.div`** ([#82](https://github.com/aallan/vera-bench/pull/82), by
+  [@jasisz](https://github.com/jasisz), Aver's upstream author).
+  Aver's upcoming release drops the partial integer `/` operator —
+  integer division can divide by zero (and overflow on `i64::MIN /
+  -1`), so it's now the `Result`-returning function `Int.div(a, b) :
+  Result<Int, String>`, matching `Int.mod` and Aver's "partial
+  operations are functions" rule. (Float `/` stays a total
+  operator.) Five Aver baselines used integer `/`:
+  - `VB_T3_011_safe_divide` and `VB_T5_003_safe_division_exceptions`
+    consume `Int.div`'s `Result` idiomatically via `match Ok/Err`.
+    The redundant manual `b == 0` checks are gone — `Int.div`
+    already reports the failure — and `try_div` in T5-003
+    simplifies to `Int.div(a, b)`, since the function was literally
+    re-implementing what `Int.div` now does.
+  - `VB_T1_007_safe_modulo` (`a - (a / b) * b`),
+    `VB_T4_002_greatest_common_divisor` (`a - (a / b) * b`), and
+    `VB_T4_007_count_digits` (`n / 10`) use
+    `Result.withDefault(Int.div(...), 0)` — the divisor is
+    precondition-guaranteed non-zero in each context, so the
+    sentinel never fires in practice.
+
+### Compatibility note
+
+Aver scoring on the upcoming Aver release (post-0.23) requires
+v0.0.14 — without this release, every `aver run` against an
+`Int.div`-aware compiler would fail. For Aver ≤ 0.23, the converse
+applies: these baselines will not compile against `Int.div`-less
+compilers. Result files are tagged with `bench_version` so
+cross-version comparisons can detect this boundary.
+
+Same forward-compat shape as v0.0.11's `Console.print("{x}")`
+migration for Aver 0.16. Vera, Vera spec-from-NL, Python,
+TypeScript, and AILANG scoring are unaffected — `0.0.14` is purely
+an Aver baseline migration for those languages.
+
 ## [0.0.13] - 2026-05-29
 
 ### Changed
@@ -370,7 +410,8 @@ Vera, Vera spec-from-NL, Python, and TypeScript scoring is unaffected.
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.13...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.14...HEAD
+[0.0.14]: https://github.com/aallan/vera-bench/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/aallan/vera-bench/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/aallan/vera-bench/compare/v0.0.11...v0.0.12
 [0.0.11]: https://github.com/aallan/vera-bench/compare/v0.0.10...v0.0.11

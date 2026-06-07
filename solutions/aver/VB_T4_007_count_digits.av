@@ -8,7 +8,7 @@ fn count_digits(n: Int) -> Int
     ? "Returns the number of digits in n. Handles 0 as having 1 digit."
     match n < 10
         true  -> 1
-        false -> 1 + count_digits(n / 10)
+        false -> 1 + count_digits(Result.withDefault(Int.div(n, 10), 0))
 
 verify count_digits
     count_digits(0)       => 1

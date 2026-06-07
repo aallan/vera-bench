@@ -3,10 +3,8 @@ module SafeDivisionExceptions
     exposes [safe_div]
 
 fn try_div(a: Int, b: Int) -> Result<Int, String>
-    ? "Returns Ok(a/b) or Err if b is zero."
-    match b == 0
-        true  -> Result.Err("division by zero")
-        false -> Result.Ok(a / b)
+    ? "Returns Ok(a/b) or Err if b is zero — Int.div already is exactly this."
+    Int.div(a, b)
 
 fn safe_div(a: Int, b: Int) -> Int
     ? "Returns a/b, or -1 if b is zero."

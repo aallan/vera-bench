@@ -8,7 +8,7 @@ fn gcd(a: Int, b: Int) -> Int
     ? "Returns the greatest common divisor of a and b."
     match b
         0 -> a
-        _ -> gcd(b, a - (a / b) * b)
+        _ -> gcd(b, a - Result.withDefault(Int.div(a, b), 0) * b)
 
 verify gcd
     gcd(12, 8)   => 4
