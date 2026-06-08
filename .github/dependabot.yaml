@@ -20,5 +20,5 @@ updates:
     commit-message:
       prefix: "ci"
     labels:
-      - "ci"
+      - "infrastructure"
     open-pull-requests-limit: 5
