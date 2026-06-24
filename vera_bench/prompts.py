@@ -23,7 +23,7 @@ AVER_LLMS_TXT_URL = "https://averlang.dev/llms.txt"
 # to retrieve the canonical, version-locked prompt content for the
 # installed AILANG version. No URL fetching required.
 
-_USER_AGENT = "vera-bench/0.0.14"
+_USER_AGENT = "vera-bench/0.0.15"
 
 
 def _fetch_url(url: str, *, timeout: int = 10) -> str:
