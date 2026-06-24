@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.15] - 2026-06-22
+
+### Fixed
+
+- **`VB-T5-002 greeter_io_boundary` canonical Vera solution** removed
+  unused `greet_all` and `greet_loop` helper functions that were not
+  required by the problem spec. The helpers contained a latent
+  verification gap: `greet_loop` called `greet(...)` in *statement
+  position* (discarded result) without propagating `greet`'s
+  precondition `requires(string_length(@String.0) > 0)`. Pre-Vera
+  v0.0.176 the verifier silently skipped statement-position calls
+  during call-site precondition checking ([aallan/vera#730](https://github.com/aallan/vera/issues/730)),
+  hiding the gap. v0.0.176 closed that hole, and `vera verify` on the
+  pre-fix solution failed with `E501` and a counterexample showing an
+  empty-string array element would violate `greet`'s contract. The
+  fix simplifies the canonical solution to exactly what the problem
+  asks for: the `effect IO` declaration, `build_greeting` (pure
+  helper), and `greet` (IO entry point). No `greet_all` / `greet_loop`.
+
+### Compatibility note
+
+This is a **forward-compat methodology release** for Vera v0.0.176
+and later. Same shape as v0.0.11 (Aver 0.16 `Console.print` typing)
+and v0.0.14 (upcoming Aver `Int.div` migration): an upstream
+compiler tightened its semantics, vera-bench had a latent gap, and
+this release updates the canonical solution to be strictly correct.
+
+For Vera ≤ v0.0.175 (when statement-position calls were silently
+skipped by the call-site precondition checker), the previous canonical
+solution worked but was technically writing incorrect Vera. For Vera
+≥ v0.0.176, v0.0.14 and earlier vera-bench releases fail `vera
+verify` on VB-T5-002 — this is the unblock.
+
+Bisection trail: v0.0.175 passed verification (9 Tier 1 + 1 Tier 3),
+v0.0.176 introduced the call-site check and failed with `E501`,
+v0.0.177 carried the same failure forward. Confirmed locally in a
+fresh venv across all three releases.
+
+Vera, Aver, Python, TypeScript, and AILANG scoring for other
+problems are unaffected — the change is scoped to the single
+VB-T5-002 canonical solution. All other 59 canonical Vera solutions
+still verify cleanly against v0.0.177.
+
 ## [0.0.14] - 2026-06-03
 
 ### Changed
@@ -410,7 +453,8 @@ Vera, Vera spec-from-NL, Python, and TypeScript scoring is unaffected.
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.14...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.15...HEAD
+[0.0.15]: https://github.com/aallan/vera-bench/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/aallan/vera-bench/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/aallan/vera-bench/compare/v0.0.12...v0.0.13
 [0.0.12]: https://github.com/aallan/vera-bench/compare/v0.0.11...v0.0.12
