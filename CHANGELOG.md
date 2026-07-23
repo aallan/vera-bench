@@ -29,12 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `create_client` routes the prefix to `OpenAIClient(...,
     reasoning_mode="pro")`; the runner needs no changes (the
     `complete()` Protocol carries no per-call config by design).
-  - The reasoning mode rides `extra_body` alongside the #61
-    `prompt_cache_key`; the pro tier floors the completion budget
-    at 16k tokens (reasoning consumes completion budget).
-  - JSONL rows from pro runs report `model: "<api-model>#pro"` so
-    the two variants are self-describing; results filenames are
+  - Both Sol arms run through the **Responses API**, which is the
+    only endpoint carrying `reasoning.mode`, and both get the same
+    16k output floor — an unequal budget would be a second variable
+    in a comparison that claims to have one. `gpt-5.6-terra` is not
+    half of the pair and stays on Chat Completions.
+  - JSONL rows are self-describing: `model: "<api-model>#pro"` and
+    `"<api-model>#standard"` respectively. Result filenames are
     already distinct (built from the CLI model string).
+  - The response echoes the *effective* mode, and a mismatch — or an
+    absent echo — raises rather than being recorded as a pro result.
   - `OpenAIClient` now sends `max_completion_tokens` (the GPT-5.x
     reasoning families reject the legacy `max_tokens` kwarg).
   - `scripts/run_full_benchmark.py` `_detect_provider` recognises
