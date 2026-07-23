@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.16] - 2026-07-23
 
 ### Added
 
@@ -639,7 +639,8 @@ Vera, Vera spec-from-NL, Python, and TypeScript scoring is unaffected.
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.15...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.16...HEAD
+[0.0.16]: https://github.com/aallan/vera-bench/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/aallan/vera-bench/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/aallan/vera-bench/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/aallan/vera-bench/compare/v0.0.12...v0.0.13

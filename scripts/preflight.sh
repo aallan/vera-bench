@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# v0.0.16 pre-sweep smoke gate (S0-S5).
+# Pre-sweep preflight gate (S0-S5).
+#
+# Run this before committing to a full sweep. A sweep is ~40 target-runs
+# with no resume, so a model id that does not exist, a parameter the API
+# rejects, or a toolchain that is not on PATH costs hours and real money
+# to discover late. Every check here is one problem.
 #
 # Run from the repo root with the three provider keys exported:
 #
 #   export ANTHROPIC_API_KEY=...
 #   export OPENAI_API_KEY=...
 #   export MOONSHOT_API_KEY=...
-#   bash scripts/smoke_v0016.sh              # all stages
-#   bash scripts/smoke_v0016.sh s2 s3        # only these stages
+#   bash scripts/preflight.sh              # all stages
+#   bash scripts/preflight.sh s2 s3        # only these stages
 #
 # Stage selection exists because these calls cost money: a stage that
 # already passed should not be paid for twice on a re-run.
@@ -15,7 +20,12 @@
 # SMOKE_SKIP_MODELS is a space-separated list of S1 models to skip, for
 # the same reason:
 #
-#   SMOKE_SKIP_MODELS="claude-fable-5" bash scripts/smoke_v0016.sh
+#   SMOKE_SKIP_MODELS="claude-fable-5" bash scripts/preflight.sh
+#
+# The model list is NOT duplicated here — it is read from
+# run_full_benchmark.py, so the gate always checks the matrix that is
+# actually configured. Targets bash 3.2 (macOS system bash): no
+# mapfile, no associative arrays.
 #
 # Cost: roughly $1-2. Every LLM call is a SINGLE problem, and most use
 # the Python target (no ~28k-token SKILL.md prefix). Output goes to a
@@ -42,11 +52,23 @@ STAGES="${*:-s0 s1 s2 s3 s5}"
 want() { [[ " $STAGES " == *" $1 "* ]]; }
 SKIP_MODELS="${SMOKE_SKIP_MODELS:-}"
 
+# The reasoning-budget pair (S2) and the canary model (S5). Unlike the
+# S1 list these are roles, not the whole matrix, so they are named here:
+# S2 needs two entries that differ ONLY in reasoning mode, and S5 wants
+# the cheapest model that exercises all six target languages.
+REASON_BASE="${PREFLIGHT_REASON_BASE:-gpt-5.6-sol}"
+REASON_PRO="${PREFLIGHT_REASON_PRO:-openai-pro/gpt-5.6-sol}"
+CANARY="${PREFLIGHT_CANARY:-claude-sonnet-5}"
+
 pass=0; fail=0
 note() { printf '\n\033[1m== %s\033[0m\n' "$1"; }
 ok()   { printf '  ok    %s\n' "$1"; pass=$((pass+1)); }
 bad()  { printf '  FAIL  %s\n' "$1"; fail=$((fail+1)); }
 skip() { printf '  --    %s (skipped)\n' "$1"; }
+# Each vera-bench call is redirected to a log, so without this the
+# script looks hung during a slow model — fable thinks, and pro
+# deliberates against a 16000-token budget. Overwritten by the verdict.
+busy() { printf '  ...   %s\r' "$1"; }
 
 # Exit code is NOT success. `vera-bench run` records an API error as a
 # JSONL row and still exits 0 — that is deliberate (a transient error
@@ -93,12 +115,32 @@ oai=$(curl -s https://api.openai.com/v1/models \
         -H "Authorization: Bearer $OPENAI_API_KEY" | jq -r '.data[].id' 2>/dev/null)
 msh=$(curl -s https://api.moonshot.ai/v1/models \
         -H "Authorization: Bearer $MOONSHOT_API_KEY" | jq -r '.data[].id' 2>/dev/null)
-for m in gpt-5.6-sol gpt-5.6-terra; do
-  grep -qx "$m" <<<"$oai" && ok "openai: $m" || bad "openai: $m NOT LISTED"
-done
-for m in kimi-k3 kimi-k2.6; do
-  grep -qx "$m" <<<"$msh" && ok "moonshot: $m" || bad "moonshot: $m NOT LISTED"
-done
+# Derived from the same MODELS table as S1, via run_full_benchmark's own
+# _detect_provider, so a model added to the sweep is gated here too.
+# Routing prefixes are stripped: the provider lists bare ids, and both
+# Sol entries collapse to the same one. Anthropic has no equivalent
+# public /v1/models listing, so those ids are checked in S1 instead.
+while IFS='|' read -r provider bare; do
+  [ -z "$bare" ] && continue
+  case "$provider" in
+    openai)   grep -qx "$bare" <<<"$oai" && ok "openai: $bare" \
+                || bad "openai: $bare NOT LISTED" ;;
+    moonshot) grep -qx "$bare" <<<"$msh" && ok "moonshot: $bare" \
+                || bad "moonshot: $bare NOT LISTED" ;;
+  esac
+done < <($PY -c "
+import sys; sys.path.insert(0, 'scripts')
+from run_full_benchmark import MODELS, _detect_provider
+seen = set()
+for group in MODELS.values():
+    for _label, model_id in group:
+        provider = _detect_provider(model_id)
+        bare = model_id.split('/')[-1]
+        if (provider, bare) in seen:
+            continue
+        seen.add((provider, bare))
+        print(f'{provider}|{bare}')
+")
 echo "  --- OpenAI ids matching 5.6 (substitution candidates) ---"
 grep -i "5\.6" <<<"$oai" | sed 's/^/      /'
 echo "  --- Moonshot ids matching k3/k2 ---"
@@ -111,15 +153,29 @@ fi
 # real calls that still exercise the whole client path.
 if want s1; then
 note "S1  one problem per model (python target)"
-MODELS=(
-  claude-fable-5 claude-opus-4-8 claude-sonnet-5
-  gpt-5.6-sol gpt-5.6-terra openai-pro/gpt-5.6-sol
-  moonshot/kimi-k3 moonshot/kimi-k2.6
-)
+# Single source of truth: whatever the sweep is configured to run is
+# what gets gated. A hardcoded copy here would drift and quietly stop
+# checking a model that the sweep still uses.
+MODELS=()
+while IFS= read -r m; do
+  [ -n "$m" ] && MODELS+=("$m")
+done < <($PY -c "
+import sys; sys.path.insert(0, 'scripts')
+from run_full_benchmark import MODELS
+for group in MODELS.values():
+    for _label, model_id in group:
+        print(model_id)
+")
+if [ "${#MODELS[@]}" -eq 0 ]; then
+  bad "could not read MODELS from scripts/run_full_benchmark.py"
+else
+  echo "  (${#MODELS[@]} models from run_full_benchmark.py)"
+fi
 for m in "${MODELS[@]}"; do
   if [[ " $SKIP_MODELS " == *" $m "* ]]; then skip "$m"; continue; fi
   slug="${m//\//-}"
   log="$SMOKE/log-s1-$slug.txt"
+  busy "$m"
   # Per-model dir so verdict() judges only this model's rows.
   $VB run --model "$m" --problem VB-T1-001 --language python \
      --output-dir "$SMOKE/s1/$slug" >"$log" 2>&1
@@ -135,10 +191,13 @@ fi
 # Separate dirs: both calls produce the same filename otherwise.
 if want s2; then
 note "S2  reasoning budget actually engages"
-$VB run --model gpt-5.6-sol --problem VB-T1-001 \
+busy "$REASON_BASE (standard)"
+$VB run --model "$REASON_BASE" --problem VB-T1-001 \
    --output-dir "$SMOKE/s2/default" >"$SMOKE/log-s2-default.txt" 2>&1
-$VB run --model openai-pro/gpt-5.6-sol --problem VB-T1-001 \
+busy "$REASON_PRO — deliberating"
+$VB run --model "$REASON_PRO" --problem VB-T1-001 \
    --output-dir "$SMOKE/s2/pro" >"$SMOKE/log-s2-pro.txt" 2>&1
+printf '%-60s\r' " "
 $PY - "$SMOKE/s2" <<'PY'
 import json, pathlib, sys
 d = pathlib.Path(sys.argv[1])
@@ -184,7 +243,7 @@ fi
 # should report cached_tokens > 0 here and 0 there.
 if want s3; then
 note "S3  cache accounting (2nd call on the same 28k prefix)"
-$VB run --model gpt-5.6-sol --problem VB-T1-002 \
+$VB run --model "$REASON_BASE" --problem VB-T1-002 \
    --output-dir "$SMOKE/s3" >"$SMOKE/log-s3.txt" 2>&1
 $PY - "$SMOKE" <<'PY'
 import json, pathlib, sys
@@ -216,7 +275,8 @@ note "S5  all six targets, one problem, one model"
 run_target () {  # label, extra args...
   local lbl=$1; shift
   local log="$SMOKE/log-s5-$lbl.txt"
-  $VB run --model claude-sonnet-5 --problem VB-T1-001 "$@" \
+  busy "canary $lbl"
+  $VB run --model "$CANARY" --problem VB-T1-001 "$@" \
      --output-dir "$SMOKE/s5/$lbl" >"$log" 2>&1
   verdict "canary $lbl" "$SMOKE/s5/$lbl" "$log"
 }

@@ -8,4 +8,4 @@ except PackageNotFoundError:
     # Fallback for development checkouts without `pip install -e .`.
     # Kept in sync with pyproject.toml `version`; the canonical source
     # is the installed package metadata above.
-    __version__ = "0.0.15"
+    __version__ = "0.0.16"

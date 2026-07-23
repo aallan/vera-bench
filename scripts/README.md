@@ -5,10 +5,62 @@ the installed package, but kept in-repo for reproducibility.
 
 | Script | Purpose |
 |--------|---------|
+| [`preflight.sh`](#preflightsh--pre-sweep-gate) | Pre-sweep gate: model ids, auth, API parameters and every toolchain, one problem each |
 | [`run_full_benchmark.py`](#run_full_benchmarkpy--full-matrix-benchmark-runner) | Runs every target (Vera, spec-from-NL, Python, TypeScript, Aver + baselines) for one model |
 | [`plot_results.py`](#plot_resultspy--benchmark-comparison-chart) | Generates the headline benchmark comparison chart |
 | [`plot_slide.py`](#plot_slidepy--v007-talk-slide-renderer) | Renders v0.0.7 result panels as 16:9 slides for talk presentation (specialised; v0.0.7 lineup pinned) |
 | [`validate_problems.py`](#validate_problemspy--problem-set-validation) | Validates every problem JSON + canonical Vera solution |
+
+---
+
+## `preflight.sh` — pre-sweep gate
+
+Run this **before** committing to a full sweep. A sweep is ~40 target-runs with
+no resume (see [Output files](#output-files)), so a wrong model id, a rejected
+API parameter, or a compiler missing from `PATH` costs hours and real money to
+discover late. Every check here is a single problem — the whole gate is roughly
+$1–2.
+
+```bash
+export ANTHROPIC_API_KEY=... OPENAI_API_KEY=... MOONSHOT_API_KEY=...
+bash scripts/preflight.sh                 # all stages
+bash scripts/preflight.sh s2 s3           # only these stages
+SMOKE_SKIP_MODELS="claude-fable-5" bash scripts/preflight.sh s1
+```
+
+Stage selection and `SMOKE_SKIP_MODELS` exist because the calls cost money: a
+stage that already passed should not be paid for twice while you iterate on a
+fix.
+
+| Stage | Checks | Cost |
+|-------|--------|------|
+| `s0` | Every configured model id exists, via each provider's `/v1/models` | free |
+| `s1` | Auth, id acceptance and request parameters — one problem per model, Python target (no ~28k-token prefix) | cheap |
+| `s2` | The reasoning-budget pair actually differs — same model, same problem, mode the only variable | 2 calls |
+| `s3` | Prompt-cache accounting: `cached_tokens` on a second call sharing the system prefix | 1 call |
+| `s5` | All six target languages end-to-end, proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
+
+The model list is **not** duplicated in the script — `s0` and `s1` read it from
+`run_full_benchmark.py` (including its `_detect_provider`), so a model added to
+the sweep is gated automatically rather than silently skipped. The `s2` pair and
+the `s5` canary are roles rather than the whole matrix, so they are named at the
+top of the script and overridable via `PREFLIGHT_REASON_BASE`,
+`PREFLIGHT_REASON_PRO` and `PREFLIGHT_CANARY`.
+
+Two behaviours worth knowing:
+
+- **It judges result rows, not exit codes.** `vera-bench run` records an API
+  error as a JSONL row and still exits `0` — deliberate, so a transient failure
+  costs one problem rather than the sweep. A gate reading `$?` therefore reports
+  success for a model that never answered; both fable-tier models passed that
+  way on 2026-07-23 while failing every call.
+- **Each stage writes to its own directory.** Result filenames carry no
+  timestamp and `run` unlinks an existing file, so two stages running the same
+  model × language × mode would otherwise silently overwrite each other.
+
+Output goes to `/tmp/vb-smoke-<date>-<time>/`, never `results/`, so a gate run
+cannot pollute a real sweep. No key is ever printed; the report is safe to
+paste. Targets bash 3.2 (macOS system bash).
 
 ---
 
