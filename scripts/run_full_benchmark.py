@@ -38,18 +38,23 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+# v0.0.16 matrix, grouped by provider for the interactive menu. Tier
+# assignment lives in scripts/plot_results.py MODELS (it drives chart
+# layout); this dict only populates the picker.
 MODELS = {
     "anthropic": [
-        ("Claude Sonnet 4.6", "claude-sonnet-4-6"),
-        ("Claude Opus 4.8", "claude-opus-4-8"),
+        ("Claude Sonnet 5 (sonnet tier)", "claude-sonnet-5"),
+        ("Claude Opus 4.8 (opus tier)", "claude-opus-4-8"),
+        ("Claude Fable 5 (fable tier)", "claude-fable-5"),
     ],
     "openai": [
-        ("GPT-4o", "gpt-4o"),
-        ("GPT-4.1", "gpt-4.1-2025-04-14"),
+        ("GPT-5.6 Terra (sonnet tier)", "gpt-5.6-terra"),
+        ("GPT-5.6 Sol (opus tier)", "gpt-5.6-sol"),
+        ("GPT-5.6 Sol @ pro (fable tier)", "openai-pro/gpt-5.6-sol"),
     ],
     "moonshot": [
-        ("Kimi K2.5", "moonshot/kimi-k2.5"),
-        ("Kimi K2.6", "moonshot/kimi-k2.6"),
+        ("Kimi K2.6 (sonnet tier)", "moonshot/kimi-k2.6"),
+        ("Kimi K3 (opus tier)", "moonshot/kimi-k3"),
     ],
 }
 

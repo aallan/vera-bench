@@ -46,11 +46,11 @@ python scripts/run_full_benchmark.py
 
 # Autonomous mode (CI-friendly)
 ANTHROPIC_API_KEY=sk-ant-... \
-  python scripts/run_full_benchmark.py --model claude-sonnet-4-6
+  python scripts/run_full_benchmark.py --model claude-sonnet-5
 
 # Pass the key as a flag (avoid in shell history / CI logs — prefer env var)
 python scripts/run_full_benchmark.py \
-  --model gpt-4.1-2025-04-14 --api-key sk-...
+  --model gpt-5.6-terra --api-key sk-...
 
 # Skip baselines when sweeping multiple models
 python scripts/run_full_benchmark.py \
@@ -65,7 +65,7 @@ right env var:
 | Provider | Model-string prefix | Env var |
 |----------|---------------------|---------|
 | Anthropic | `claude-*` or `anthropic/*` | `ANTHROPIC_API_KEY` |
-| OpenAI | `gpt-*`, `o1-*`, `o3-*`, `openai/*` | `OPENAI_API_KEY` |
+| OpenAI | `gpt-*`, `o1-*`, `o3-*`, `openai/*`, `openai-pro/*` | `OPENAI_API_KEY` |
 | Moonshot | `moonshot/*` | `MOONSHOT_API_KEY` |
 
 Missing env var + no `--api-key` + no TTY → the script exits with an error.
@@ -84,11 +84,13 @@ export MOONSHOT_API_KEY=...
 # Run baselines once (they don't depend on the model)
 # — or pass --skip-baselines on every call if they're already fresh.
 for model in \
+  claude-fable-5 \
   claude-opus-4-8 \
-  claude-sonnet-4-6 \
-  gpt-4.1-2025-04-14 \
-  gpt-4o \
-  moonshot/kimi-k2.5 \
+  claude-sonnet-5 \
+  openai-pro/gpt-5.6-sol \
+  gpt-5.6-sol \
+  gpt-5.6-terra \
+  moonshot/kimi-k3 \
   moonshot/kimi-k2.6; do
   python scripts/run_full_benchmark.py --model "$model" --skip-baselines
 done
@@ -105,20 +107,23 @@ python scripts/plot_results.py
 
 ### Timing expectations
 
-Rough per-model totals observed on v0.0.9 (60 problems, 2026-04):
+Rough per-model totals observed on v0.0.9 (60 problems, 2026-04) with the
+*then-current* lineup — kept as an order-of-magnitude guide; the v0.0.16
+matrix is a different set of models and has not been swept yet:
 
-| Provider / model | Full suite (10 targets) |
+| Provider / model (v0.0.9 era) | Full suite (10 targets) |
 |------------------|-----------------------|
 | Claude Opus 4 | ~17 min |
 | Claude Sonnet 4 | ~15 min |
 | GPT-4.1 / GPT-4o | ~10–12 min |
 | Moonshot K2.5 | ~3.5 h (slow provider; Aver especially) |
-| Moonshot K2.6 | TBD (no sweep against this model yet — see #68) |
-| Moonshot K2 Turbo *(historical; SKU deprecated 2026-05-25)* | ~1.5 h |
 
-The Moonshot models dominate the sweep wall-clock; expect 5–8 hours
-end-to-end. K2.6 timings will be filled in after the first full sweep
-once we have data to attribute.
+Moonshot dominated the wall-clock; expect 5–8 hours end-to-end for a
+full multi-model sweep. Two v0.0.16-specific expectations: reasoning-mode
+entries (`openai-pro/*`) are latency-dominated and can run several times
+longer per problem than their default-mode sibling, and per-provider
+rate limits mean the practical speed-up comes from running providers
+concurrently rather than raising `--parallel` on one.
 
 ### Output files
 
@@ -137,8 +142,11 @@ For model `M` at bench version `V` and compiler versions `VV` (Vera) / `AV` (Ave
 
 Each JSONL line is **one attempt on one problem** — failed `vera check`/`aver
 check` runs produce multiple lines per problem (the model is asked to fix
-and retry). The harness auto-resumes: rerunning the same invocation skips
-problems that already have a passing attempt on file.
+and retry). **There is no resume**: `vera-bench run` unlinks any existing
+output file at startup (`vera_bench/cli.py`), so re-running the same
+invocation re-runs every problem from scratch. A crashed sweep leaves a
+partial JSONL for forensics, but recovering it means re-running that whole
+model x target.
 
 ### Exit codes
 
@@ -156,7 +164,7 @@ at the end if any failed. This makes partial-run recovery straightforward.
 ## `plot_results.py` — benchmark comparison chart
 
 Produces `assets/results-graph.png`: a four-panel chart showing
-`run_correct` rates across six models × four modes (Vera full-spec, Vera
+`run_correct` rates across every model in the registry × four modes (Vera full-spec, Vera
 spec-from-NL, Python, TypeScript). This is the canonical chart shown in
 the top-level README.
 
@@ -316,9 +324,12 @@ MODELS: list[ModelSpec] = [
   the split is "current flagship" vs "previous-gen / cost-tier" by
   convention.
 
-The script expects **exactly three models per tier** for the panels to lay
-out correctly. If you want four-and-four, adjust the subplot sizing in
-`main()`.
+Row 1 renders **one panel per populated tier**, in `TIER_TITLES` order
+(`fable`, `opus`, `sonnet`, plus the legacy `flagship` for historical
+2-tier data). Both the tier count and the models-per-tier count are
+data-driven, so an incomplete row is fine — the v0.0.16 fable tier has two
+entries because Moonshot ships no ceiling-above-flagship model. A tier with
+no models is skipped entirely rather than rendering an empty panel.
 
 ### Adding a new mode
 
@@ -398,8 +409,11 @@ of a room). Three slide types:
 
 - `delta` — the "Does Vera beat Python / TypeScript?" horizontal-bar
   chart (the headline storytelling slide)
-- `tiers` — Flagship and Sonnet tier comparisons side-by-side
-- `all-modes` — all 6 models × 4 modes in a single grouped-bar panel
+- `tiers` — per-tier comparison panels side-by-side (2 for historical
+  2-tier data, 3 for the fable/opus/sonnet matrix)
+- `all-modes` — every model × the 4 core modes in a single grouped-bar panel
+- `ztd` — zero-training-data slide: Vera vs Aver vs AILANG on the models
+  that ran those generation targets (opt-in; not part of `--type all`)
 
 ### Scope and lifecycle
 
