@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 from dataclasses import dataclass
@@ -15,6 +16,38 @@ class LLMResponse:
     output_tokens: int
     wall_time_s: float
     model: str
+    # Cache-hit portion of input_tokens (0 when the provider reports
+    # nothing). Anthropic: cache_read_input_tokens. OpenAI-compatible:
+    # usage.prompt_tokens_details.cached_tokens. Issue #61.
+    cached_tokens: int = 0
+
+
+def _openai_cached_tokens(usage: object) -> int:
+    """Extract usage.prompt_tokens_details.cached_tokens defensively.
+
+    OpenAI-compatible providers (OpenAI, Moonshot, OpenRouter) report
+    cache hits under prompt_tokens_details, but the field is absent on
+    older SDKs / non-caching providers and may be None. The isinstance
+    guard also keeps MagicMock-based tests honest — an auto-created
+    mock attribute is not an int and must not leak into accounting.
+    """
+    details = getattr(usage, "prompt_tokens_details", None)
+    cached = getattr(details, "cached_tokens", 0) if details is not None else 0
+    return cached if isinstance(cached, int) else 0
+
+
+def _prompt_cache_key(system: str) -> str:
+    """Stable cache-routing key for requests sharing a system prefix.
+
+    OpenAI's prompt caching is automatic (>=1024 tokens) but
+    `prompt_cache_key` improves hit rates by routing same-prefix
+    requests to the same cache shard — recommended for the GPT-5.6
+    family. Keyed on the system prompt (the ~28k-token SKILL.md /
+    llms.txt prefix during sweeps) so each language-mode gets its own
+    stable shard.
+    """
+    digest = hashlib.sha256(system.encode("utf-8")).hexdigest()[:16]
+    return f"vera-bench-{digest}"
 
 
 class LLMClient(Protocol):
@@ -110,6 +143,7 @@ class AnthropicClient:
             output_tokens=usage.output_tokens,
             wall_time_s=round(elapsed, 2),
             model=response.model,
+            cached_tokens=cache_read if isinstance(cache_read, int) else 0,
         )
 
 
@@ -149,24 +183,61 @@ class OpenAIClient:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
+                # Cache-shard routing for the shared system prefix.
+                # Passed via extra_body so it works on any 1.x SDK
+                # regardless of typed-kwarg support (#61).
+                extra_body={"prompt_cache_key": _prompt_cache_key(system)},
             )
         except openai.APITimeoutError as e:
             raise TimeoutError(f"OpenAI API timed out: {e}") from e
+        except openai.AuthenticationError as e:
+            # Bad API key — abort the run. Retrying 60 problems with the
+            # same bad key is pure waste.
+            raise EnvironmentError(
+                f"OpenAI authentication failed (check OPENAI_API_KEY): {e}"
+            ) from e
+        except openai.RateLimitError as e:
+            raise RuntimeError(
+                f"OpenAI rate-limited the model={self._model!r} "
+                f"request: {e}. Slow the sweep or use a higher tier."
+            ) from e
+        except openai.BadRequestError as e:
+            raise RuntimeError(
+                f"OpenAI rejected the request to model={self._model!r}: {e}. "
+                "Often model id wrong or prompt exceeds context."
+            ) from e
+        except openai.APIStatusError as e:
+            raise RuntimeError(
+                f"OpenAI API error (status={getattr(e, 'status_code', '?')}) "
+                f"on model={self._model!r}: {e}"
+            ) from e
 
         elapsed = time.monotonic() - start
-        choice = response.choices[0] if response.choices else None
-        text = (
-            choice.message.content
-            if choice and choice.message and choice.message.content
-            else ""
-        )
+
+        if not response.choices:
+            finish_reason = getattr(response, "finish_reason", "no choices")
+            raise RuntimeError(
+                f"OpenAI returned no choices for model={self._model!r} "
+                f"(finish_reason={finish_reason})"
+            )
+
+        choice = response.choices[0]
+        text = choice.message.content if choice.message else None
+        if not text:
+            finish_reason = getattr(choice, "finish_reason", "unknown")
+            raise RuntimeError(
+                f"OpenAI returned empty content for model={self._model!r} "
+                f"(finish_reason={finish_reason})"
+            )
+
         usage = response.usage
         return LLMResponse(
-            text=text or "",
+            text=text,
             input_tokens=usage.prompt_tokens if usage else 0,
             output_tokens=usage.completion_tokens if usage else 0,
             wall_time_s=round(elapsed, 2),
             model=response.model or self._model,
+            cached_tokens=_openai_cached_tokens(usage) if usage else 0,
         )
 
 
@@ -212,24 +283,58 @@ class MoonshotClient:
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
+                # No cache parameter: Moonshot's Context Caching is fully
+                # automatic (prefix matching on all requests, no headers
+                # or cache-lifecycle calls — see #61 research notes).
             )
         except openai.APITimeoutError as e:
             raise TimeoutError(f"Moonshot API timed out: {e}") from e
+        except openai.AuthenticationError as e:
+            raise EnvironmentError(
+                f"Moonshot authentication failed (check MOONSHOT_API_KEY): {e}"
+            ) from e
+        except openai.RateLimitError as e:
+            raise RuntimeError(
+                f"Moonshot rate-limited the model={self._model!r} "
+                f"request: {e}. Slow the sweep or use a higher tier."
+            ) from e
+        except openai.BadRequestError as e:
+            raise RuntimeError(
+                f"Moonshot rejected the request to model={self._model!r}: {e}. "
+                "Often model id wrong or prompt exceeds context."
+            ) from e
+        except openai.APIStatusError as e:
+            raise RuntimeError(
+                f"Moonshot API error (status={getattr(e, 'status_code', '?')}) "
+                f"on model={self._model!r}: {e}"
+            ) from e
 
         elapsed = time.monotonic() - start
-        choice = response.choices[0] if response.choices else None
-        text = (
-            choice.message.content
-            if choice and choice.message and choice.message.content
-            else ""
-        )
+
+        if not response.choices:
+            finish_reason = getattr(response, "finish_reason", "no choices")
+            raise RuntimeError(
+                f"Moonshot returned no choices for model={self._model!r} "
+                f"(finish_reason={finish_reason})"
+            )
+
+        choice = response.choices[0]
+        text = choice.message.content if choice.message else None
+        if not text:
+            finish_reason = getattr(choice, "finish_reason", "unknown")
+            raise RuntimeError(
+                f"Moonshot returned empty content for model={self._model!r} "
+                f"(finish_reason={finish_reason})"
+            )
+
         usage = response.usage
         return LLMResponse(
-            text=text or "",
+            text=text,
             input_tokens=usage.prompt_tokens if usage else 0,
             output_tokens=usage.completion_tokens if usage else 0,
             wall_time_s=round(elapsed, 2),
             model=response.model or self._model,
+            cached_tokens=_openai_cached_tokens(usage) if usage else 0,
         )
 
 
@@ -341,4 +446,5 @@ class OpenRouterClient:
             output_tokens=usage.completion_tokens if usage else 0,
             wall_time_s=round(elapsed, 2),
             model=response.model or self._model,
+            cached_tokens=_openai_cached_tokens(usage) if usage else 0,
         )

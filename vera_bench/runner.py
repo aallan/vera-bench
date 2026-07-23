@@ -72,6 +72,7 @@ class ProblemResult:
     tests_passed: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_tokens: int = 0
     wall_time_s: float = 0.0
     timestamp: str = ""
     error_message: str | None = None
@@ -1062,6 +1063,7 @@ def run_single_problem(
             attempt=1,
             input_tokens=llm_response.input_tokens,
             output_tokens=llm_response.output_tokens,
+            cached_tokens=llm_response.cached_tokens,
             wall_time_s=llm_response.wall_time_s,
             timestamp=_now(),
             bench_version=bench_version,
@@ -1118,6 +1120,7 @@ def run_single_problem(
                 attempt=2,
                 input_tokens=fix_response.input_tokens,
                 output_tokens=fix_response.output_tokens,
+                cached_tokens=fix_response.cached_tokens,
                 wall_time_s=fix_response.wall_time_s,
                 timestamp=_now(),
                 bench_version=bench_version,
@@ -1172,6 +1175,7 @@ def run_single_problem(
                 attempt=2,
                 input_tokens=fix_response.input_tokens,
                 output_tokens=fix_response.output_tokens,
+                cached_tokens=fix_response.cached_tokens,
                 wall_time_s=fix_response.wall_time_s,
                 timestamp=_now(),
                 bench_version=bench_version,
@@ -1216,6 +1220,7 @@ def run_single_problem(
                 attempt=2,
                 input_tokens=fix_response.input_tokens,
                 output_tokens=fix_response.output_tokens,
+                cached_tokens=fix_response.cached_tokens,
                 wall_time_s=fix_response.wall_time_s,
                 timestamp=_now(),
                 bench_version=bench_version,
