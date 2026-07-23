@@ -165,12 +165,23 @@ def create_client(model: str) -> LLMClient:
 
     - claude-* -> AnthropicClient
     - gpt-*, o1-*, o3-* -> OpenAIClient
+    - openai-pro/* -> OpenAIClient at reasoning mode "pro" (e.g.
+      openai-pro/gpt-5.6-sol runs Sol with reasoning.mode=pro — a
+      distinct benchmark entry from default-mode gpt-5.6-sol; the
+      CLI model string drives distinct results filenames)
     - moonshot/* -> MoonshotClient (OpenAI-compatible)
     - or/* -> OpenRouterClient (OpenAI-compatible; routes to any
       OpenRouter-hosted model, e.g. or/moonshotai/kimi-k2-0905)
     """
     if model.startswith("claude-") or model.startswith("anthropic/"):
         return AnthropicClient(model)
+    if model.startswith("openai-pro/"):
+        bare = model.removeprefix("openai-pro/")
+        if not bare:
+            raise ValueError(
+                "openai-pro/ requires a model id, e.g. openai-pro/gpt-5.6-sol"
+            )
+        return OpenAIClient(bare, reasoning_mode="pro")
     if (
         model.startswith("gpt-")
         or model.startswith("o1-")
@@ -185,7 +196,7 @@ def create_client(model: str) -> LLMClient:
     raise ValueError(
         f"Unknown model: {model!r}. "
         "Expected claude-*, anthropic/*, gpt-*, o1-*, o3-*, openai/*, "
-        "moonshot/*, or or/* prefix."
+        "openai-pro/*, moonshot/*, or or/* prefix."
     )
 
 
@@ -252,7 +263,7 @@ class AnthropicClient:
 
 
 class OpenAIClient:
-    def __init__(self, model: str) -> None:
+    def __init__(self, model: str, reasoning_mode: str | None = None) -> None:
         try:
             import openai  # noqa: F811
         except ImportError:
@@ -266,6 +277,11 @@ class OpenAIClient:
 
         self._client = openai.OpenAI(api_key=api_key)
         self._model = model.removeprefix("openai/")
+        # Reasoning mode (e.g. "pro" for gpt-5.6-sol's ceiling tier).
+        # Set by the openai-pro/ routing prefix in create_client; never
+        # via the runner (the complete() Protocol carries no per-call
+        # config — see the openai-pro design notes in the v0.0.16 plan).
+        self._reasoning_mode = reasoning_mode
 
     def complete(
         self,
@@ -274,19 +290,38 @@ class OpenAIClient:
         max_tokens: int = 4096,
         timeout: float = 120.0,
     ) -> LLMResponse:
+        # Reasoning consumes completion budget on reasoning models —
+        # a 4096 default can be all deliberation and no output at the
+        # pro tier. Floor the budget when a reasoning mode is active;
+        # smoke test S2 validates against truncation.
+        effective_max = max_tokens
+        if self._reasoning_mode:
+            effective_max = max(max_tokens, 16000)
+
+        # Cache-shard routing for the shared system prefix, passed via
+        # extra_body so it works on any 1.x SDK regardless of
+        # typed-kwarg support (#61). The reasoning mode rides the same
+        # channel ("reasoning.mode" per OpenAI's gpt-5.5-pro
+        # deprecation notice); smoke S2 verifies the exact accepted
+        # shape before the sweep.
+        extra_body: dict = {"prompt_cache_key": _prompt_cache_key(system)}
+        if self._reasoning_mode:
+            extra_body["reasoning"] = {"mode": self._reasoning_mode}
+
         start = time.monotonic()
         response = _call_openai_compatible(
             lambda: self._client.with_options(timeout=timeout).chat.completions.create(
                 model=self._model,
-                max_tokens=max_tokens,
+                # max_completion_tokens supersedes max_tokens on the
+                # GPT-5.x reasoning families (which reject the legacy
+                # kwarg); all matrix OpenAI models are 5.6-family.
+                # Smoke S1 validates acceptance per model.
+                max_completion_tokens=effective_max,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-                # Cache-shard routing for the shared system prefix.
-                # Passed via extra_body so it works on any 1.x SDK
-                # regardless of typed-kwarg support (#61).
-                extra_body={"prompt_cache_key": _prompt_cache_key(system)},
+                extra_body=extra_body,
             ),
             label="OpenAI",
             key_hint="OPENAI_API_KEY",
@@ -295,12 +330,18 @@ class OpenAIClient:
         elapsed = time.monotonic() - start
         text = _validate_openai_response_text(response, "OpenAI", self._model)
         usage = response.usage
+        # Both Sol variants report the same API model id — suffix the
+        # reasoning mode so JSONL rows are self-describing (filenames
+        # are already distinct via the CLI model string).
+        reported_model = response.model or self._model
+        if self._reasoning_mode:
+            reported_model = f"{reported_model}#{self._reasoning_mode}"
         return LLMResponse(
             text=text,
             input_tokens=_as_count(usage.prompt_tokens) if usage else 0,
             output_tokens=_as_count(usage.completion_tokens) if usage else 0,
             wall_time_s=round(elapsed, 2),
-            model=response.model or self._model,
+            model=reported_model,
             cached_tokens=_openai_cached_tokens(usage) if usage else 0,
         )
 

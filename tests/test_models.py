@@ -593,3 +593,121 @@ class TestMoonshotCachingAndHardening:
         self._wire(client, mock_inner)
         with pytest.raises(RuntimeError, match="empty content"):
             client.complete("sys", "user")
+
+
+class TestOpenAIProRouting:
+    """Sol@pro (openai-pro/ prefix) — the controlled reasoning-budget
+    comparison entry. Same model id, distinct mode, distinct results."""
+
+    def _client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        model: str = "openai-pro/gpt-5.6-sol",
+    ) -> object:
+        try:
+            from vera_bench.models import create_client
+        except ImportError:
+            pytest.skip("openai not installed")
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        return create_client(model)
+
+    def _ok_response(self) -> MagicMock:
+        resp = MagicMock()
+        choice = MagicMock()
+        choice.message.content = "code"
+        resp.choices = [choice]
+        resp.model = "gpt-5.6-sol"
+        resp.usage.prompt_tokens = 100
+        resp.usage.completion_tokens = 5000
+        resp.usage.prompt_tokens_details.cached_tokens = 0
+        return resp
+
+    def _wire(self, client: object, mock_inner: MagicMock) -> None:
+        client._client = MagicMock()
+        client._client.with_options.return_value = mock_inner
+
+    def test_routing_strips_prefix_and_sets_mode(self, monkeypatch):
+        from vera_bench.models import OpenAIClient
+
+        client = self._client(monkeypatch)
+        assert isinstance(client, OpenAIClient)
+        assert client._model == "gpt-5.6-sol"
+        assert client._reasoning_mode == "pro"
+
+    def test_default_openai_has_no_reasoning_mode(self, monkeypatch):
+        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        assert client._reasoning_mode is None
+
+    def test_unknown_prefix_still_rejected(self, monkeypatch):
+        from vera_bench.models import create_client
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        with pytest.raises(ValueError, match="Unknown model"):
+            create_client("mystery/some-model")
+
+    def test_reasoning_mode_sent_in_extra_body(self, monkeypatch):
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user")
+        kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert kwargs["extra_body"]["reasoning"] == {"mode": "pro"}
+        # Cache key still rides alongside (#61)
+        assert "prompt_cache_key" in kwargs["extra_body"]
+
+    def test_default_mode_sends_no_reasoning(self, monkeypatch):
+        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user")
+        kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert "reasoning" not in kwargs["extra_body"]
+
+    def test_max_completion_tokens_sent_not_max_tokens(self, monkeypatch):
+        """GPT-5.x reasoning families reject the legacy max_tokens kwarg."""
+        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user", max_tokens=4096)
+        kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert kwargs["max_completion_tokens"] == 4096
+        assert "max_tokens" not in kwargs
+
+    def test_pro_mode_floors_completion_budget(self, monkeypatch):
+        """Reasoning eats completion budget — pro floors to 16000 so
+        deliberation can't starve the output (validated live in S2)."""
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user", max_tokens=4096)
+        kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert kwargs["max_completion_tokens"] == 16000
+
+    def test_pro_response_model_gets_mode_suffix(self, monkeypatch):
+        """Both Sol variants report the same API id — the suffix makes
+        JSONL rows self-describing."""
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        result = client.complete("sys", "user")
+        assert result.model == "gpt-5.6-sol#pro"
+
+    def test_default_response_model_unsuffixed(self, monkeypatch):
+        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        result = client.complete("sys", "user")
+        assert result.model == "gpt-5.6-sol"
+
+    def test_bare_openai_pro_prefix_rejected(self, monkeypatch):
+        from vera_bench.models import create_client
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        with pytest.raises(ValueError, match="requires a model id"):
+            create_client("openai-pro/")
