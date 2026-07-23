@@ -15,7 +15,7 @@ VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aall
 
 ```bash
 pip install git+https://github.com/aallan/vera.git
-vera version   # should print vera 0.0.103 or later
+vera version   # should print vera 0.1.6 or later
 ```
 
 ## Problem structure
@@ -78,14 +78,14 @@ Both issues have caused false baseline failures (VB-T4-003 for Python, VB-T1-006
 
 ### Adding a new comparison language
 
-The pattern for adding a new language is established by the Python, TypeScript, and Aver implementations:
+The pattern for adding a new language is established by the Python, TypeScript, Aver, and AILANG implementations:
 
 1. **Prompt builder** (`prompts.py`) — `build_{lang}_prompt()` that uses `description_neutral` + the language's reference doc
 2. **Code evaluator** (`runner.py`) — `_evaluate_{lang}_code()` that writes code to a temp file, runs the compiler/interpreter, and checks output
 3. **Baseline runner** (`baseline_runner.py`) — `run_{lang}_baseline()` for canonical solutions
 4. **CLI integration** (`cli.py`) — add to `--language` choices
 5. **Canonical solutions** (`solutions/{lang}/`) — one per problem
-6. **Reference doc** — fetched at runtime (SKILL.md for Vera, llms.txt for Aver)
+6. **Reference doc** — SKILL.md for Vera and llms.txt for Aver are fetched at runtime; AILANG's is read from the installed compiler (`ailang prompt --source embedded`), which keeps it version-locked to the binary being graded
 
 ### Aver
 
@@ -137,5 +137,23 @@ vera-bench baselines --language aver       # Aver baselines
 vera-bench baselines --language ailang     # AILANG baselines
 vera-bench report results/DIR/         # generate report
 ```
+
+```bash
+bash scripts/preflight.sh              # pre-sweep gate: ids, auth, params, toolchains
+bash scripts/preflight.sh s2 s5        # re-run only these stages (calls cost money)
+```
+
+Run `preflight.sh` before any large sweep. It gates every model in
+`run_full_benchmark.py` — reading that list rather than duplicating it — plus
+provider auth, the request parameters each model accepts, and the Vera / Aver /
+AILANG toolchains, at one problem per check. It judges **result rows, not exit
+codes**: `vera-bench run` records an API error as a JSONL row and still exits 0,
+so a check reading `$?` reports success for a model that never answered. Details
+in [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate).
+
+**There is no resume.** `vera-bench run` unlinks the output file for that
+model × language × mode at startup, and filenames carry no timestamp — an
+interrupted target must be re-run in full, and its partial results are gone.
+Never plan to "top up" a sweep.
 
 `--parallel N` dispatches problems to a `ThreadPoolExecutor` with N workers. Default `parallel=1` preserves the sequential path. Workers are I/O-bound on LLM calls + subprocess `check`/`run`, so the GIL is not a bottleneck. Use this when sweeping slow models (e.g. Kimi K2.5 at ~50s/problem sequentially drops to ~5s/problem at `--parallel 10`). JSONL output ordering is by completion order in parallel mode; each line is self-contained (carries `problem_id`) so downstream consumers can sort if needed.

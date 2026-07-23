@@ -21,14 +21,19 @@ New benchmark problems are welcome. For each new problem, you must produce:
 3. A Python baseline in `solutions/python/`.
 4. A TypeScript baseline in `solutions/typescript/`.
 5. An Aver baseline in `solutions/aver/`.
+6. An AILANG baseline in `solutions/ailang/`.
+
+Every comparison language needs a baseline, or `vera-bench baselines --language
+{lang}` drops below the full problem count and the cross-language numbers stop
+being like-for-like.
 
 See [CLAUDE.md](CLAUDE.md) for problem structure, tier definitions, and Vera gotchas.
 
 ### Adding a New Comparison Language
 
-VeraBench supports cross-language comparison. Currently: Vera, Python, TypeScript, and Aver. To add a new language:
+VeraBench supports cross-language comparison. Currently: Vera, Python, TypeScript, Aver, and AILANG. To add a new language:
 
-1. **Canonical solutions** — Create `solutions/{lang}/` with one solution per problem (50 files). Each must produce correct output for all test cases.
+1. **Canonical solutions** — Create `solutions/{lang}/` with one solution per problem (60 files). Each must produce correct output for all test cases.
 
 2. **Prompt builder** — Add `build_{lang}_prompt()` to `vera_bench/prompts.py`. Use `description_neutral` (not `description`, which is Vera-specific). If the language has a reference doc (like SKILL.md or llms.txt), fetch it at runtime.
 
@@ -44,7 +49,12 @@ VeraBench supports cross-language comparison. Currently: Vera, Python, TypeScrip
 
 8. **CodeRabbit exclusions** — Add `!**/*.{ext}` and `!solutions/{lang}/**` to `.coderabbit.yaml` path_filters (CodeRabbit doesn't understand novel languages).
 
-See PR [#48](https://github.com/aallan/vera-bench/pull/48) (Aver support) as a reference implementation.
+Reference implementations: PR [#48](https://github.com/aallan/vera-bench/pull/48)
+(Aver) and PR [#70](https://github.com/aallan/vera-bench/pull/70) (AILANG). The
+AILANG one is the better model if your language ships its teaching prompt inside
+its own CLI rather than at a URL — it shells out to `ailang prompt --source
+embedded` instead of fetching a doc, which keeps the prompt version-locked to
+the installed compiler.
 
 ### Code Contributions
 

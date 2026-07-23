@@ -5,10 +5,62 @@ the installed package, but kept in-repo for reproducibility.
 
 | Script | Purpose |
 |--------|---------|
-| [`run_full_benchmark.py`](#run_full_benchmarkpy--full-matrix-benchmark-runner) | Runs every target (Vera, spec-from-NL, Python, TypeScript, Aver + baselines) for one model |
+| [`preflight.sh`](#preflightsh--pre-sweep-gate) | Pre-sweep gate: model ids, auth, API parameters and every toolchain, one problem each |
+| [`run_full_benchmark.py`](#run_full_benchmarkpy--full-matrix-benchmark-runner) | Runs every target (Vera, spec-from-NL, Python, TypeScript, Aver, AILANG + baselines) for one model |
 | [`plot_results.py`](#plot_resultspy--benchmark-comparison-chart) | Generates the headline benchmark comparison chart |
-| [`plot_slide.py`](#plot_slidepy--v007-talk-slide-renderer) | Renders v0.0.7 result panels as 16:9 slides for talk presentation (specialised; v0.0.7 lineup pinned) |
+| [`plot_slide.py`](#plot_slidepy--talk-slide-renderer) | Renders result panels as 16:9 slides for talk presentation |
 | [`validate_problems.py`](#validate_problemspy--problem-set-validation) | Validates every problem JSON + canonical Vera solution |
+
+---
+
+## `preflight.sh` — pre-sweep gate
+
+Run this **before** committing to a full sweep. A sweep is ~40 target-runs with
+no resume (see [Output files](#output-files)), so a wrong model id, a rejected
+API parameter, or a compiler missing from `PATH` costs hours and real money to
+discover late. Every check here is a single problem — the whole gate is roughly
+$1–2.
+
+```bash
+export ANTHROPIC_API_KEY=... OPENAI_API_KEY=... MOONSHOT_API_KEY=...
+bash scripts/preflight.sh                 # all stages
+bash scripts/preflight.sh s2 s3           # only these stages
+SMOKE_SKIP_MODELS="claude-fable-5" bash scripts/preflight.sh s1
+```
+
+Stage selection and `SMOKE_SKIP_MODELS` exist because the calls cost money: a
+stage that already passed should not be paid for twice while you iterate on a
+fix.
+
+| Stage | Checks | Cost |
+|-------|--------|------|
+| `s0` | Every configured model id exists, via each provider's `/v1/models` | free |
+| `s1` | Auth, id acceptance and request parameters — one problem per model, Python target (no ~28k-token prefix) | cheap |
+| `s2` | The reasoning-budget pair actually differs — same model, same problem, mode the only variable | 2 calls |
+| `s3` | Prompt-cache accounting: `cached_tokens` on a second call sharing the system prefix | 1 call |
+| `s5` | All six target variants end-to-end (five languages — Vera runs in both full-spec and spec-from-NL), proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
+
+The model list is **not** duplicated in the script — `s0` and `s1` read it from
+`run_full_benchmark.py` (including its `_detect_provider`), so a model added to
+the sweep is gated automatically rather than silently skipped. The `s2` pair and
+the `s5` canary are roles rather than the whole matrix, so they are named at the
+top of the script and overridable via `PREFLIGHT_REASON_BASE`,
+`PREFLIGHT_REASON_PRO` and `PREFLIGHT_CANARY`.
+
+Two behaviours worth knowing:
+
+- **It judges result rows, not exit codes.** `vera-bench run` records an API
+  error as a JSONL row and still exits `0` — deliberate, so a transient failure
+  costs one problem rather than the sweep. A gate reading `$?` therefore reports
+  success for a model that never answered; both fable-tier models passed that
+  way on 2026-07-23 while failing every call.
+- **Each stage writes to its own directory.** Result filenames carry no
+  timestamp and `run` unlinks an existing file, so two stages running the same
+  model × language × mode would otherwise silently overwrite each other.
+
+Output goes to `/tmp/vb-smoke-<date>-<time>/`, never `results/`, so a gate run
+cannot pollute a real sweep. No key is ever printed; the report is safe to
+paste. Targets bash 3.2 (macOS system bash).
 
 ---
 
@@ -46,11 +98,11 @@ python scripts/run_full_benchmark.py
 
 # Autonomous mode (CI-friendly)
 ANTHROPIC_API_KEY=sk-ant-... \
-  python scripts/run_full_benchmark.py --model claude-sonnet-4-6
+  python scripts/run_full_benchmark.py --model claude-sonnet-5
 
 # Pass the key as a flag (avoid in shell history / CI logs — prefer env var)
 python scripts/run_full_benchmark.py \
-  --model gpt-4.1-2025-04-14 --api-key sk-...
+  --model gpt-5.6-terra --api-key sk-...
 
 # Skip baselines when sweeping multiple models
 python scripts/run_full_benchmark.py \
@@ -65,7 +117,7 @@ right env var:
 | Provider | Model-string prefix | Env var |
 |----------|---------------------|---------|
 | Anthropic | `claude-*` or `anthropic/*` | `ANTHROPIC_API_KEY` |
-| OpenAI | `gpt-*`, `o1-*`, `o3-*`, `openai/*` | `OPENAI_API_KEY` |
+| OpenAI | `gpt-*`, `o1-*`, `o3-*`, `openai/*`, `openai-pro/*` | `OPENAI_API_KEY` |
 | Moonshot | `moonshot/*` | `MOONSHOT_API_KEY` |
 
 Missing env var + no `--api-key` + no TTY → the script exits with an error.
@@ -84,11 +136,13 @@ export MOONSHOT_API_KEY=...
 # Run baselines once (they don't depend on the model)
 # — or pass --skip-baselines on every call if they're already fresh.
 for model in \
+  claude-fable-5 \
   claude-opus-4-8 \
-  claude-sonnet-4-6 \
-  gpt-4.1-2025-04-14 \
-  gpt-4o \
-  moonshot/kimi-k2.5 \
+  claude-sonnet-5 \
+  openai-pro/gpt-5.6-sol \
+  gpt-5.6-sol \
+  gpt-5.6-terra \
+  moonshot/kimi-k3 \
   moonshot/kimi-k2.6; do
   python scripts/run_full_benchmark.py --model "$model" --skip-baselines
 done
@@ -105,20 +159,23 @@ python scripts/plot_results.py
 
 ### Timing expectations
 
-Rough per-model totals observed on v0.0.9 (60 problems, 2026-04):
+Rough per-model totals observed on v0.0.9 (60 problems, 2026-04) with the
+*then-current* lineup — kept as an order-of-magnitude guide; the v0.0.16
+matrix is a different set of models and has not been swept yet:
 
-| Provider / model | Full suite (10 targets) |
+| Provider / model (v0.0.9 era) | Full suite (10 targets) |
 |------------------|-----------------------|
 | Claude Opus 4 | ~17 min |
 | Claude Sonnet 4 | ~15 min |
 | GPT-4.1 / GPT-4o | ~10–12 min |
 | Moonshot K2.5 | ~3.5 h (slow provider; Aver especially) |
-| Moonshot K2.6 | TBD (no sweep against this model yet — see #68) |
-| Moonshot K2 Turbo *(historical; SKU deprecated 2026-05-25)* | ~1.5 h |
 
-The Moonshot models dominate the sweep wall-clock; expect 5–8 hours
-end-to-end. K2.6 timings will be filled in after the first full sweep
-once we have data to attribute.
+Moonshot dominated the wall-clock; expect 5–8 hours end-to-end for a
+full multi-model sweep. Two v0.0.16-specific expectations: reasoning-mode
+entries (`openai-pro/*`) are latency-dominated and can run several times
+longer per problem than their default-mode sibling, and per-provider
+rate limits mean the practical speed-up comes from running providers
+concurrently rather than raising `--parallel` on one.
 
 ### Output files
 
@@ -137,8 +194,11 @@ For model `M` at bench version `V` and compiler versions `VV` (Vera) / `AV` (Ave
 
 Each JSONL line is **one attempt on one problem** — failed `vera check`/`aver
 check` runs produce multiple lines per problem (the model is asked to fix
-and retry). The harness auto-resumes: rerunning the same invocation skips
-problems that already have a passing attempt on file.
+and retry). **There is no resume**: `vera-bench run` unlinks any existing
+output file at startup (`vera_bench/cli.py`), so re-running the same
+invocation re-runs every problem from scratch. A crashed sweep leaves a
+partial JSONL for forensics, but recovering it means re-running that whole
+model x target.
 
 ### Exit codes
 
@@ -156,7 +216,7 @@ at the end if any failed. This makes partial-run recovery straightforward.
 ## `plot_results.py` — benchmark comparison chart
 
 Produces `assets/results-graph.png`: a four-panel chart showing
-`run_correct` rates across six models × four modes (Vera full-spec, Vera
+`run_correct` rates across every model in the registry × four modes (Vera full-spec, Vera
 spec-from-NL, Python, TypeScript). This is the canonical chart shown in
 the top-level README.
 
@@ -273,7 +333,7 @@ each model × mode combination:
 | Aver (opt-in) | `{prefix}-aver-bench-{X-Y-Z}-aver-*.jsonl` |
 
 Where `{prefix}` is the model's `file_prefix` from the `MODELS` registry
-(e.g. `claude-opus-4-8`, `moonshot-kimi-k2.5`). Dots in the version are
+(e.g. `claude-opus-4-8`, `moonshot-kimi-k2.6`). Dots in the version are
 converted to dashes to match the filename convention; Anthropic's
 4.6-generation dateless IDs (e.g. `claude-opus-4-8`) already match the
 filename convention without conversion.
@@ -302,23 +362,28 @@ Edit the `MODELS` list near the top of `plot_results.py`:
 
 ```python
 MODELS: list[ModelSpec] = [
-    ModelSpec("Claude Opus 4", "claude-opus-4-20250514", "flagship"),
+    ModelSpec("Claude Fable 5", "claude-fable-5", "fable"),
+    ModelSpec("Claude Opus 4.8", "claude-opus-4-8", "opus"),
     ...
-    ModelSpec("My New Model", "my-new-model-id", "flagship"),
+    ModelSpec("My New Model", "my-new-model-id", "sonnet"),
 ]
 ```
 
 - `display` — shown on the chart (keep short, ~12 chars)
 - `file_prefix` — the model-ID portion of the result filename (run
   `vera-bench run --model X ...` and inspect the resulting filename)
-- `tier` — `"flagship"` (top-left panel) or `"sonnet"` (top-right panel).
-  This is purely a layout decision about which panel the model renders in;
-  the split is "current flagship" vs "previous-gen / cost-tier" by
-  convention.
+- `tier` — any key in `TIER_TITLES`: `"fable"` (ceiling), `"opus"`
+  (flagship), `"sonnet"` (workhorse), plus the legacy `"flagship"` used by
+  historical 2-tier data. This is purely a layout decision about which
+  panel the model renders in. A tier not listed in `TIER_TITLES` still
+  renders, in a trailing panel with a title-cased fallback name.
 
-The script expects **exactly three models per tier** for the panels to lay
-out correctly. If you want four-and-four, adjust the subplot sizing in
-`main()`.
+Row 1 renders **one panel per populated tier**, in `TIER_TITLES` order
+(`fable`, `opus`, `sonnet`, plus the legacy `flagship` for historical
+2-tier data). Both the tier count and the models-per-tier count are
+data-driven, so an incomplete row is fine — the v0.0.16 fable tier has two
+entries because Moonshot ships no ceiling-above-flagship model. A tier with
+no models is skipped entirely rather than rendering an empty panel.
 
 ### Adding a new mode
 
@@ -390,26 +455,43 @@ this script.
 
 ---
 
-## `plot_slide.py` — v0.0.7 talk-slide renderer
+## `plot_slide.py` — talk-slide renderer
 
-Renders the v0.0.7 result panels as **16:9 slides** sized and styled for
+Renders result panels as **16:9 slides** sized and styled for
 talk presentation (2880×1620 px, slide-readable typography from the back
-of a room). Three slide types:
+of a room). Five slide types:
 
 - `delta` — the "Does Vera beat Python / TypeScript?" horizontal-bar
   chart (the headline storytelling slide)
-- `tiers` — Flagship and Sonnet tier comparisons side-by-side
-- `all-modes` — all 6 models × 4 modes in a single grouped-bar panel
+- `tiers` — per-tier comparison panels side-by-side (2 for historical
+  2-tier data, 3 for the fable/opus/sonnet matrix)
+- `all-modes` — every model × the 4 core modes in a single grouped-bar panel
+- `ztd` — zero-training-data slide: Vera vs Aver vs AILANG on the models
+  that ran those generation targets (opt-in; not part of `--type all`)
+- `reasoning` — the reasoning-budget slide: one model at two reasoning
+  modes (`standard` vs `pro`) (`REASONING_PAIR`, default `GPT-5.6 Sol` vs `GPT-5.6 Sol (pro)`)
+  across every core mode, with the per-language delta annotated. Answers
+  "does more deliberation help, and does it help *less* on Vera?" — the
+  controlled comparison no other provider offers, since both entries are
+  the same underlying model. Opt-in; needs both halves of the pair in
+  the results directory
 
 ### Scope and lifecycle
 
-This is a **specialised, talk-specific** script — not a general slide
-renderer. The v0.0.7 model lineup (Claude Opus 4 / GPT-4.1 / Kimi K2.5
-in flagship; Claude Sonnet 4 / GPT-4o / Kimi K2 Turbo in sonnet) is
-hard-coded in `MODELS_V_0_0_7`, because the live `plot_results.MODELS`
-registry has since been updated to reflect the K2.6 migration (PR #69).
-If you want slides for a future release, either generalise the script
-or duplicate it with the new lineup.
+The script renders against whichever lineup matches the `--version` you
+ask for:
+
+- `--version 0.0.7` uses the frozen `MODELS_V_0_0_7` lineup (Claude Opus 4
+  / GPT-4.1 / Kimi K2.5 in flagship; Claude Sonnet 4 / GPT-4o / Kimi K2
+  Turbo in sonnet). Those slides must keep rendering identically, and the
+  live registry has moved on, so the historical lineup is pinned in code
+  rather than reconstructed.
+- **Any other version** uses the live `plot_results.MODELS`, so slides
+  track the current matrix without further edits.
+
+⚠ `--version` still **defaults to `0.0.7`**. A bare
+`python scripts/plot_slide.py` therefore renders the frozen historical
+lineup, not your current results — pass `--version` explicitly.
 
 It reuses palette, typography constants, and `extract_data()` from
 `plot_results.py` so the slide numbers match the README chart by

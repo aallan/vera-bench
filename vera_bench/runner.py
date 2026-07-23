@@ -137,8 +137,16 @@ def _evaluate_code(
         result["run_correct"] = None
         return result
 
+    # The Aver and AILANG evaluators capture the first run failure's
+    # diagnostic (issue #72); the Vera path — the headline number — did
+    # not, so a compiler crash was indistinguishable in JSONL from a
+    # model writing a wrong program: error_message=None, check_pass=True,
+    # run_correct=False. That is not hypothetical here. vera SIGBUS'd
+    # repeatedly on 2026-07-23 (aallan/vera#1145) and every one of those
+    # would have been recorded as the model's fault.
     all_pass = True
-    for tc in test_cases:
+    last_run_error: str | None = None
+    for i, tc in enumerate(test_cases):
         if not isinstance(tc, dict):
             continue
         args = tc.get("args", [])
@@ -146,18 +154,44 @@ def _evaluate_code(
         result["tests_total"] += 1
         try:
             run = vera.run_fn(file_path, entry_point, args if args else None)
-            if run.exit_code != 0:
-                all_pass = False
-                continue
+        except subprocess.TimeoutExpired:
+            all_pass = False
+            if last_run_error is None:
+                last_run_error = _first_run_error(i, None, "vera")
+            continue
+        except Exception as e:  # noqa: BLE001 - recorded, not swallowed
+            # Bare-except-with-no-message was the original defect: an
+            # OSError spawning the subprocess, a UnicodeDecodeError on
+            # stdout, a TypeError in normalize_output — all scored as
+            # "the model wrote a wrong program".
+            all_pass = False
+            if last_run_error is None:
+                last_run_error = f"test {i}: {type(e).__name__}: {e}"
+            continue
+
+        if run.exit_code != 0:
+            all_pass = False
+            if last_run_error is None:
+                last_run_error = _vera_run_error(i, run)
+            continue
+
+        try:
             actual, expected_str = normalize_output(run.stdout, expected)
-            if actual == expected_str:
-                result["tests_passed"] += 1
-            else:
-                all_pass = False
-        except Exception:
+        except Exception as e:  # noqa: BLE001 - recorded, not swallowed
+            all_pass = False
+            if last_run_error is None:
+                last_run_error = f"test {i}: output comparison failed: {e}"
+            continue
+
+        if actual == expected_str:
+            result["tests_passed"] += 1
+        else:
             all_pass = False
 
     result["run_correct"] = all_pass
+    # Don't clobber a check/verify diagnostic already recorded above.
+    if last_run_error and not result.get("error_message"):
+        result["error_message"] = last_run_error
     return result
 
 
@@ -429,6 +463,29 @@ def _first_run_error(
     if err:
         return f"test {i}: {err}"
     return f"test {i}: exit {proc.returncode} (no output)"
+
+
+def _vera_run_error(i: int, run) -> str:
+    """Format a failed `vera run` for `error_message`.
+
+    Sibling of :func:`_first_run_error` for `VeraRunner.RunResult`, which
+    carries `exit_code` rather than `returncode`.
+
+    The negative-exit_code branch is the one that matters: `subprocess`
+    reports a signal death as `-N`, so a compiler SIGBUS (signal 10)
+    arrives as `exit_code == -10`. Without naming it, that reads as an
+    ordinary non-zero exit — which is to say, as the model's fault.
+    """
+    if run.exit_code < 0:
+        detail = (run.stderr or run.stdout or "").strip()[:300]
+        return (
+            f"test {i}: vera run killed by signal {-run.exit_code}"
+            f"{' — ' + detail if detail else ''}"
+        )
+    err = (run.stderr or run.stdout or "").strip()[:400]
+    if err:
+        return f"test {i}: {err}"
+    return f"test {i}: vera run exit {run.exit_code} (no output)"
 
 
 def _evaluate_aver_code(

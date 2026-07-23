@@ -86,7 +86,118 @@ class TestOpenAIClient:
             pytest.skip("openai package not installed")
 
 
+def _text_block(text: str):
+    """A TextBlock stand-in. `.type` matters — the real SDK discriminates
+    content blocks on it, and MagicMock's auto-attributes would hide a
+    bug that only shows up against the live API."""
+    block = MagicMock()
+    block.type = "text"
+    block.text = text
+    return block
+
+
+class _ThinkingBlock:
+    """A ThinkingBlock stand-in with **no** `.text` attribute, which is
+    what makes this faithful: the live failure was
+    "'ThinkingBlock' object has no attribute 'text'". A MagicMock would
+    have silently supplied one and reproduced nothing."""
+
+    type = "thinking"
+    thinking = "let me work through this"
+
+
+class TestAnthropicTextExtraction:
+    """Claude Fable 5 returns extended-thinking blocks ahead of the text,
+    so content[0] is not the answer (smoke S1, 2026-07-23)."""
+
+    def test_skips_leading_thinking_block(self):
+        from vera_bench.models import _anthropic_text
+
+        assert _anthropic_text([_ThinkingBlock(), _text_block("answer")]) == "answer"
+
+    def test_plain_text_response(self):
+        from vera_bench.models import _anthropic_text
+
+        assert _anthropic_text([_text_block("answer")]) == "answer"
+
+    def test_joins_multiple_text_blocks(self):
+        from vera_bench.models import _anthropic_text
+
+        blocks = [_ThinkingBlock(), _text_block("part one "), _text_block("part two")]
+        assert _anthropic_text(blocks) == "part one part two"
+
+    def test_unknown_block_types_ignored(self):
+        from vera_bench.models import _anthropic_text
+
+        redacted = MagicMock()
+        redacted.type = "redacted_thinking"
+        assert _anthropic_text([redacted, _text_block("answer")]) == "answer"
+
+    @pytest.mark.parametrize("content", [[], None, [_ThinkingBlock()]])
+    def test_no_text_block_yields_empty_string(self, content):
+        """The helper reports absence; `complete` decides what it means.
+
+        See TestAnthropicComplete.test_thinking_only_response_raises —
+        returning "" here is correct, but letting "" reach the harness
+        is not: it would be scored as the model failing to define an
+        entry point when the fault is API-side.
+        """
+        from vera_bench.models import _anthropic_text
+
+        assert _anthropic_text(content) == ""
+
+
 class TestAnthropicComplete:
+    def test_thinking_response_does_not_crash(self, monkeypatch):
+        """End-to-end regression for the Fable 5 failure."""
+        try:
+            import anthropic  # noqa: F401
+
+            from vera_bench.models import AnthropicClient
+        except ImportError:
+            pytest.skip("anthropic not installed")
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        client = AnthropicClient("claude-fable-5")
+
+        mock_resp = MagicMock()
+        mock_resp.content = [_ThinkingBlock(), _text_block("def f(): pass")]
+        mock_resp.usage.input_tokens = 100
+        mock_resp.usage.output_tokens = 50
+        mock_resp.usage.cache_creation_input_tokens = 0
+        mock_resp.usage.cache_read_input_tokens = 0
+        mock_resp.model = "claude-fable-5"
+        client._client.messages.create = MagicMock(return_value=mock_resp)
+
+        assert client.complete("system", "user").text == "def f(): pass"
+
+    def test_thinking_only_response_raises(self, monkeypatch):
+        """A response with no TextBlock must not be scored as a model failure.
+
+        Realistic for the thinking models this release adds: truncate at
+        max_tokens while still inside a thinking block and the content
+        list holds no text at all. Returning "" would reach extract_code
+        and be recorded as "did not define entry point" — blaming the
+        model for an API-side non-answer. Mirrors the OpenAI guard.
+        """
+        try:
+            import anthropic  # noqa: F401
+
+            from vera_bench.models import AnthropicClient
+        except ImportError:
+            pytest.skip("anthropic not installed")
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        client = AnthropicClient("claude-fable-5")
+
+        mock_resp = MagicMock()
+        mock_resp.content = [_ThinkingBlock()]
+        mock_resp.stop_reason = "max_tokens"
+        client._client.messages.create = MagicMock(return_value=mock_resp)
+
+        with pytest.raises(RuntimeError, match="no text block"):
+            client.complete("system", "user")
+
     def test_complete_mock(self, monkeypatch):
         """Test Anthropic complete with a mocked SDK."""
         try:
@@ -101,7 +212,7 @@ class TestAnthropicComplete:
         client = AnthropicClient("claude-test")
 
         mock_resp = MagicMock()
-        mock_resp.content = [MagicMock(text="hello")]
+        mock_resp.content = [_text_block("hello")]
         mock_resp.usage.input_tokens = 100
         mock_resp.usage.output_tokens = 50
         mock_resp.usage.cache_creation_input_tokens = 0
@@ -611,12 +722,27 @@ class TestOpenAIProRouting:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         return create_client(model)
 
-    def _ok_response(self) -> MagicMock:
+    def _ok_response(self, mode: str = "pro", text: str = "code") -> MagicMock:
+        """A Responses-API response. `reasoning.mode` is set explicitly —
+        a bare MagicMock would return an auto-attribute that silently
+        satisfies nothing, which is how the earlier reasoning bug got
+        past this suite."""
+        resp = MagicMock()
+        resp.output_text = text
+        resp.model = "gpt-5.6-sol"
+        resp.reasoning.mode = mode
+        resp.usage.input_tokens = 100
+        resp.usage.output_tokens = 5000
+        resp.usage.input_tokens_details.cached_tokens = 0
+        return resp
+
+    def _chat_response(self) -> MagicMock:
+        """A Chat Completions response, for the default (non-pro) path."""
         resp = MagicMock()
         choice = MagicMock()
         choice.message.content = "code"
         resp.choices = [choice]
-        resp.model = "gpt-5.6-sol"
+        resp.model = "gpt-5.6-terra"
         resp.usage.prompt_tokens = 100
         resp.usage.completion_tokens = 5000
         resp.usage.prompt_tokens_details.cached_tokens = 0
@@ -634,8 +760,18 @@ class TestOpenAIProRouting:
         assert client._model == "gpt-5.6-sol"
         assert client._reasoning_mode == "pro"
 
-    def test_default_openai_has_no_reasoning_mode(self, monkeypatch):
+    def test_default_sol_pinned_to_standard_mode(self, monkeypatch):
+        """Sol's default entry is the other arm of the reasoning-budget
+        comparison, so it runs on the same endpoint as pro with an
+        explicit standard mode. Otherwise the two bars on the slide
+        differ by endpoint as well as by deliberation."""
         client = self._client(monkeypatch, model="gpt-5.6-sol")
+        assert client._reasoning_mode == "standard"
+
+    def test_non_paired_model_has_no_reasoning_mode(self, monkeypatch):
+        """Terra is a separate tier row, not half of a controlled pair —
+        it stays on Chat Completions."""
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
         assert client._reasoning_mode is None
 
     def test_unknown_prefix_still_rejected(self, monkeypatch):
@@ -645,31 +781,194 @@ class TestOpenAIProRouting:
         with pytest.raises(ValueError, match="Unknown model"):
             create_client("mystery/some-model")
 
-    def test_reasoning_mode_sent_in_extra_body(self, monkeypatch):
+    @pytest.mark.parametrize(
+        ("model_id", "mode"),
+        [("openai-pro/gpt-5.6-sol", "pro"), ("gpt-5.6-sol", "standard")],
+    )
+    def test_both_arms_drive_their_own_mode(self, monkeypatch, model_id, mode):
+        """Drive BOTH halves of the controlled pair through complete().
+
+        Only the pro arm was exercised end-to-end, so hardcoding
+        `reasoning={"mode": "pro"}` passed the suite green — and that
+        would run *both* arms at pro, making the reasoning slide a
+        comparison of a model against itself. Same failure the
+        downgrade guard exists to catch, arriving from our side of the
+        wire instead of OpenAI's. The shared 16000 ceiling is asserted
+        for both arms too: an unequal budget is a second confound.
+        """
+        client = self._client(monkeypatch, model=model_id)
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = self._ok_response(mode=mode)
+        self._wire(client, mock_inner)
+
+        result = client.complete("sys", "user", max_tokens=4096)
+
+        mock_inner.chat.completions.create.assert_not_called()
+        kwargs = mock_inner.responses.create.call_args.kwargs
+        assert kwargs["reasoning"] == {"mode": mode}
+        assert kwargs["max_output_tokens"] == 16000
+        assert result.model == f"gpt-5.6-sol#{mode}"
+
+    def test_responses_opts_out_of_server_side_storage(self, monkeypatch):
+        """Responses defaults store=True; Chat Completions does not persist.
+
+        Retained prompts and completions could feed cross-run caching or
+        personalisation, which would make a second sweep not independent
+        of the first — a benchmark informed by its own previous run is
+        not measuring what it claims to.
+        """
         client = self._client(monkeypatch)
         mock_inner = MagicMock()
-        mock_inner.chat.completions.create.return_value = self._ok_response()
+        mock_inner.responses.create.return_value = self._ok_response()
         self._wire(client, mock_inner)
         client.complete("sys", "user")
-        kwargs = mock_inner.chat.completions.create.call_args.kwargs
-        assert kwargs["extra_body"]["reasoning"] == {"mode": "pro"}
-        # Cache key still rides alongside (#61)
-        assert "prompt_cache_key" in kwargs["extra_body"]
+        assert mock_inner.responses.create.call_args.kwargs["store"] is False
 
-    def test_default_mode_sends_no_reasoning(self, monkeypatch):
-        client = self._client(monkeypatch, model="gpt-5.6-sol")
+    def test_budget_floor_does_not_cap_a_larger_request(self, monkeypatch):
+        """`max(max_tokens, 16000)` — not a bare 16000, which would
+        silently cap an explicit --max-tokens above the floor."""
+        client = self._client(monkeypatch)
         mock_inner = MagicMock()
-        mock_inner.chat.completions.create.return_value = self._ok_response()
+        mock_inner.responses.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user", max_tokens=32000)
+        assert (
+            mock_inner.responses.create.call_args.kwargs["max_output_tokens"] == 32000
+        )
+
+    def test_pro_routes_to_responses_api(self, monkeypatch):
+        """`reasoning.mode` exists only on the Responses API. Chat
+        Completions rejects it (400 "Unknown parameter: 'reasoning'"),
+        and it is NOT expressible as reasoning_effort — mode and effort
+        are independent axes, and gpt-5.6-sol rejects effort="max" on
+        Chat Completions anyway. Both verified live 2026-07-23."""
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = self._ok_response()
         self._wire(client, mock_inner)
         client.complete("sys", "user")
+
+        mock_inner.chat.completions.create.assert_not_called()
+        kwargs = mock_inner.responses.create.call_args.kwargs
+        assert kwargs["reasoning"] == {"mode": "pro"}
+        assert kwargs["instructions"] == "sys"
+        assert kwargs["input"] == "user"
+        # Responses names the budget differently from Chat Completions.
+        assert "max_output_tokens" in kwargs
+        assert "max_completion_tokens" not in kwargs
+        # Cache key still rides along (#61), as a typed kwarg here.
+        assert "prompt_cache_key" in kwargs
+
+    def test_default_mode_uses_chat_completions(self, monkeypatch):
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._chat_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user")
+
+        mock_inner.responses.create.assert_not_called()
         kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert "reasoning" not in kwargs
+        assert "reasoning_effort" not in kwargs
         assert "reasoning" not in kwargs["extra_body"]
+
+    def test_mode_is_one_the_api_defines(self):
+        """Guard against inventing a mode the SDK does not define.
+
+        `Reasoning` uses `from __future__ import annotations`, so its
+        raw __annotations__ are ForwardRef strings — get_type_hints is
+        needed to resolve them. The field is
+        `Union[str, Literal["standard", "pro"]]`; the str arm makes the
+        API permissive, which is exactly why we validate ourselves."""
+        from typing import get_args, get_type_hints
+
+        from openai.types.shared_params.reasoning import Reasoning
+
+        from vera_bench.models import REASONING_MODES
+
+        hints = get_type_hints(Reasoning)
+        # No skip guard: pyproject floors openai at >=2.45, the first
+        # release declaring this field. If it is absent, the environment
+        # violates the declared floor and that should fail loudly.
+        literal = next(a for a in get_args(hints["mode"]) if get_args(a))
+        assert REASONING_MODES <= set(get_args(literal))
+
+    def test_unknown_reasoning_mode_raises(self, monkeypatch):
+        """Silently dropping the parameter would make the 'pro' entry run
+        in standard mode — a comparison of a model against itself."""
+        from vera_bench.models import OpenAIClient
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        with pytest.raises(ValueError, match="Unknown reasoning mode"):
+            OpenAIClient("gpt-5.6-sol", reasoning_mode="ultra")
+
+    @pytest.mark.parametrize("shape", ["mode_none", "reasoning_none"])
+    def test_unconfirmed_mode_raises(self, monkeypatch, shape):
+        """A server that ignored the parameter most likely does not echo it.
+
+        `reasoning` and `mode` are both Optional with None defaults, so
+        the likeliest wire signature of a silent downgrade is absence,
+        not a mismatched value — an `if effective and ...` guard would
+        short-circuit past exactly the case it exists to catch.
+        """
+        client = self._client(monkeypatch)
+        resp = self._ok_response()
+        if shape == "mode_none":
+            resp.reasoning.mode = None
+        else:
+            resp.reasoning = None
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = resp
+        self._wire(client, mock_inner)
+        with pytest.raises(RuntimeError, match="did not confirm"):
+            client.complete("sys", "user")
+
+    def test_silent_downgrade_to_standard_raises(self, monkeypatch):
+        """The response echoes the *effective* mode. If OpenAI quietly
+        served standard, that must not be recorded as a pro result."""
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = self._ok_response(mode="standard")
+        self._wire(client, mock_inner)
+        with pytest.raises(RuntimeError, match="reported 'standard'"):
+            client.complete("sys", "user")
+
+    def test_empty_output_reports_budget_exhaustion(self, monkeypatch):
+        """Reasoning bills against the output budget; an all-deliberation
+        response yields empty text and must say why."""
+        client = self._client(monkeypatch)
+        resp = self._ok_response(text="")
+        resp.incomplete_details.reason = "max_output_tokens"
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = resp
+        self._wire(client, mock_inner)
+        with pytest.raises(ValueError, match="max_output_tokens"):
+            client.complete("sys", "user")
+
+    def test_responses_usage_accounting(self, monkeypatch):
+        """Responses names its usage fields differently from Chat
+        Completions (input_tokens vs prompt_tokens, and cached_tokens
+        under input_tokens_details)."""
+        client = self._client(monkeypatch)
+        resp = self._ok_response()
+        resp.usage.input_tokens = 29000
+        resp.usage.output_tokens = 12000
+        resp.usage.input_tokens_details.cached_tokens = 28000
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = resp
+        self._wire(client, mock_inner)
+
+        result = client.complete("sys", "user")
+        assert result.input_tokens == 29000
+        assert result.output_tokens == 12000
+        assert result.cached_tokens == 28000
+        assert result.model == "gpt-5.6-sol#pro"
 
     def test_max_completion_tokens_sent_not_max_tokens(self, monkeypatch):
         """GPT-5.x reasoning families reject the legacy max_tokens kwarg."""
-        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
         mock_inner = MagicMock()
-        mock_inner.chat.completions.create.return_value = self._ok_response()
+        mock_inner.chat.completions.create.return_value = self._chat_response()
         self._wire(client, mock_inner)
         client.complete("sys", "user", max_tokens=4096)
         kwargs = mock_inner.chat.completions.create.call_args.kwargs
@@ -677,33 +976,33 @@ class TestOpenAIProRouting:
         assert "max_tokens" not in kwargs
 
     def test_pro_mode_floors_completion_budget(self, monkeypatch):
-        """Reasoning eats completion budget — pro floors to 16000 so
-        deliberation can't starve the output (validated live in S2)."""
+        """Reasoning eats output budget — pro floors to 16000 so
+        deliberation can't starve the answer."""
         client = self._client(monkeypatch)
         mock_inner = MagicMock()
-        mock_inner.chat.completions.create.return_value = self._ok_response()
+        mock_inner.responses.create.return_value = self._ok_response()
         self._wire(client, mock_inner)
         client.complete("sys", "user", max_tokens=4096)
-        kwargs = mock_inner.chat.completions.create.call_args.kwargs
-        assert kwargs["max_completion_tokens"] == 16000
+        kwargs = mock_inner.responses.create.call_args.kwargs
+        assert kwargs["max_output_tokens"] == 16000
 
     def test_pro_response_model_gets_mode_suffix(self, monkeypatch):
         """Both Sol variants report the same API id — the suffix makes
         JSONL rows self-describing."""
         client = self._client(monkeypatch)
         mock_inner = MagicMock()
-        mock_inner.chat.completions.create.return_value = self._ok_response()
+        mock_inner.responses.create.return_value = self._ok_response()
         self._wire(client, mock_inner)
         result = client.complete("sys", "user")
         assert result.model == "gpt-5.6-sol#pro"
 
     def test_default_response_model_unsuffixed(self, monkeypatch):
-        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
         mock_inner = MagicMock()
-        mock_inner.chat.completions.create.return_value = self._ok_response()
+        mock_inner.chat.completions.create.return_value = self._chat_response()
         self._wire(client, mock_inner)
         result = client.complete("sys", "user")
-        assert result.model == "gpt-5.6-sol"
+        assert result.model == "gpt-5.6-terra"
 
     def test_bare_openai_pro_prefix_rejected(self, monkeypatch):
         from vera_bench.models import create_client

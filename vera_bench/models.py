@@ -200,6 +200,46 @@ def create_client(model: str) -> LLMClient:
     )
 
 
+# Reasoning execution modes, per the OpenAI Responses API `reasoning.mode`
+# field (Literal["standard", "pro"] in openai-python 2.47). This is a
+# different axis from `reasoning.effort` — see OpenAIClient.__init__.
+REASONING_MODES: frozenset[str] = frozenset({"standard", "pro"})
+
+# Models routed to the Responses API even without an explicit mode.
+#
+# This exists to keep the reasoning-budget comparison controlled.
+# `openai-pro/gpt-5.6-sol` can ONLY run on Responses (pro mode is
+# Responses-only), so if its default-mode counterpart ran on Chat
+# Completions the two arms would differ by endpoint as well as by mode —
+# and the slide claims the difference is deliberation. Pinning both Sol
+# entries here makes mode the only variable.
+#
+# Deliberately not every OpenAI model: gpt-5.6-terra is a separate tier
+# row, not half of a controlled pair, and leaving it on Chat Completions
+# avoids re-verifying a path that already works.
+RESPONSES_API_MODELS: frozenset[str] = frozenset({"gpt-5.6-sol"})
+
+
+def _anthropic_text(content: object) -> str:
+    """Join the text blocks of an Anthropic response, skipping the rest.
+
+    Models with extended thinking return ThinkingBlock (and possibly
+    RedactedThinkingBlock) entries *ahead of* the TextBlock, so
+    `content[0]` is not the answer — Claude Fable 5 fails outright on a
+    blind `content[0].text` with "'ThinkingBlock' object has no
+    attribute 'text'". Blocks are matched on `.type` rather than
+    isinstance so a future SDK can add block kinds without breaking
+    this, and every text block is joined rather than just the first,
+    since nothing guarantees there is exactly one.
+    """
+    parts = [
+        getattr(block, "text", "") or ""
+        for block in (content or [])
+        if getattr(block, "type", None) == "text"
+    ]
+    return "".join(parts)
+
+
 class AnthropicClient:
     def __init__(self, model: str) -> None:
         try:
@@ -244,7 +284,21 @@ class AnthropicClient:
             raise TimeoutError(f"Anthropic API timed out: {e}") from e
 
         elapsed = time.monotonic() - start
-        text = response.content[0].text if response.content else ""
+        text = _anthropic_text(response.content)
+        if not text:
+            # Mirrors _validate_openai_response_text. Without this, an
+            # empty string reaches extract_code and the row is recorded as
+            # "did not define entry point" — the model blamed for an
+            # API-side non-answer. Realistic for the thinking models this
+            # release adds: a response truncated mid-deliberation contains
+            # ThinkingBlocks and no TextBlock at all.
+            kinds = [getattr(b, "type", "?") for b in (response.content or [])]
+            raise RuntimeError(
+                f"Anthropic returned no text block for model={self._model!r} "
+                f"(stop_reason={getattr(response, 'stop_reason', 'unknown')}, "
+                f"blocks={kinds}). Extended thinking may have consumed the "
+                f"entire {max_tokens}-token budget — try raising --max-tokens."
+            )
         usage = response.usage
         cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
         cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
@@ -277,10 +331,27 @@ class OpenAIClient:
 
         self._client = openai.OpenAI(api_key=api_key)
         self._model = model.removeprefix("openai/")
-        # Reasoning mode (e.g. "pro" for gpt-5.6-sol's ceiling tier).
-        # Set by the openai-pro/ routing prefix in create_client; never
-        # via the runner (the complete() Protocol carries no per-call
-        # config — see the openai-pro design notes in the v0.0.16 plan).
+        # Reasoning execution mode for the ceiling ("pro") benchmark
+        # entry. Set by the openai-pro/ routing prefix in create_client;
+        # never via the runner (the complete() Protocol carries no
+        # per-call config — see the v0.0.16 plan).
+        #
+        # `mode` and `effort` are INDEPENDENT axes: mode selects standard
+        # vs pro execution, effort controls how much reasoning happens
+        # within it. Pro mode exists only on the Responses API, so a
+        # client with a mode set routes there instead of Chat
+        # Completions. Chat Completions rejects the parameter outright
+        # (400 "Unknown parameter: 'reasoning'"), and mapping pro onto
+        # reasoning_effort="max" does not work either — gpt-5.6-sol
+        # rejects "max" on Chat Completions, and effort is the wrong axis
+        # regardless. Both verified live, 2026-07-23.
+        if reasoning_mode is not None and reasoning_mode not in REASONING_MODES:
+            raise ValueError(
+                f"Unknown reasoning mode {reasoning_mode!r}. "
+                f"Known modes: {sorted(REASONING_MODES)}"
+            )
+        if reasoning_mode is None and self._model in RESPONSES_API_MODELS:
+            reasoning_mode = "standard"
         self._reasoning_mode = reasoning_mode
 
     def complete(
@@ -290,23 +361,21 @@ class OpenAIClient:
         max_tokens: int = 4096,
         timeout: float = 120.0,
     ) -> LLMResponse:
-        # Reasoning consumes completion budget on reasoning models —
-        # a 4096 default can be all deliberation and no output at the
-        # pro tier. Floor the budget when a reasoning mode is active;
-        # smoke test S2 validates against truncation.
+        # Reasoning consumes output budget on reasoning models — a 4096
+        # default can be all deliberation and no answer at the pro tier.
+        # The floor applies to standard mode too, not just pro: both arms
+        # of the reasoning-budget comparison must get the same ceiling,
+        # or the delta measures the budget as well as the mode. Smoke S2
+        # validates against truncation.
         effective_max = max_tokens
         if self._reasoning_mode:
             effective_max = max(max_tokens, 16000)
+            return self._complete_responses(system, user, effective_max, timeout)
 
         # Cache-shard routing for the shared system prefix, passed via
         # extra_body so it works on any 1.x SDK regardless of
-        # typed-kwarg support (#61). The reasoning mode rides the same
-        # channel ("reasoning.mode" per OpenAI's gpt-5.5-pro
-        # deprecation notice); smoke S2 verifies the exact accepted
-        # shape before the sweep.
+        # typed-kwarg support (#61).
         extra_body: dict = {"prompt_cache_key": _prompt_cache_key(system)}
-        if self._reasoning_mode:
-            extra_body["reasoning"] = {"mode": self._reasoning_mode}
 
         start = time.monotonic()
         response = _call_openai_compatible(
@@ -330,19 +399,90 @@ class OpenAIClient:
         elapsed = time.monotonic() - start
         text = _validate_openai_response_text(response, "OpenAI", self._model)
         usage = response.usage
-        # Both Sol variants report the same API model id — suffix the
-        # reasoning mode so JSONL rows are self-describing (filenames
-        # are already distinct via the CLI model string).
-        reported_model = response.model or self._model
-        if self._reasoning_mode:
-            reported_model = f"{reported_model}#{self._reasoning_mode}"
         return LLMResponse(
             text=text,
             input_tokens=_as_count(usage.prompt_tokens) if usage else 0,
             output_tokens=_as_count(usage.completion_tokens) if usage else 0,
             wall_time_s=round(elapsed, 2),
-            model=reported_model,
+            model=response.model or self._model,
             cached_tokens=_openai_cached_tokens(usage) if usage else 0,
+        )
+
+    def _complete_responses(
+        self, system: str, user: str, max_output: int, timeout: float
+    ) -> LLMResponse:
+        """Run through the Responses API, the only endpoint carrying
+        `reasoning.mode`. Chat Completions rejects the parameter."""
+        start = time.monotonic()
+        response = _call_openai_compatible(
+            lambda: self._client.with_options(timeout=timeout).responses.create(
+                model=self._model,
+                instructions=system,
+                input=user,
+                reasoning={"mode": self._reasoning_mode},
+                max_output_tokens=max_output,
+                prompt_cache_key=_prompt_cache_key(system),
+                # Responses defaults store=True; Chat Completions does not
+                # persist at all. Opting out keeps repeat sweeps mutually
+                # independent — retained prompts and completions could feed
+                # cross-run caching or personalisation, and a benchmark whose
+                # second run is informed by its first is not measuring what
+                # it claims to. (It also keeps 60 problems' worth of prompts
+                # and generated code off the provider's servers.)
+                store=False,
+            ),
+            label="OpenAI",
+            key_hint="OPENAI_API_KEY",
+            model=self._model,
+        )
+        elapsed = time.monotonic() - start
+
+        # The response echoes the *effective* execution mode, so a silent
+        # downgrade to standard is detectable here rather than inferred
+        # later from suspiciously-similar wall times. A pro entry that
+        # actually ran standard would make the headline comparison a
+        # model against itself, so it must not pass quietly.
+        # Absence must be as loud as mismatch. Both `reasoning` and `mode`
+        # are Optional with None defaults, so a server that did NOT apply
+        # the parameter most likely does not echo it either — and an
+        # `if effective and ...` guard short-circuits past precisely the
+        # case this exists to catch. The row is stamped "#pro" on the
+        # strength of this check, and the reasoning slide's entire claim
+        # rests on that suffix meaning something.
+        effective = getattr(getattr(response, "reasoning", None), "mode", None)
+        if effective != self._reasoning_mode:
+            raise RuntimeError(
+                f"OpenAI did not confirm the reasoning mode for "
+                f"model={self._model!r}: requested {self._reasoning_mode!r}, "
+                f"response reported {effective!r}. An unconfirmed mode must "
+                f"not be recorded as '#{self._reasoning_mode}'."
+            )
+
+        text = (response.output_text or "").strip()
+        if not text:
+            detail = getattr(response, "incomplete_details", None)
+            reason = getattr(detail, "reason", None) or getattr(
+                response, "status", "unknown"
+            )
+            raise ValueError(
+                f"OpenAI returned no output text for model={self._model!r} "
+                f"(status/reason: {reason}). Reasoning may have consumed the "
+                f"entire {max_output}-token budget."
+            )
+
+        usage = response.usage
+        details = getattr(usage, "input_tokens_details", None) if usage else None
+        # Both Sol variants report the same API model id — suffix the
+        # reasoning mode so JSONL rows are self-describing (filenames
+        # are already distinct via the CLI model string).
+        reported = f"{response.model or self._model}#{self._reasoning_mode}"
+        return LLMResponse(
+            text=text,
+            input_tokens=_as_count(getattr(usage, "input_tokens", 0)) if usage else 0,
+            output_tokens=_as_count(getattr(usage, "output_tokens", 0)) if usage else 0,
+            wall_time_s=round(elapsed, 2),
+            model=reported,
+            cached_tokens=_as_count(getattr(details, "cached_tokens", 0)),
         )
 
 

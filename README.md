@@ -113,7 +113,8 @@ Afterwards you should be able to print the Vera version from the terminal,
 vera version   
 ```
 
-this should return v0.0.108 or later.
+this should return v0.1.6 or later. Vera 0.1.x changed several semantics the
+benchmark depends on, so older compilers will fail validation.
 
 ## Quick start
 
@@ -125,25 +126,25 @@ vera-bench validate
 
 # Run benchmark against a model
 export ANTHROPIC_API_KEY=sk-ant-...
-vera-bench run --model claude-sonnet-4-6
+vera-bench run --model claude-sonnet-5
 
 # Run a single tier
-vera-bench run --model claude-sonnet-4-6 --tier 1
+vera-bench run --model claude-sonnet-5 --tier 1
 
 # Run a single problem
-vera-bench run --model claude-sonnet-4-6 --problem VB-T1-001
+vera-bench run --model claude-sonnet-5 --problem VB-T1-001
 
 # Spec-from-NL mode (agent writes its own contracts)
-vera-bench run --model claude-sonnet-4-6 --mode spec-from-nl
+vera-bench run --model claude-sonnet-5 --mode spec-from-nl
 
 # Ask the same model to write Python, TypeScript, Aver, or AILANG for comparison
-vera-bench run --model claude-sonnet-4-6 --language python
-vera-bench run --model claude-sonnet-4-6 --language typescript
-vera-bench run --model claude-sonnet-4-6 --language aver
-vera-bench run --model claude-sonnet-4-6 --language ailang
+vera-bench run --model claude-sonnet-5 --language python
+vera-bench run --model claude-sonnet-5 --language typescript
+vera-bench run --model claude-sonnet-5 --language aver
+vera-bench run --model claude-sonnet-5 --language ailang
 
 # Slow model? Dispatch problems concurrently (default is sequential)
-vera-bench run --model kimi-k2.5 --parallel 10
+vera-bench run --model moonshot/kimi-k2.6 --parallel 10
 
 # Run canonical baselines as a reference
 vera-bench baselines
@@ -154,21 +155,37 @@ vera-bench baselines --language ailang
 # Generate a combined report
 vera-bench report results/
 
-# Or run the full benchmark suite (all 8 targets) with one command
+# Or run the full benchmark suite (all 10 targets) with one command
 python scripts/run_full_benchmark.py
 ```
+
+Before committing to a large sweep, run the preflight gate. It checks every
+configured model id, provider auth, the request parameters each model accepts,
+and all four toolchains — one problem per check, so the whole thing is a couple
+of dollars against a sweep that is hours and no resume:
+
+```bash
+bash scripts/preflight.sh
+```
+
+See [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate) for the
+stage breakdown and how to re-run individual stages while fixing something.
 
 Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/) (used for AILANG-capable models). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
 
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
 
 ```bash
-vera-bench run --model claude-sonnet-4-6 --skill-md /path/to/SKILL.md
+vera-bench run --model claude-sonnet-5 --skill-md /path/to/SKILL.md
 ```
 
 ## Report generation
 
-Running `vera-bench report results/` generates `results/summary.md` with a summary table, per-tier breakdowns, and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so partial runs are resumable and always reportable. Results files are in `.gitignore` — they are generated artifacts, not checked in.
+Running `vera-bench report results/` generates `results/summary.md` with a summary table, per-tier breakdowns, and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so a run that stops early is still reportable up to the problem it reached.
+
+> **There is no resume.** `vera-bench run` deletes any existing output file for that model × language × mode before it starts, so re-running an interrupted target repeats it from problem 1 rather than topping it up. Filenames carry no timestamp, so the old results are gone. Budget a full re-run for any target that does not finish.
+
+Results files are in `.gitignore` — they are generated artifacts, not checked in.
 
 ## Prior art
 

@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.0.16] - 2026-07-23
 
 ### Added
 
@@ -29,12 +29,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `create_client` routes the prefix to `OpenAIClient(...,
     reasoning_mode="pro")`; the runner needs no changes (the
     `complete()` Protocol carries no per-call config by design).
-  - The reasoning mode rides `extra_body` alongside the #61
-    `prompt_cache_key`; the pro tier floors the completion budget
-    at 16k tokens (reasoning consumes completion budget).
-  - JSONL rows from pro runs report `model: "<api-model>#pro"` so
-    the two variants are self-describing; results filenames are
+  - Both Sol arms run through the **Responses API**, which is the
+    only endpoint carrying `reasoning.mode`, and both get the same
+    16k output floor — an unequal budget would be a second variable
+    in a comparison that claims to have one. `gpt-5.6-terra` is not
+    half of the pair and stays on Chat Completions.
+  - JSONL rows are self-describing: `model: "<api-model>#pro"` and
+    `"<api-model>#standard"` respectively. Result filenames are
     already distinct (built from the CLI model string).
+  - The response echoes the *effective* mode, and a mismatch — or an
+    absent echo — raises rather than being recorded as a pro result.
   - `OpenAIClient` now sends `max_completion_tokens` (the GPT-5.x
     reasoning families reject the legacy `max_tokens` kwarg).
   - `scripts/run_full_benchmark.py` `_detect_provider` recognises
@@ -69,8 +73,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (previously returned `text=""` and the harness blamed the model
   for "did not define entry point").
 
+### Changed
+
+- **Minimum `openai` SDK raised from `>=1.50` to `>=2.45`.** The
+  `openai-pro/` path calls `responses.create` with `prompt_cache_key`
+  and `reasoning={"mode": "pro"}`; the declared floor supported none of
+  the three. Verified against the wheels rather than inferred:
+  `responses.create` arrived in 1.66.0, `prompt_cache_key` in 2.0.0,
+  and `reasoning.mode` in 2.45.0. 2.0 would in fact work at runtime —
+  `maybe_transform` forwards keys a TypedDict does not declare, and the
+  response model is pydantic `extra="allow"` — but relying on that
+  makes a silent failure possible: if either behaviour changed, the
+  "pro" entry would run in standard mode, the effective-mode guard
+  would no-op, and the reasoning chart would compare a model against
+  itself while looking entirely normal.
+
 ### Fixed
 
+- **A sweep with most calls failing could report an excellent score**
+  ([#95](https://github.com/aallan/vera-bench/issues/95)). `run_correct`
+  is measured over `run_eligible` — problems whose attempt compiled —
+  so rows that never reached the compiler (API errors, auth rejections,
+  timeouts) left the denominator entirely. Verified: **40 API failures
+  plus 20 successes reported `run_correct = 100%`**, and nothing in the
+  output said so; `check@1` merely dropped, which is a normal result
+  for a model struggling with Vera. The rate itself is unchanged, since
+  altering it would break comparability with published results.
+  Instead `BenchmarkMetrics` gained `run_eligible` and `errored`, the
+  CLI summary now prints the graded denominator whenever it differs
+  from the problem count plus an `errored: N/60` row in red, and
+  `extract_data` treats a file with nothing gradeable as *missing*
+  rather than plotting it as a genuine 0% — the same conflation the
+  `missing` set already prevents for absent files, one layer down.
+- **`vera run` failures were indistinguishable from wrong answers.**
+  The per-test loop in `_evaluate_vera_code` discarded the exit code and
+  stderr on failure, and swallowed every exception through a bare
+  `except Exception` with no message — so a compiler crash was recorded
+  as `error_message=None, check_pass=True, run_correct=False`, byte-identical
+  to a model writing a wrong program. The #72 diagnostics work reached the
+  Aver and AILANG evaluators but never the Vera path, which is the
+  headline number. Now captures the first failure via a `_vera_run_error`
+  sibling of `_first_run_error`, including **signal detection**:
+  `subprocess` reports a signal death as a negative return code, so a
+  compiler SIGBUS arrives as `exit_code == -10` and is now named as such.
+  Not hypothetical — vera SIGBUS'd repeatedly on 2026-07-23
+  ([aallan/vera#1145](https://github.com/aallan/vera/issues/1145)), and
+  every one of those would have been scored against the model.
+- **`preflight.sh` now exits non-zero when the gate fails.** It could
+  print `*** pro may be SILENTLY IGNORED ***` — the one finding that
+  invalidates the reasoning slide — and still exit 0, because the S2 and
+  S3 analyses printed their verdicts from inside Python heredocs without
+  touching the pass/fail counters. A chained
+  `preflight.sh && run_full_benchmark.py` would have sailed straight
+  past it. S2's verdict now feeds the counters and the script ends on
+  its own tally.
+- **Both Sol arms now send `store=False`.** The Responses API defaults
+  to `store=True` where Chat Completions does not persist at all, so
+  the pro routing silently introduced 30-day server-side retention of
+  every prompt and completion. Beyond the data-handling question,
+  retained content could feed cross-run caching or personalisation —
+  and a benchmark whose second run is informed by its first is not
+  measuring what it claims to.
+- **Claude Fable 5 returned no code at all.** `AnthropicClient.complete`
+  read `response.content[0].text`, but models with extended thinking
+  return `ThinkingBlock` entries *ahead of* the `TextBlock` — so every
+  Fable 5 call died with `'ThinkingBlock' object has no attribute
+  'text'`, recorded as an API-error row with no generated code. The
+  whole fable tier of the v0.0.16 matrix would have come back empty.
+  A new `_anthropic_text` helper selects blocks by `.type == "text"`
+  and joins them, ignoring thinking and redacted-thinking blocks.
+  Caught by smoke S1 (2026-07-23); the pre-existing unit test missed it
+  because a bare `MagicMock` auto-supplies any attribute, including the
+  `.text` the real `ThinkingBlock` lacks.
+- **`openai-pro/` went to the wrong endpoint — now uses the Responses
+  API.** The reasoning tier was passed as `extra_body={"reasoning":
+  {"mode": "pro"}}` on Chat Completions, which rejects it with `400
+  Unknown parameter: 'reasoning'`, so every Sol@pro call failed. Per
+  OpenAI's reasoning guide, **mode and effort are independent axes** —
+  mode selects standard vs pro *execution*, effort controls how much
+  reasoning happens — and `reasoning.mode` exists only on the Responses
+  API (`Literal["standard", "pro"]` in openai-python 2.47). Pro is
+  therefore not expressible on Chat Completions at all: `reasoning` is
+  rejected as unknown, and `reasoning_effort="max"` is rejected too
+  (`gpt-5.6-sol` accepts only `none`/`low`/`medium`/`high`/`xhigh`
+  there — `max` is Responses-only). A client with a reasoning mode set
+  now routes to `responses.create` with `instructions`/`input`/
+  `max_output_tokens` and reads usage from `input_tokens` /
+  `output_tokens` / `input_tokens_details.cached_tokens`. Two new
+  guards: an unknown mode raises at construction, and a response whose
+  echoed *effective* `reasoning.mode` differs from the requested one
+  raises rather than being recorded as a pro result — a silent
+  downgrade would turn the headline pro-vs-default comparison into a
+  model compared against itself. Confirms the CodeRabbit finding on
+  [#92](https://github.com/aallan/vera-bench/pull/92) that was declined
+  pending evidence.
+
+  **Both Sol entries are pinned to the Responses API** via
+  `RESPONSES_API_MODELS`, with the default entry sending an explicit
+  `reasoning.mode: "standard"`. Pro mode exists only on Responses, so
+  leaving the default arm on Chat Completions would vary endpoint and
+  mode together and the reasoning-budget comparison could not attribute
+  its delta to deliberation. The 16000-token output floor applies to
+  both arms for the same reason. `gpt-5.6-terra` is a separate tier row
+  rather than half of a controlled pair, and stays on Chat Completions.
+  Sol rows now report `model` as `gpt-5.6-sol#standard` /
+  `gpt-5.6-sol#pro`; charts key on filenames, which are unchanged.
+- **Long result paths wrapped mid-token in console output.** `Output:
+  <path>` was printed through rich, which wraps at the console width
+  (80 when not a tty — CI, and any sweep log piped to a file), breaking
+  paths across lines mid-word and making them un-greppable and
+  un-copy-pasteable. Now printed with `soft_wrap=True`. This was also
+  failing `test_run_ailang_full_path_success` on `main`.
+- **`aver`/`ailang` version-probe timeouts reported the wrong cause.**
+  A `TimeoutExpired` from `--version` was either unhandled (ailang) or
+  folded into the not-found branch (aver), which advised reinstalling a
+  compiler that is already installed. Both now report the timeout
+  distinctly.
+- **AILANG version parsing corrupted result filenames.** `run
+  --language ailang` built its output filename from the compiler's
+  raw `--version` stdout. `ailang --version` prints a **seven-line**
+  banner (version, commit, full SHA, build stamp, blank, tagline,
+  copyright), and the old `.strip().replace("ailang ", "")` matched
+  nothing in it — the binary prints `AILANG v0.30.0`, capitalised.
+  The entire banner therefore landed in the filename, producing a
+  216-character name containing embedded newlines and colons. macOS
+  creates such a file happily, so this failed silently: every shell
+  glob in the sweep runbook, the `file_prefix` matching in
+  `plot_results.py`, and the release tarball would all have missed
+  the AILANG results. Never caught because `baselines --language
+  ailang` uses a separate code path that does not embed versions.
+  Both the Aver and AILANG probes now share a `_parse_version_banner`
+  helper that takes the first line and extracts the numeric version
+  token, falling back to `"unknown"` (which callers already treat as
+  "omit the version from the filename"). The AILANG probe also now
+  catches `TimeoutExpired`, matching the Aver probe.
 - **Vera 0.1.x compatibility for the problem set and canonical
   solutions.** Vera moved from v0.0.177 to v0.1.6+ (the v0.1.0 bug
   burndown plus the 0.1.x line) and three compiler changes broke
@@ -566,7 +702,8 @@ Vera, Vera spec-from-NL, Python, and TypeScript scoring is unaffected.
 - Claude Sonnet 4: 96% check@1, 96% verify@1, 83% run_correct (50 problems, full-spec mode)
 - Python canonical baselines: 100% run_correct (24 testable problems)
 
-[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.15...HEAD
+[Unreleased]: https://github.com/aallan/vera-bench/compare/v0.0.16...HEAD
+[0.0.16]: https://github.com/aallan/vera-bench/compare/v0.0.15...v0.0.16
 [0.0.15]: https://github.com/aallan/vera-bench/compare/v0.0.14...v0.0.15
 [0.0.14]: https://github.com/aallan/vera-bench/compare/v0.0.13...v0.0.14
 [0.0.13]: https://github.com/aallan/vera-bench/compare/v0.0.12...v0.0.13

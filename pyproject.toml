@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vera-bench"
-version = "0.0.15"
+version = "0.0.16"
 description = "HumanEval/MBPP-style benchmark for the Vera programming language"
 readme = "README.md"
 license = "MIT"
@@ -17,7 +17,24 @@ dependencies = [
 [project.optional-dependencies]
 llm = [
     "anthropic>=0.40",
-    "openai>=1.50",
+    # Floor verified by inspecting wheels, not inferred:
+    #   1.66.0  responses.create yes, prompt_cache_key NO, reasoning.mode NO
+    #   2.0.0   prompt_cache_key   yes, reasoning.mode NO
+    #   2.44.0  reasoning.mode     NO
+    #   2.45.0  reasoning.mode     yes  <- floor
+    # The openai-pro/ path needs all three: it calls responses.create with
+    # prompt_cache_key and reasoning={"mode": "pro"}.
+    #
+    # 2.0 would in fact work at runtime — maybe_transform forwards keys the
+    # TypedDict does not declare, and the response model is pydantic
+    # extra="allow", so mode survives both directions. We do not rely on
+    # that. Both are undocumented implementation details, and if either
+    # changed the failure would be silent: the "pro" entry would run in
+    # standard mode, the effective-mode guard would no-op, and the
+    # reasoning-budget chart would look entirely normal while comparing a
+    # model against itself. Requiring the version where the field is
+    # actually declared makes that failure impossible instead of unlikely.
+    "openai>=2.45",
 ]
 dev = [
     "pytest>=7.0",

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import click
@@ -11,9 +12,28 @@ from rich.table import Table
 
 console = Console()
 
+_VERSION_RE = re.compile(r"\d+\.\d+(?:\.\d+)?")
+
 
 def _repo_root() -> Path:
     return Path(__file__).parent.parent
+
+
+def _parse_version_banner(raw: str) -> str:
+    """Pull a bare version number out of a compiler's --version output.
+
+    Banners vary in shape: `aver --version` prints a single line
+    (`aver 0.27.1`), while `ailang --version` prints seven — commit hash,
+    build stamp and copyright included. Only the first line carries the
+    version, and only the numeric token belongs in a result filename,
+    which is built by hyphen-joining these fragments. Returning the raw
+    banner puts newlines and spaces into that filename; callers treat
+    "unknown" as "omit the version from the name" instead.
+    """
+    stripped = raw.strip()
+    first_line = stripped.splitlines()[0] if stripped else ""
+    match = _VERSION_RE.search(first_line)
+    return match.group(0) if match else "unknown"
 
 
 @click.group()
@@ -206,8 +226,14 @@ def run(
                     "Check your aver installation.[/red]"
                 )
                 raise SystemExit(1)
-            aver_ver = _av_proc.stdout.strip().replace("aver ", "")
-        except (FileNotFoundError, _sp.TimeoutExpired):
+            aver_ver = _parse_version_banner(_av_proc.stdout)
+        except _sp.TimeoutExpired:
+            console.print(
+                "[red]Error: aver --version timed out after 5s. "
+                "Check your aver installation.[/red]"
+            )
+            raise SystemExit(1)
+        except FileNotFoundError:
             console.print(
                 "[red]Error: aver not found on PATH. "
                 "Install with: cargo install aver-lang[/red]"
@@ -234,17 +260,20 @@ def run(
                     "Check your ailang installation.[/red]"
                 )
                 raise SystemExit(1)
-            ailang_ver = _al_proc.stdout.strip().replace("ailang ", "")
+            ailang_ver = _parse_version_banner(_al_proc.stdout)
+        except _sp.TimeoutExpired:
+            # Distinct from not-found: the binary exists but is wedged.
+            # Reporting "not on PATH" here sends you to reinstall
+            # something that is already installed.
+            console.print(
+                "[red]Error: ailang --version timed out after 5s. "
+                "Check your ailang installation.[/red]"
+            )
+            raise SystemExit(1)
         except FileNotFoundError:
             console.print(
                 "[red]Error: ailang not found on PATH. "
                 "Install from https://github.com/sunholo-data/ailang[/red]"
-            )
-            raise SystemExit(1)
-        except _sp.TimeoutExpired:
-            console.print(
-                "[red]Error: `ailang --version` timed out after 5s. "
-                "Check for a hung ailang process or slow startup.[/red]"
             )
             raise SystemExit(1)
 
@@ -283,7 +312,11 @@ def run(
         console.print(f"Vera:     v{vera_ver}")
     if ailang_ver:
         console.print(f"AILANG:   v{ailang_ver}")
-    console.print(f"Output:   {output_path}\n")
+    # soft_wrap: rich wraps at the console width (80 when not a tty, as
+    # in CI and when piping a sweep log to a file), which breaks a long
+    # result path across lines mid-token. The path is meant to be
+    # copy-pasteable and greppable, so let it overflow instead.
+    console.print(f"Output:   {output_path}\n", soft_wrap=True)
 
     # Run benchmark
     results = run_benchmark(
@@ -326,7 +359,25 @@ def _print_metrics(model: str, metrics, language: str = "vera") -> None:
     if language in ("vera", "aver"):
         table.add_row("verify@1", _fmt_rate(metrics.verify_rate))
         table.add_row("fix@1", _fmt_rate(metrics.fix_rate))
-    table.add_row("run_correct", _fmt_rate(metrics.run_correct_rate))
+    # run_correct is measured over the problems that compiled, not over
+    # all of them, so state the denominator rather than leaving the
+    # reader to assume it is total_problems.
+    eligible = getattr(metrics, "run_eligible", 0)
+    run_cell = _fmt_rate(metrics.run_correct_rate)
+    if eligible and eligible != metrics.total_problems:
+        run_cell = f"{run_cell} ({eligible}/{metrics.total_problems} graded)"
+    table.add_row("run_correct", run_cell)
+
+    # Printed unconditionally when non-zero. A run where most calls died
+    # at the API otherwise looks entirely healthy: check@1 drops, which
+    # is a normal result for a model struggling with Vera, while
+    # run_correct rises because the failures left its denominator.
+    errored = getattr(metrics, "errored", 0)
+    if errored:
+        table.add_row(
+            "[red]errored[/red]",
+            f"[red]{errored}/{metrics.total_problems}[/red]",
+        )
 
     if metrics.by_tier:
         table.add_section()
@@ -420,7 +471,11 @@ def baselines(language: str, output_dir: Path | None):
             raise SystemExit(1)
 
     console.print(f"Language: {language}")
-    console.print(f"Output:   {output_path}\n")
+    # soft_wrap: rich wraps at the console width (80 when not a tty, as
+    # in CI and when piping a sweep log to a file), which breaks a long
+    # result path across lines mid-token. The path is meant to be
+    # copy-pasteable and greppable, so let it overflow instead.
+    console.print(f"Output:   {output_path}\n", soft_wrap=True)
 
     # Run baselines
     results = run_all_baselines(
