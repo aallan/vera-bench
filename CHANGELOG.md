@@ -71,6 +71,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **AILANG version parsing corrupted result filenames.** `run
+  --language ailang` built its output filename from the compiler's
+  raw `--version` stdout. `ailang --version` prints a **seven-line**
+  banner (version, commit, full SHA, build stamp, blank, tagline,
+  copyright), and the old `.strip().replace("ailang ", "")` matched
+  nothing in it — the binary prints `AILANG v0.30.0`, capitalised.
+  The entire banner therefore landed in the filename, producing a
+  216-character name containing embedded newlines and colons. macOS
+  creates such a file happily, so this failed silently: every shell
+  glob in the sweep runbook, the `file_prefix` matching in
+  `plot_results.py`, and the release tarball would all have missed
+  the AILANG results. Never caught because `baselines --language
+  ailang` uses a separate code path that does not embed versions.
+  Both the Aver and AILANG probes now share a `_parse_version_banner`
+  helper that takes the first line and extracts the numeric version
+  token, falling back to `"unknown"` (which callers already treat as
+  "omit the version from the filename"). The AILANG probe also now
+  catches `TimeoutExpired`, matching the Aver probe.
 - **Vera 0.1.x compatibility for the problem set and canonical
   solutions.** Vera moved from v0.0.177 to v0.1.6+ (the v0.1.0 bug
   burndown plus the 0.1.x line) and three compiler changes broke

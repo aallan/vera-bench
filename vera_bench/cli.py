@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import click
@@ -11,9 +12,28 @@ from rich.table import Table
 
 console = Console()
 
+_VERSION_RE = re.compile(r"\d+\.\d+(?:\.\d+)?")
+
 
 def _repo_root() -> Path:
     return Path(__file__).parent.parent
+
+
+def _parse_version_banner(raw: str) -> str:
+    """Pull a bare version number out of a compiler's --version output.
+
+    Banners vary in shape: `aver --version` prints a single line
+    (`aver 0.27.1`), while `ailang --version` prints seven — commit hash,
+    build stamp and copyright included. Only the first line carries the
+    version, and only the numeric token belongs in a result filename,
+    which is built by hyphen-joining these fragments. Returning the raw
+    banner puts newlines and spaces into that filename; callers treat
+    "unknown" as "omit the version from the name" instead.
+    """
+    stripped = raw.strip()
+    first_line = stripped.splitlines()[0] if stripped else ""
+    match = _VERSION_RE.search(first_line)
+    return match.group(0) if match else "unknown"
 
 
 @click.group()
@@ -206,7 +226,7 @@ def run(
                     "Check your aver installation.[/red]"
                 )
                 raise SystemExit(1)
-            aver_ver = _av_proc.stdout.strip().replace("aver ", "")
+            aver_ver = _parse_version_banner(_av_proc.stdout)
         except (FileNotFoundError, _sp.TimeoutExpired):
             console.print(
                 "[red]Error: aver not found on PATH. "
@@ -234,8 +254,8 @@ def run(
                     "Check your ailang installation.[/red]"
                 )
                 raise SystemExit(1)
-            ailang_ver = _al_proc.stdout.strip().replace("ailang ", "")
-        except FileNotFoundError:
+            ailang_ver = _parse_version_banner(_al_proc.stdout)
+        except (FileNotFoundError, _sp.TimeoutExpired):
             console.print(
                 "[red]Error: ailang not found on PATH. "
                 "Install from https://github.com/sunholo-data/ailang[/red]"
