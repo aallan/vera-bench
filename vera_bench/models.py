@@ -50,6 +50,72 @@ def _prompt_cache_key(system: str) -> str:
     return f"vera-bench-{digest}"
 
 
+def _call_openai_compatible(create_fn, label: str, key_hint: str, model: str):
+    """Invoke an OpenAI-compatible create() with the standard error map.
+
+    Shared by OpenAIClient / MoonshotClient / OpenRouterClient — same
+    exception taxonomy, provider-specific label and credential hint:
+    - APITimeoutError -> TimeoutError
+    - AuthenticationError -> EnvironmentError (abort the run —
+      retrying 60 problems with the same bad key is pure waste; the
+      benchmark loop re-raises EnvironmentError rather than recording
+      per-problem crash rows)
+    - RateLimitError / BadRequestError / APIStatusError -> clean
+      RuntimeError messages instead of raw multi-line openai reprs
+      landing in JSONL
+    """
+    import openai
+
+    try:
+        return create_fn()
+    except openai.APITimeoutError as e:
+        raise TimeoutError(f"{label} API timed out: {e}") from e
+    except openai.AuthenticationError as e:
+        raise EnvironmentError(
+            f"{label} authentication failed (check {key_hint}): {e}"
+        ) from e
+    except openai.RateLimitError as e:
+        raise RuntimeError(
+            f"{label} rate-limited the model={model!r} "
+            f"request: {e}. Slow the sweep or use a higher tier."
+        ) from e
+    except openai.BadRequestError as e:
+        raise RuntimeError(
+            f"{label} rejected the request to model={model!r}: {e}. "
+            "Often model id wrong or prompt exceeds context."
+        ) from e
+    except openai.APIStatusError as e:
+        raise RuntimeError(
+            f"{label} API error (status={getattr(e, 'status_code', '?')}) "
+            f"on model={model!r}: {e}"
+        ) from e
+
+
+def _validate_openai_response_text(response, label: str, model: str) -> str:
+    """Extract text from an OpenAI-compatible response, or raise.
+
+    Explicit errors on empty choices / empty content — without these
+    the harness would receive text="" and blame the model for "did
+    not define entry point" when the real fault is API-side (content
+    filter, tool-call-only response, truncation).
+    """
+    if not response.choices:
+        finish_reason = getattr(response, "finish_reason", "no choices")
+        raise RuntimeError(
+            f"{label} returned no choices for model={model!r} "
+            f"(finish_reason={finish_reason})"
+        )
+    choice = response.choices[0]
+    text = choice.message.content if choice.message else None
+    if not text:
+        finish_reason = getattr(choice, "finish_reason", "unknown")
+        raise RuntimeError(
+            f"{label} returned empty content for model={model!r} "
+            f"(finish_reason={finish_reason})"
+        )
+    return text
+
+
 class LLMClient(Protocol):
     def complete(
         self,
@@ -170,13 +236,9 @@ class OpenAIClient:
         max_tokens: int = 4096,
         timeout: float = 120.0,
     ) -> LLMResponse:
-        import openai
-
         start = time.monotonic()
-        try:
-            response = self._client.with_options(
-                timeout=timeout
-            ).chat.completions.create(
+        response = _call_openai_compatible(
+            lambda: self._client.with_options(timeout=timeout).chat.completions.create(
                 model=self._model,
                 max_tokens=max_tokens,
                 messages=[
@@ -187,49 +249,13 @@ class OpenAIClient:
                 # Passed via extra_body so it works on any 1.x SDK
                 # regardless of typed-kwarg support (#61).
                 extra_body={"prompt_cache_key": _prompt_cache_key(system)},
-            )
-        except openai.APITimeoutError as e:
-            raise TimeoutError(f"OpenAI API timed out: {e}") from e
-        except openai.AuthenticationError as e:
-            # Bad API key — abort the run. Retrying 60 problems with the
-            # same bad key is pure waste.
-            raise EnvironmentError(
-                f"OpenAI authentication failed (check OPENAI_API_KEY): {e}"
-            ) from e
-        except openai.RateLimitError as e:
-            raise RuntimeError(
-                f"OpenAI rate-limited the model={self._model!r} "
-                f"request: {e}. Slow the sweep or use a higher tier."
-            ) from e
-        except openai.BadRequestError as e:
-            raise RuntimeError(
-                f"OpenAI rejected the request to model={self._model!r}: {e}. "
-                "Often model id wrong or prompt exceeds context."
-            ) from e
-        except openai.APIStatusError as e:
-            raise RuntimeError(
-                f"OpenAI API error (status={getattr(e, 'status_code', '?')}) "
-                f"on model={self._model!r}: {e}"
-            ) from e
-
+            ),
+            label="OpenAI",
+            key_hint="OPENAI_API_KEY",
+            model=self._model,
+        )
         elapsed = time.monotonic() - start
-
-        if not response.choices:
-            finish_reason = getattr(response, "finish_reason", "no choices")
-            raise RuntimeError(
-                f"OpenAI returned no choices for model={self._model!r} "
-                f"(finish_reason={finish_reason})"
-            )
-
-        choice = response.choices[0]
-        text = choice.message.content if choice.message else None
-        if not text:
-            finish_reason = getattr(choice, "finish_reason", "unknown")
-            raise RuntimeError(
-                f"OpenAI returned empty content for model={self._model!r} "
-                f"(finish_reason={finish_reason})"
-            )
-
+        text = _validate_openai_response_text(response, "OpenAI", self._model)
         usage = response.usage
         return LLMResponse(
             text=text,
@@ -270,13 +296,9 @@ class MoonshotClient:
         max_tokens: int = 4096,
         timeout: float = 120.0,
     ) -> LLMResponse:
-        import openai
-
         start = time.monotonic()
-        try:
-            response = self._client.with_options(
-                timeout=timeout
-            ).chat.completions.create(
+        response = _call_openai_compatible(
+            lambda: self._client.with_options(timeout=timeout).chat.completions.create(
                 model=self._model,
                 max_tokens=max_tokens,
                 messages=[
@@ -286,47 +308,13 @@ class MoonshotClient:
                 # No cache parameter: Moonshot's Context Caching is fully
                 # automatic (prefix matching on all requests, no headers
                 # or cache-lifecycle calls — see #61 research notes).
-            )
-        except openai.APITimeoutError as e:
-            raise TimeoutError(f"Moonshot API timed out: {e}") from e
-        except openai.AuthenticationError as e:
-            raise EnvironmentError(
-                f"Moonshot authentication failed (check MOONSHOT_API_KEY): {e}"
-            ) from e
-        except openai.RateLimitError as e:
-            raise RuntimeError(
-                f"Moonshot rate-limited the model={self._model!r} "
-                f"request: {e}. Slow the sweep or use a higher tier."
-            ) from e
-        except openai.BadRequestError as e:
-            raise RuntimeError(
-                f"Moonshot rejected the request to model={self._model!r}: {e}. "
-                "Often model id wrong or prompt exceeds context."
-            ) from e
-        except openai.APIStatusError as e:
-            raise RuntimeError(
-                f"Moonshot API error (status={getattr(e, 'status_code', '?')}) "
-                f"on model={self._model!r}: {e}"
-            ) from e
-
+            ),
+            label="Moonshot",
+            key_hint="MOONSHOT_API_KEY",
+            model=self._model,
+        )
         elapsed = time.monotonic() - start
-
-        if not response.choices:
-            finish_reason = getattr(response, "finish_reason", "no choices")
-            raise RuntimeError(
-                f"Moonshot returned no choices for model={self._model!r} "
-                f"(finish_reason={finish_reason})"
-            )
-
-        choice = response.choices[0]
-        text = choice.message.content if choice.message else None
-        if not text:
-            finish_reason = getattr(choice, "finish_reason", "unknown")
-            raise RuntimeError(
-                f"Moonshot returned empty content for model={self._model!r} "
-                f"(finish_reason={finish_reason})"
-            )
-
+        text = _validate_openai_response_text(response, "Moonshot", self._model)
         usage = response.usage
         return LLMResponse(
             text=text,
@@ -374,71 +362,22 @@ class OpenRouterClient:
         max_tokens: int = 4096,
         timeout: float = 120.0,
     ) -> LLMResponse:
-        import openai
-
         start = time.monotonic()
-        try:
-            response = self._client.with_options(
-                timeout=timeout
-            ).chat.completions.create(
+        response = _call_openai_compatible(
+            lambda: self._client.with_options(timeout=timeout).chat.completions.create(
                 model=self._model,
                 max_tokens=max_tokens,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
                 ],
-            )
-        except openai.APITimeoutError as e:
-            raise TimeoutError(f"OpenRouter API timed out: {e}") from e
-        except openai.AuthenticationError as e:
-            # Bad API key — abort the run. Retrying 60 problems with the
-            # same bad key is pure waste.
-            raise EnvironmentError(
-                f"OpenRouter authentication failed (check OPENROUTER_API_KEY): {e}"
-            ) from e
-        except openai.RateLimitError as e:
-            raise RuntimeError(
-                f"OpenRouter rate-limited the model={self._model!r} "
-                f"request: {e}. Slow the sweep or use a higher tier."
-            ) from e
-        except openai.BadRequestError as e:
-            raise RuntimeError(
-                f"OpenRouter rejected the request to model={self._model!r}: {e}. "
-                "Often model id wrong or prompt exceeds context."
-            ) from e
-        except openai.APIStatusError as e:
-            # Catch-all for any other API-side failure (5xx, etc.) — these
-            # used to propagate raw and land as multi-line openai-repr
-            # `error_message` rows in JSONL. Wrap with a clean message.
-            raise RuntimeError(
-                f"OpenRouter API error (status={getattr(e, 'status_code', '?')}) "
-                f"on model={self._model!r}: {e}"
-            ) from e
-
+            ),
+            label="OpenRouter",
+            key_hint="OPENROUTER_API_KEY",
+            model=self._model,
+        )
         elapsed = time.monotonic() - start
-
-        # Explicit error if the API returns no choices — without this,
-        # we'd return text="" and the harness would blame the model for
-        # "did not define entry point" when the real fault is API-side.
-        if not response.choices:
-            finish_reason = getattr(response, "finish_reason", "no choices")
-            raise RuntimeError(
-                f"OpenRouter returned no choices for model={self._model!r} "
-                f"(finish_reason={finish_reason})"
-            )
-
-        choice = response.choices[0]
-        # If the choice exists but content is None (e.g. content-filter or
-        # tool-call without text), that's also worth surfacing rather than
-        # silently becoming text="".
-        text = choice.message.content if choice.message else None
-        if not text:
-            finish_reason = getattr(choice, "finish_reason", "unknown")
-            raise RuntimeError(
-                f"OpenRouter returned empty content for model={self._model!r} "
-                f"(finish_reason={finish_reason})"
-            )
-
+        text = _validate_openai_response_text(response, "OpenRouter", self._model)
         usage = response.usage
         return LLMResponse(
             text=text,

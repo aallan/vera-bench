@@ -1324,6 +1324,13 @@ def run_benchmark(
                             bench_version=bench_version,
                             vera_version=vera_version,
                         )
+                    except EnvironmentError:
+                        # Auth failures (bad API key) abort the whole
+                        # sweep — the model clients raise
+                        # EnvironmentError for exactly this reason.
+                        # Recording 60 crash rows on the same bad key
+                        # would defeat that abort semantics.
+                        raise
                     except Exception as exc:  # noqa: BLE001
                         tb = traceback.format_exc()
                         pid = problem.get("id", "?")
@@ -1368,6 +1375,12 @@ def run_benchmark(
                         problem = futures[fut]
                         try:
                             problem_results = fut.result()
+                        except EnvironmentError:
+                            # Bad API key — abort the sweep (see the
+                            # sequential path). Propagating out of the
+                            # executor context cancels the run rather
+                            # than writing a crash row per problem.
+                            raise
                         except Exception as exc:  # noqa: BLE001
                             tb = traceback.format_exc()
                             pid = problem.get("id", "?")

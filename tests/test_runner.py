@@ -3083,3 +3083,73 @@ class TestAilangCLI:
         # The filename slug includes the AILANG version (cli.py:256-257) —
         # appears in the "Output: ..." line printed by cli.py:274.
         assert "ailang-0-21-0" in (result.output or "")
+
+
+class TestEnvironmentErrorAbortsSweep:
+    """Auth failures must abort the whole sweep, not become 60 crash
+    rows — EnvironmentError re-raises through the crash-recording
+    layer in both benchmark paths (#61 hardening, CR follow-up)."""
+
+    def _problem(self, pid):
+        return {"id": pid, "test_cases": []}
+
+    @patch("vera_bench.runner.run_single_problem")
+    def test_sequential_aborts_on_environment_error(self, mock_run, tmp_path):
+        from vera_bench.runner import run_benchmark
+
+        mock_run.side_effect = EnvironmentError("bad API key")
+        with pytest.raises(EnvironmentError, match="bad API key"):
+            run_benchmark(
+                problems=[self._problem("VB-X-0"), self._problem("VB-X-1")],
+                client=MagicMock(),
+                skill_md="",
+                vera=None,
+                language="python",
+                output_path=tmp_path / "out.jsonl",
+                parallel=1,
+            )
+        # Aborted on the first problem — no crash rows written.
+        out = tmp_path / "out.jsonl"
+        assert not out.exists() or out.read_text() == ""
+
+    @patch("vera_bench.runner.run_single_problem")
+    def test_parallel_aborts_on_environment_error(self, mock_run, tmp_path):
+        from vera_bench.runner import run_benchmark
+
+        mock_run.side_effect = EnvironmentError("bad API key")
+        with pytest.raises(EnvironmentError, match="bad API key"):
+            run_benchmark(
+                problems=[self._problem(f"VB-X-{i}") for i in range(3)],
+                client=MagicMock(),
+                skill_md="",
+                vera=None,
+                language="python",
+                output_path=tmp_path / "out.jsonl",
+                parallel=2,
+            )
+        out = tmp_path / "out.jsonl"
+        assert not out.exists() or out.read_text() == ""
+
+    @patch("vera_bench.runner.run_single_problem")
+    def test_other_exceptions_still_recorded_as_crashes(self, mock_run, tmp_path):
+        """Non-auth crashes keep the v0.0.15 crash-row semantics."""
+        import json as _json
+
+        from vera_bench.runner import run_benchmark
+
+        def _side_effect(problem, **kw):
+            raise RuntimeError("worker blew up")
+
+        mock_run.side_effect = _side_effect
+        results = run_benchmark(
+            problems=[self._problem("VB-X-0")],
+            client=MagicMock(_model="m"),
+            skill_md="",
+            vera=None,
+            language="python",
+            output_path=tmp_path / "out.jsonl",
+            parallel=1,
+        )
+        assert len(results) == 1
+        row = _json.loads((tmp_path / "out.jsonl").read_text().strip())
+        assert "worker blew up" in row["error_message"]
