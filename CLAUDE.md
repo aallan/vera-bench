@@ -105,7 +105,7 @@ Plus `AILANG_TRACE=off` in the subprocess env. The `_evaluate_ailang_code` evalu
 
 ### Adding more comparison languages
 
-OpenRouter models can be reached via the `OpenRouterClient` (`vera_bench/models.py`) using the OpenAI-compatible API. `MOONSHOT_API_KEY` and `OPENROUTER_API_KEY` are recognised provider env vars in addition to `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`.
+Models can be reached *through* OpenRouter — which aggregates other vendors' models rather than publishing its own — via the `OpenRouterClient` (`vera_bench/models.py`), using the OpenAI-compatible API and an `or/` model prefix. `MOONSHOT_API_KEY` and `OPENROUTER_API_KEY` are recognised provider env vars in addition to `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`.
 
 ### Tier 5 cross-language caveat
 

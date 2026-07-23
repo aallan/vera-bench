@@ -161,7 +161,7 @@ python scripts/run_full_benchmark.py
 
 Before committing to a large sweep, run the preflight gate. It checks every
 configured model id, provider auth, the request parameters each model accepts,
-and all four toolchains — one problem per check, so the whole thing is a couple
+and the Vera, Aver and AILANG toolchains — one problem per check, so it is a couple
 of dollars against a sweep that is hours and no resume:
 
 ```bash
@@ -171,7 +171,7 @@ bash scripts/preflight.sh
 See [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate) for the
 stage breakdown and how to re-run individual stages while fixing something.
 
-Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/) (used for AILANG-capable models). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
+Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
 
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
 

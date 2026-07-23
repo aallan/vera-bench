@@ -372,9 +372,13 @@ class OpenAIClient:
             effective_max = max(max_tokens, 16000)
             return self._complete_responses(system, user, effective_max, timeout)
 
-        # Cache-shard routing for the shared system prefix, passed via
-        # extra_body so it works on any 1.x SDK regardless of
-        # typed-kwarg support (#61).
+        # Cache-shard routing for the shared system prefix (#61).
+        # Sent via extra_body rather than as a typed kwarg to keep
+        # this call shape identical to the Moonshot and OpenRouter
+        # clients, which share this request path. (The original
+        # reason — compatibility with 1.x SDKs lacking the typed
+        # kwarg — no longer applies: pyproject floors openai at
+        # >=2.45. _complete_responses passes it as a typed kwarg.)
         extra_body: dict = {"prompt_cache_key": _prompt_cache_key(system)}
 
         start = time.monotonic()

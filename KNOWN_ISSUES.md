@@ -12,39 +12,6 @@ For language gotchas (Vera and Aver syntax rules), see
 
 ---
 
-## CI workarounds
-
-### CI: `pip install --upgrade pip` in the dependency-audit job
-
-**File:** `.github/workflows/ci.yml`, `dependency-audit` job
-**Tracking issue:** [#63](https://github.com/aallan/vera-bench/issues/63)
-**Related:** [aallan/vera#537](https://github.com/aallan/vera/issues/537)
-(same workaround, same root cause)
-
-[CVE-2026-3219](https://nvd.nist.gov/vuln/detail/CVE-2026-3219) is a
-vulnerability in pip 26.0.1's archive handling. It was fixed in pip 26.1
-(released 2026-04-26). However, the `actions/setup-python` toolchain
-image baked pip 26.0.1 into its Python 3.12 environment, so `pip-audit`
-running inside the runner reported the runner's own pip as vulnerable
-until GitHub refreshed the image.
-
-The workaround is a `pip install --upgrade pip` step before `pip-audit`
-runs, pulling pip 26.1 from PyPI to replace the bundled 26.0.1.
-
-**Status:** issue #63 is **closed**, but the workaround is still present
-in `ci.yml` and the action has since been bumped to `@v7`. Nobody has
-verified whether the `@v7` image ships pip ≥ 26.1 natively, so the step
-may now be redundant.
-
-**Removal trigger:** confirm what pip version the current
-`actions/setup-python@v7` image ships (add a temporary `pip --version`
-step, or check a recent run log). If it is ≥ 26.1, drop the
-`pip install --upgrade pip &&` prefix from the `Install dependencies and
-pip-audit` step and delete this entry. If it is still older, reopen #63
-so the trigger has a live home again.
-
----
-
 ## Documentation pins
 
 ### `assets/results-graph.png` shows v0.0.7 data, not the latest
@@ -109,6 +76,29 @@ The caveat above still applies to **JSONL written between PR #60 and
 v0.0.16** — those rows have the summed `input_tokens` with no way to
 recover the split. Treat that window's per-token cost as unknowable
 rather than inferring it.
+
+**Cache rates, measured 2026-07-23** (first live exercise of the
+instrumentation, via `scripts/preflight.sh`; full table in
+[#61](https://github.com/aallan/vera-bench/issues/61#issuecomment-5060577646)):
+
+| provider | prompt | cached |
+|---|---|---|
+| OpenAI (`gpt-5.6-sol`) | ~29k Vera prefix, 2nd call | **99%** |
+| OpenAI (`#pro`) | ~119k (pro re-reads across passes) | **73%** |
+| Anthropic (`claude-sonnet-5`) | ~45k Vera prefix, 2nd call | **100%** |
+| Moonshot | — | **not yet measured** |
+
+Two things worth carrying into any cost estimate:
+
+- **Small targets cannot cache.** The Python and TypeScript prompts are
+  70–105 tokens, below OpenAI's 1024-token minimum. A `0%` there is
+  correct, not a fault.
+- **Moonshot's `cached_tokens` has never been observed non-zero.** Both
+  Kimi entries have only ever run against the small Python target, so
+  their `0%` is uninformative. Their Context Caching is automatic
+  longest-prefix with no routing key, so there is no parameter to
+  misconfigure — but the read is unproven. The next full sweep is the
+  first real test.
 
 **Removal trigger:** none — this is a permanent provenance note about a
 metric semantic change in historical data. It stops being load-bearing

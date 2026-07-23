@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **`preflight.sh` s3 probes prompt caching for every provider**, not just
+  `$REASON_BASE`. Moonshot was never measured and Anthropic was covered only
+  incidentally. 1 call becomes 6; override with `PREFLIGHT_CACHE_PROBE`.
+
+### Removed
+
+- **The CVE-2026-3219 `pip install --upgrade pip` workaround** in `ci.yml`, and
+  its `KNOWN_ISSUES.md` entry
+  ([#63](https://github.com/aallan/vera-bench/issues/63)) —
+  `actions/setup-python` now ships pip 26.1.2, so the step did nothing.
+
+### Fixed
+
+- **Documentation consistency pass** over `README.md`, `CLAUDE.md`,
+  `CONTRIBUTING.md`, `KNOWN_ISSUES.md`, `scripts/README.md` and
+  `preflight.sh`: stale counts, inaccurate claims and a missing
+  `## [Unreleased]` heading. One worth calling out — OpenRouter is a supported
+  provider like any other, not something AILANG requires.
+
 ## [0.0.16] - 2026-07-23
 
 ### Added

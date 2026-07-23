@@ -15,7 +15,7 @@ the installed package, but kept in-repo for reproducibility.
 
 ## `preflight.sh` — pre-sweep gate
 
-Run this **before** committing to a full sweep. A sweep is ~40 target-runs with
+Run this **before** committing to a full sweep. A full sweep is ~52 target-runs — 8 models × 6 LLM targets, plus the 4 baseline runs once for the whole sweep rather than per model — with
 no resume (see [Output files](#output-files)), so a wrong model id, a rejected
 API parameter, or a compiler missing from `PATH` costs hours and real money to
 discover late. Every check here is a single problem — the whole gate is roughly
@@ -34,10 +34,10 @@ fix.
 
 | Stage | Checks | Cost |
 |-------|--------|------|
-| `s0` | Every configured model id exists, via each provider's `/v1/models` | free |
+| `s0` | Model ids exist, via the provider listings the script queries — currently OpenAI and Moonshot. Anthropic ids are not queried here and are covered by `s1` instead | free |
 | `s1` | Auth, id acceptance and request parameters — one problem per model, Python target (no ~28k-token prefix) | cheap |
 | `s2` | The reasoning-budget pair actually differs — same model, same problem, mode the only variable | 2 calls |
-| `s3` | Prompt-cache accounting: `cached_tokens` on a second call sharing the system prefix | 1 call |
+| `s3` | Prompt-cache accounting: one model **per provider**, two calls each against the ~29k Vera prefix, checking `cached_tokens` on the second | 6 calls |
 | `s5` | All six target variants end-to-end (five languages — Vera runs in both full-spec and spec-from-NL), proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
 
 The model list is **not** duplicated in the script — `s0` and `s1` read it from
@@ -215,7 +215,7 @@ at the end if any failed. This makes partial-run recovery straightforward.
 
 ## `plot_results.py` — benchmark comparison chart
 
-Produces `assets/results-graph.png`: a four-panel chart showing
+Produces `assets/results-graph.png`: a multi-panel chart showing
 `run_correct` rates across every model in the registry × four modes (Vera full-spec, Vera
 spec-from-NL, Python, TypeScript). This is the canonical chart shown in
 the top-level README.
@@ -266,6 +266,7 @@ current release's JSONL data. Any variant — historical `--version` or extra
 |------------|-------------|------------|
 | (no flags) | `assets/results-graph.png` | ✅ |
 | `--extra aver` | `assets/results-graph_with-aver.png` | ❌ gitignored |
+| `--extra ailang` | `assets/results-graph_with-ailang.png` | ❌ gitignored |
 | `--version 0.0.7` | `assets/results-graph_v0.0.7.png` | ❌ gitignored |
 | `--version 0.0.7 --extra aver` | `assets/results-graph_v0.0.7_with-aver.png` | ❌ gitignored |
 
@@ -378,9 +379,10 @@ MODELS: list[ModelSpec] = [
   panel the model renders in. A tier not listed in `TIER_TITLES` still
   renders, in a trailing panel with a title-cased fallback name.
 
-Row 1 renders **one panel per populated tier**, in `TIER_TITLES` order
-(`fable`, `opus`, `sonnet`, plus the legacy `flagship` for historical
-2-tier data). Both the tier count and the models-per-tier count are
+Row 1 renders **one panel per populated tier**, in `TIER_TITLES` order:
+`fable`, `opus`, `flagship`, `sonnet`. The legacy `flagship` key sits
+*between* `opus` and `sonnet` deliberately, so historical 2-tier renders
+keep their original left-to-right order (Flagship, then Sonnet). Both the tier count and the models-per-tier count are
 data-driven, so an incomplete row is fine — the v0.0.16 fable tier has two
 entries because Moonshot ships no ceiling-above-flagship model. A tier with
 no models is skipped entirely rather than rendering an empty panel.
@@ -396,17 +398,20 @@ new mode is Vera- or Aver-style (i.e. the result filename carries a
 
 ### Chart layout
 
-The chart has four panels, arranged vertically:
+Row 1 is **one panel per populated tier**, in `TIER_TITLES` order —
+`fable`, `opus`, `flagship`, `sonnet` — followed by two full-width rows.
+Both the tier count and the models-per-tier count are data-driven, so the
+v0.0.16 matrix renders three tier panels and historical 2-tier data
+renders two.
 
-1. **Flagship Tier** (top-left) — grouped bars for the three flagship
-   models across Vera + each comparison language
-2. **Sonnet Tier** (top-right) — same for the three secondary models
-3. **"Does Vera beat …?"** — horizontal delta bars per model, one row per
+1. **Tier panels** (one per populated tier) — grouped bars for that
+   tier's models across Vera + each comparison language
+2. **"Does Vera beat …?"** — horizontal delta bars per model, one row per
    comparison language. The panel title is generated from the active
    comparison set, so the default chart shows *"Does Vera beat Python /
    TypeScript?"* and `--extra aver` extends it to *"Does Vera beat Python /
    TypeScript / Aver?"*. The x-axis auto-expands if deltas exceed ±22pp.
-4. **All Models × All Modes** — grouped bars showing every mode
+3. **All Models × All Modes** — grouped bars showing every mode
    (Vera, Vera NL, and the comparison languages) per model. Bar count per
    model grows with `--extra` flags; default is four.
 
@@ -500,9 +505,13 @@ construction.
 ### Usage
 
 ```bash
-# Render all three slides on the default paper background
-python scripts/plot_slide.py
+# ⚠ --version defaults to 0.0.7, so a bare invocation renders the
+# FROZEN historical lineup, not your current results. Pass it.
+python scripts/plot_slide.py --version 0.0.16
 # -> /tmp/vera-bench_slide_{delta,tiers,all-modes}.png
+
+# The v0.0.7 talk slides, rendered against MODELS_V_0_0_7
+python scripts/plot_slide.py --version 0.0.7
 
 # Single slide type
 python scripts/plot_slide.py --type delta

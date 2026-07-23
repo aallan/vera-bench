@@ -24,8 +24,9 @@ New benchmark problems are welcome. For each new problem, you must produce:
 6. An AILANG baseline in `solutions/ailang/`.
 
 Every comparison language needs a baseline, or `vera-bench baselines --language
-{lang}` drops below the full problem count and the cross-language numbers stop
-being like-for-like.
+{lang}` covers fewer problems than its siblings and the cross-language numbers
+stop being like-for-like. (Baselines only execute the 36 problems that carry
+`test_cases`; the other 24 are validated by `vera check` alone.)
 
 See [CLAUDE.md](CLAUDE.md) for problem structure, tier definitions, and Vera gotchas.
 
