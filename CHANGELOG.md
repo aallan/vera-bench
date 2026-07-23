@@ -105,6 +105,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `extract_data` treats a file with nothing gradeable as *missing*
   rather than plotting it as a genuine 0% — the same conflation the
   `missing` set already prevents for absent files, one layer down.
+- **`vera run` failures were indistinguishable from wrong answers.**
+  The per-test loop in `_evaluate_vera_code` discarded the exit code and
+  stderr on failure, and swallowed every exception through a bare
+  `except Exception` with no message — so a compiler crash was recorded
+  as `error_message=None, check_pass=True, run_correct=False`, byte-identical
+  to a model writing a wrong program. The #72 diagnostics work reached the
+  Aver and AILANG evaluators but never the Vera path, which is the
+  headline number. Now captures the first failure via a `_vera_run_error`
+  sibling of `_first_run_error`, including **signal detection**:
+  `subprocess` reports a signal death as a negative return code, so a
+  compiler SIGBUS arrives as `exit_code == -10` and is now named as such.
+  Not hypothetical — vera SIGBUS'd repeatedly on 2026-07-23
+  ([aallan/vera#1145](https://github.com/aallan/vera/issues/1145)), and
+  every one of those would have been scored against the model.
+- **`preflight.sh` now exits non-zero when the gate fails.** It could
+  print `*** pro may be SILENTLY IGNORED ***` — the one finding that
+  invalidates the reasoning slide — and still exit 0, because the S2 and
+  S3 analyses printed their verdicts from inside Python heredocs without
+  touching the pass/fail counters. A chained
+  `preflight.sh && run_full_benchmark.py` would have sailed straight
+  past it. S2's verdict now feeds the counters and the script ends on
+  its own tally.
 - **Both Sol arms now send `store=False`.** The Responses API defaults
   to `store=True` where Chat Completions does not persist at all, so
   the pro routing silently introduced 30-day server-side retention of

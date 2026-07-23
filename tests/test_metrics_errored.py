@@ -68,3 +68,49 @@ class TestErroredAccounting:
         assert m.errored == 0
         assert m.run_eligible == 60
         assert m.run_correct_rate == 0.0
+
+
+class TestVeraRunDiagnostics:
+    """`vera run` failures must be attributable (#72 reached Aver and
+    AILANG but never the Vera path, which is the headline number).
+
+    A compiler crash previously arrived as `error_message=None,
+    check_pass=True, run_correct=False` — byte-identical to a model
+    writing a wrong program. vera SIGBUS'd repeatedly on 2026-07-23
+    (aallan/vera#1145), so this is observed, not hypothetical.
+    """
+
+    def test_signal_death_is_named(self):
+        from vera_bench.runner import _vera_run_error
+        from vera_bench.vera_runner import RunResult
+
+        # subprocess reports a signal death as a negative returncode;
+        # SIGBUS is 10. Without naming it this reads as an ordinary
+        # non-zero exit — which is to say, as the model's fault.
+        msg = _vera_run_error(0, RunResult(exit_code=-10, stdout="", stderr=""))
+        assert "killed by signal 10" in msg
+
+    def test_signal_death_includes_stderr_when_present(self):
+        from vera_bench.runner import _vera_run_error
+        from vera_bench.vera_runner import RunResult
+
+        msg = _vera_run_error(
+            3, RunResult(exit_code=-11, stdout="", stderr="memory fault at 0x0")
+        )
+        assert "signal 11" in msg and "memory fault" in msg
+
+    def test_ordinary_failure_surfaces_stderr(self):
+        from vera_bench.runner import _vera_run_error
+        from vera_bench.vera_runner import RunResult
+
+        msg = _vera_run_error(
+            1, RunResult(exit_code=1, stdout="", stderr="type error: expected Int")
+        )
+        assert "type error: expected Int" in msg
+
+    def test_silent_nonzero_exit_still_reports_something(self):
+        from vera_bench.runner import _vera_run_error
+        from vera_bench.vera_runner import RunResult
+
+        msg = _vera_run_error(2, RunResult(exit_code=1, stdout="", stderr=""))
+        assert "exit 1" in msg

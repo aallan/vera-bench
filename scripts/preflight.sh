@@ -208,7 +208,7 @@ busy "$REASON_PRO — deliberating"
 $VB run --model "$REASON_PRO" --problem VB-T1-001 \
    --output-dir "$SMOKE/s2/pro" >"$SMOKE/log-s2-pro.txt" 2>&1
 printf '%-60s\r' " "
-$PY - "$SMOKE/s2" <<'PY'
+if $PY - "$SMOKE/s2" <<'PY'
 import json, pathlib, sys
 d = pathlib.Path(sys.argv[1])
 def row(sub):
@@ -230,21 +230,26 @@ for lbl, r in (("default", base), ("pro", pro)):
         failed = True
 if failed:
     print("  VERDICT : inconclusive — fix the error above, then re-run s2")
-    raise SystemExit
+    raise SystemExit(1)
 for lbl, r in (("default", base), ("pro", pro)):
     print(f"  {lbl:<8}: model={r['model']!r} wall={r['wall_time_s']:.1f}s "
           f"out_tok={r['output_tokens']} check={r['check_pass']}")
 w = pro["wall_time_s"] / max(base["wall_time_s"], 0.01)
 t = pro["output_tokens"] / max(base["output_tokens"], 1)
 print(f"  ratio   : wall x{w:.1f}   out_tok x{t:.1f}")
+engaged = w > 1.4 or t > 1.4
 print("  VERDICT : " + ("pro ENGAGED — distinct cost/latency signature"
-      if w > 1.4 or t > 1.4 else
+      if engaged else
       "*** pro may be SILENTLY IGNORED — indistinguishable from default ***"))
 print(f"  model field distinguishable in JSONL: "
       f"{'yes' if pro['model'] != base['model'] else 'NO — charts cannot tell them apart'}")
 if pro["wall_time_s"] > 100:
     print(f"  WARNING : {pro['wall_time_s']:.0f}s is near the 120s client timeout")
+raise SystemExit(0 if engaged else 1)
 PY
+then ok "S2 reasoning budget engages"
+else bad "S2 — pro indistinguishable from default (see verdict above)"
+fi
 fi
 
 # ---------------------------------------------------------------- S3
@@ -320,3 +325,9 @@ printf '\n\033[1m== SMOKE COMPLETE — %d ok, %d failed\033[0m\n' "$pass" "$fail
 echo "Logs + JSONL: $SMOKE"
 echo
 echo "Paste from '== S0' downwards. It contains no credentials."
+
+# Exit status must reflect the verdict. Without this the gate could
+# print "pro may be SILENTLY IGNORED" — the one finding that
+# invalidates the headline slide — and still exit 0, so a chained
+# `preflight.sh && run_full_benchmark.py` would sail straight past it.
+exit $([ "$fail" -eq 0 ] && echo 0 || echo 1)
