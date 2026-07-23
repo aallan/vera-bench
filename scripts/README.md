@@ -34,7 +34,7 @@ fix.
 
 | Stage | Checks | Cost |
 |-------|--------|------|
-| `s0` | Every configured model id exists, via each provider's `/v1/models` | free |
+| `s0` | Every OpenAI and Moonshot model id exists, via each provider's `/v1/models`. Anthropic publishes no equivalent endpoint, so those ids are covered by `s1` instead | free |
 | `s1` | Auth, id acceptance and request parameters — one problem per model, Python target (no ~28k-token prefix) | cheap |
 | `s2` | The reasoning-budget pair actually differs — same model, same problem, mode the only variable | 2 calls |
 | `s3` | Prompt-cache accounting: `cached_tokens` on a second call sharing the system prefix | 1 call |
@@ -215,7 +215,7 @@ at the end if any failed. This makes partial-run recovery straightforward.
 
 ## `plot_results.py` — benchmark comparison chart
 
-Produces `assets/results-graph.png`: a four-panel chart showing
+Produces `assets/results-graph.png`: a multi-panel chart showing
 `run_correct` rates across every model in the registry × four modes (Vera full-spec, Vera
 spec-from-NL, Python, TypeScript). This is the canonical chart shown in
 the top-level README.
@@ -266,6 +266,7 @@ current release's JSONL data. Any variant — historical `--version` or extra
 |------------|-------------|------------|
 | (no flags) | `assets/results-graph.png` | ✅ |
 | `--extra aver` | `assets/results-graph_with-aver.png` | ❌ gitignored |
+| `--extra ailang` | `assets/results-graph_with-ailang.png` | ❌ gitignored |
 | `--version 0.0.7` | `assets/results-graph_v0.0.7.png` | ❌ gitignored |
 | `--version 0.0.7 --extra aver` | `assets/results-graph_v0.0.7_with-aver.png` | ❌ gitignored |
 
@@ -378,9 +379,10 @@ MODELS: list[ModelSpec] = [
   panel the model renders in. A tier not listed in `TIER_TITLES` still
   renders, in a trailing panel with a title-cased fallback name.
 
-Row 1 renders **one panel per populated tier**, in `TIER_TITLES` order
-(`fable`, `opus`, `sonnet`, plus the legacy `flagship` for historical
-2-tier data). Both the tier count and the models-per-tier count are
+Row 1 renders **one panel per populated tier**, in `TIER_TITLES` order:
+`fable`, `opus`, `flagship`, `sonnet`. The legacy `flagship` key sits
+*between* `opus` and `sonnet` deliberately, so historical 2-tier renders
+keep their original left-to-right order (Flagship, then Sonnet). Both the tier count and the models-per-tier count are
 data-driven, so an incomplete row is fine — the v0.0.16 fable tier has two
 entries because Moonshot ships no ceiling-above-flagship model. A tier with
 no models is skipped entirely rather than rendering an empty panel.
@@ -500,9 +502,13 @@ construction.
 ### Usage
 
 ```bash
-# Render all three slides on the default paper background
-python scripts/plot_slide.py
+# ⚠ --version defaults to 0.0.7, so a bare invocation renders the
+# FROZEN historical lineup, not your current results. Pass it.
+python scripts/plot_slide.py --version 0.0.16
 # -> /tmp/vera-bench_slide_{delta,tiers,all-modes}.png
+
+# The v0.0.7 talk slides, rendered against MODELS_V_0_0_7
+python scripts/plot_slide.py --version 0.0.7
 
 # Single slide type
 python scripts/plot_slide.py --type delta

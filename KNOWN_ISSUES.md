@@ -110,6 +110,29 @@ v0.0.16** — those rows have the summed `input_tokens` with no way to
 recover the split. Treat that window's per-token cost as unknowable
 rather than inferring it.
 
+**Cache rates, measured 2026-07-23** (first live exercise of the
+instrumentation, via `scripts/preflight.sh`; full table in
+[#61](https://github.com/aallan/vera-bench/issues/61#issuecomment-5060577646)):
+
+| provider | prompt | cached |
+|---|---|---|
+| OpenAI (`gpt-5.6-sol`) | ~29k Vera prefix, 2nd call | **99%** |
+| OpenAI (`#pro`) | ~119k (pro re-reads across passes) | **73%** |
+| Anthropic (`claude-sonnet-5`) | ~45k Vera prefix, 2nd call | **100%** |
+| Moonshot | — | **not yet measured** |
+
+Two things worth carrying into any cost estimate:
+
+- **Small targets cannot cache.** The Python and TypeScript prompts are
+  70–105 tokens, below OpenAI's 1024-token minimum. A `0%` there is
+  correct, not a fault.
+- **Moonshot's `cached_tokens` has never been observed non-zero.** Both
+  Kimi entries have only ever run against the small Python target, so
+  their `0%` is uninformative. Their Context Caching is automatic
+  longest-prefix with no routing key, so there is no parameter to
+  misconfigure — but the read is unproven. The next full sweep is the
+  first real test.
+
 **Removal trigger:** none — this is a permanent provenance note about a
 metric semantic change in historical data. It stops being load-bearing
 once no published analysis draws on results from that window.

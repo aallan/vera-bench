@@ -1,10 +1,17 @@
 #!/usr/bin/env bash
-# Pre-sweep preflight gate (S0-S5).
+# Pre-sweep preflight gate: stages S0, S1, S2, S3, S5.
+# (There is no S4 — the numbering follows the v0.0.16 plan's
+# stage list, where S4 was a Moonshot-caching probe that turned
+# out to need no separate call.)
 #
-# Run this before committing to a full sweep. A sweep is ~40 target-runs
-# with no resume, so a model id that does not exist, a parameter the API
-# rejects, or a toolchain that is not on PATH costs hours and real money
-# to discover late. Every check here is one problem.
+# Run this before committing to a full sweep. A full sweep is ~52
+# target-runs (8 models x 6 LLM targets, plus 4 baselines) with no
+# resume, so a model id that does not exist, a parameter the API
+# rejects, or a toolchain that is not on PATH costs hours and real
+# money to discover late. Every check here is one problem.
+#
+# Needs `curl` and `jq` on PATH for S0 (without jq the provider
+# listings come back empty and every model reports NOT LISTED).
 #
 # Run from the repo root with the three provider keys exported:
 #

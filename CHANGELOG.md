@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Documentation consistency sweep.** No harness changes — nothing here
+  alters what the benchmark measures, so no version bump.
+  - **The README claimed OpenRouter was "used for AILANG-capable
+    models".** It is not, and never was: AILANG is a *target language*
+    (`--language ailang`), not a provider, and runs against Claude, GPT
+    or Kimi like any other target. No AILANG code path references
+    OpenRouter — `OPENROUTER_API_KEY` is read in exactly one place, by
+    `OpenRouterClient`, reached only via the `or/` model prefix, and no
+    OpenRouter model is in the current matrix. Every individual claim in
+    that sentence was true; only the relationship between them was
+    false, which is why the earlier audit (checking claims against code)
+    did not catch it.
+  - Restored the empty `## [Unreleased]` heading, omitted during the
+    v0.0.16 promotion — leaving an `[Unreleased]:` compare-link pointing
+    at a section that did not exist.
+  - `preflight.sh` header said "S0-S5", implying an S4 that has never
+    existed, and "~40 target-runs" where a full sweep is ~52 (8 models ×
+    6 LLM targets, plus 4 baselines). It also now states its `curl` and
+    `jq` dependency: without `jq`, S0's provider listings come back empty
+    and every model reports NOT LISTED.
+  - `scripts/README.md`: `s0` was described as checking *every*
+    configured model id, but Anthropic publishes no `/v1/models`
+    equivalent, so three of eight are covered by `s1` instead; the doc
+    chart is no longer four panels; the `TIER_TITLES` order was given as
+    fable/opus/sonnet when `flagship` sits deliberately *between* `opus`
+    and `sonnet`; `--extra ailang` was undocumented alongside
+    `--extra aver`; and the `plot_slide.py` usage block showed a bare
+    invocation without noting that `--version` **defaults to 0.0.7**, so
+    it silently renders the frozen historical lineup.
+  - `CONTRIBUTING.md` said a missing baseline "drops below the full
+    problem count" — baselines only ever execute the 36 problems that
+    carry `test_cases`.
+  - `models.py` justified sending `prompt_cache_key` via `extra_body` as
+    1.x-SDK compatibility; the floor is now `openai>=2.45`, and
+    `_complete_responses` passes it as a typed kwarg. Restated with the
+    reason that still holds (shared request path with the Moonshot and
+    OpenRouter clients).
+  - `ci.yml` presented the pip CVE workaround's removal condition as
+    settled and pointed at issue #63, which is closed while the step
+    remains. Now states plainly that it may be redundant and how to
+    check.
+  - `KNOWN_ISSUES.md` records the first measured cache-hit rates —
+    OpenAI 99%, Anthropic 100%, Moonshot still unmeasured.
+
 ## [0.0.16] - 2026-07-23
 
 ### Added

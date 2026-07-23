@@ -141,11 +141,15 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies and pip-audit
-        # pip install --upgrade pip is a workaround for CVE-2026-3219:
-        # the pip 26.0.1 bundled in actions/setup-python@v7 is
-        # vulnerable; pip 26.1 (released 2026-04-26) is the fix.
-        # Remove this once the runner image ships pip >= 26.1
-        # natively. See issue #63.
+        # pip install --upgrade pip works around CVE-2026-3219: the
+        # pip bundled in the setup-python toolchain image was 26.0.1,
+        # which pip-audit flags; 26.1 (2026-04-26) is the fix.
+        #
+        # Issue #63 is CLOSED but this step is still here, and nobody
+        # has checked which pip the current @v7 image ships — so it
+        # may now be redundant. Verify before removing (add a
+        # temporary `pip --version` step, or read a recent run log);
+        # if it is >= 26.1, drop this and the KNOWN_ISSUES.md entry.
         run: pip install --upgrade pip && pip install -e . && pip install pip-audit
 
       - name: Audit dependencies for known CVEs

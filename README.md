@@ -161,7 +161,7 @@ python scripts/run_full_benchmark.py
 
 Before committing to a large sweep, run the preflight gate. It checks every
 configured model id, provider auth, the request parameters each model accepts,
-and all four toolchains — one problem per check, so the whole thing is a couple
+and the Vera, Aver and AILANG toolchains — one problem per check, so it is a couple
 of dollars against a sweep that is hours and no resume:
 
 ```bash
@@ -171,7 +171,9 @@ bash scripts/preflight.sh
 See [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate) for the
 stage breakdown and how to re-run individual stages while fixing something.
 
-Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/) (used for AILANG-capable models). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
+Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), and [Kimi](https://platform.kimi.ai) (Moonshot) — set `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` or `MOONSHOT_API_KEY` respectively. [OpenRouter](https://openrouter.ai/) is additionally available via an `or/` model prefix (`OPENROUTER_API_KEY`), but no OpenRouter model is part of the current matrix.
+
+> **Target languages are independent of providers.** `--language ailang` (or `aver`, `python`, `typescript`) asks whichever model you are benchmarking to write that language — it is a target, not a provider, and needs no API key of its own. AILANG in particular requires **no** OpenRouter account; it runs against Claude, GPT or Kimi like any other target.
 
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
 
