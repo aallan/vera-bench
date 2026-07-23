@@ -17,7 +17,7 @@ public fn state_double(@Int -> @Int)
 {
   handle[State<Int>](@Int = @Int.0) {
     get(@Unit) -> { resume(@Int.0) },
-    put(@Int) -> { resume(()) } with @Int = @Int.0
+    put(@Int) -> { resume(()) }
   } in {
     put(double(get(())));
     get(())

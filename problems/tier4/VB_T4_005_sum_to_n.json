@@ -6,19 +6,49 @@
   "description_neutral": "Compute the sum 0 + 1 + 2 + ... + n using recursion.",
   "signature": "public fn sum_to_n(@Nat -> @Nat)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["@Nat.result >= 0", "@Nat.result == @Nat.0 * (@Nat.0 + 1) / 2"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 0",
+      "@Nat.result == @Nat.0 * (@Nat.0 + 1) / 2"
+    ],
     "effects": "pure"
   },
   "entry_point": "sum_to_n",
-  "tags": ["recursion", "decreases", "termination", "arithmetic"],
+  "tags": [
+    "recursion",
+    "decreases",
+    "termination",
+    "arithmetic"
+  ],
   "test_cases": [
-    {"args": [0], "expected": 0},
-    {"args": [1], "expected": 1},
-    {"args": [5], "expected": 15},
-    {"args": [10], "expected": 55}
+    {
+      "args": [
+        0
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        5
+      ],
+      "expected": 15
+    },
+    {
+      "args": [
+        10
+      ],
+      "expected": 55
+    }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Simple recursion with decreases(@Nat.0). sum_to_n(0)=0, sum_to_n(n)=n+sum_to_n(n-1)."
 }

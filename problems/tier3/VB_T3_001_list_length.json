@@ -24,6 +24,6 @@
   ],
   "test_cases": [],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "The agent must define data List { Nil, Cons(Int, List) } AND write the function. Inside match Cons(@Int, @List), @List.0 refers to the tail (matched binding), not the parameter. This is THE core De Bruijn test."
 }

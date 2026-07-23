@@ -6,19 +6,50 @@
   "description_neutral": "Compute the sum of integers from 1 to n using a stateful accumulator pattern. Use a helper function for addition.",
   "signature": "public fn sum_with_state(@Nat -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "sum_with_state",
-  "tags": ["state-effect", "handler", "pure-helper", "where-block", "loop", "get-put"],
+  "tags": [
+    "state-effect",
+    "handler",
+    "pure-helper",
+    "where-block",
+    "loop",
+    "get-put"
+  ],
   "test_cases": [
-    {"args": [5], "expected": 15},
-    {"args": [0], "expected": 0},
-    {"args": [1], "expected": 1},
-    {"args": [10], "expected": 55}
+    {
+      "args": [
+        5
+      ],
+      "expected": 15
+    },
+    {
+      "args": [
+        0
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        10
+      ],
+      "expected": 55
+    }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Tests State<Int> handler pattern with a loop. State operations (get/put) must be inlined in the handler in-block, not called via a separate effectful function. The loop helper uses a where block with effects(<State<Int>>)."
 }

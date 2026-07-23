@@ -30,5 +30,5 @@
   ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Tests handle[State<Int>] with get/put, calling a pure helper from within the handler body. State operations must be inlined in the handler body (calling a separate function with effects(<State<Int>>) from within the handler body causes a codegen issue). The handler uses 'with @Int = @Int.0' to update state on put."
+  "notes": "Tests handle[State<Int>] with get/put, calling a pure helper from within the handler body. State operations must be inlined in the handler body (calling a separate function with effects(<State<Int>>) from within the handler body causes a codegen issue). Since Vera 0.1.x intrinsic-hybrid handler semantics (vera#1003), the put clause is written without a 'with' state-update clause \u2014 the intrinsic store threads state natively; 'with @Int = @Int.0' now executes literally as state=old-state (a no-op)."
 }

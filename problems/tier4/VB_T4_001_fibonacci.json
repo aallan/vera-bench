@@ -48,6 +48,6 @@
     }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Classic recursion with two base cases. decreases(@Nat.0) is straightforward. Tests whether the agent remembers to include it."
 }

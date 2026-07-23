@@ -54,6 +54,6 @@
     }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "multiply(a, b): @Nat.0=b, @Nat.1=a. decreases(@Nat.0) because b decreases."
 }

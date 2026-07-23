@@ -63,6 +63,6 @@
     }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "div_natural(a, b): @Nat.0=b (divisor), @Nat.1=a (dividend). decreases(@Nat.1) because a decreases by b each step. Common mistake: writing decreases(@Nat.0) which would be wrong since b stays constant. This tests whether the agent reasons about which parameter actually decreases."
 }

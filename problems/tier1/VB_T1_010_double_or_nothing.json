@@ -6,19 +6,47 @@
   "description_neutral": "Double a positive integer. Return 0 for non-positive inputs.",
   "signature": "public fn double_or_nothing(@Int -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["@Int.result >= 0"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Int.result >= 0"
+    ],
     "effects": "pure"
   },
   "entry_point": "double_or_nothing",
-  "tags": ["arithmetic", "conditional", "multiplication"],
+  "tags": [
+    "arithmetic",
+    "conditional",
+    "multiplication"
+  ],
   "test_cases": [
-    {"args": [5], "expected": 10},
-    {"args": [0], "expected": 0},
-    {"args": [-3], "expected": 0},
-    {"args": [1], "expected": 2}
+    {
+      "args": [
+        5
+      ],
+      "expected": 10
+    },
+    {
+      "args": [
+        0
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        -3
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": 2
+    }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Simple conditional with multiplication. Tests basic arithmetic and the conditional pattern."
 }

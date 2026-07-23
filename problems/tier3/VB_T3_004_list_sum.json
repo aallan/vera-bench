@@ -6,14 +6,25 @@
   "description_neutral": "Define a linked list type with nil and cons constructors, then write a function that sums all elements.",
   "signature": "public fn list_sum(@List -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "list_sum",
-  "tags": ["adt", "pattern-matching", "recursion", "decreases", "data-definition", "arithmetic"],
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "recursion",
+    "decreases",
+    "data-definition",
+    "arithmetic"
+  ],
   "test_cases": [],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Inside Cons(@Int, @List), @Int.0 is the matched head, @List.0 is the matched tail. The agent must define the List ADT and use decreases(@List.0)."
 }

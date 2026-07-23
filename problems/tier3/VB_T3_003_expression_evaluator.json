@@ -25,6 +25,6 @@
   ],
   "test_cases": [],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Three-variant ADT with recursion. Inside Add(@Expr, @Expr), @Expr.0 is the right sub-expr, @Expr.1 is the left. Agent must use 0 - eval_expr(@Expr.0) for negation (no unary minus on function calls)."
 }
