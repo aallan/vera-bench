@@ -3083,3 +3083,209 @@ class TestAilangCLI:
         # The filename slug includes the AILANG version (cli.py:256-257) —
         # appears in the "Output: ..." line printed by cli.py:274.
         assert "ailang-0-21-0" in (result.output or "")
+
+
+class TestEnvironmentErrorAbortsSweep:
+    """Auth failures must abort the whole sweep, not become 60 crash
+    rows — EnvironmentError re-raises through the crash-recording
+    layer in both benchmark paths, and the parallel path cancels
+    queued futures so no further doomed API calls fire (#61
+    hardening, CR follow-ups)."""
+
+    def _problem(self, pid: str) -> dict:
+        return {"id": pid, "test_cases": []}
+
+    @patch("vera_bench.runner.run_single_problem")
+    def test_sequential_aborts_on_environment_error(self, mock_run, tmp_path):
+        from vera_bench.models import AuthError
+        from vera_bench.runner import run_benchmark
+
+        mock_run.side_effect = AuthError("bad API key")
+        with pytest.raises(AuthError, match="bad API key"):
+            run_benchmark(
+                problems=[self._problem("VB-X-0"), self._problem("VB-X-1")],
+                client=MagicMock(),
+                skill_md="",
+                vera=None,
+                language="python",
+                output_path=tmp_path / "out.jsonl",
+                parallel=1,
+            )
+        # Aborted on the FIRST problem: exactly one invocation, no rows.
+        assert mock_run.call_count == 1
+        out = tmp_path / "out.jsonl"
+        assert not out.exists() or out.read_text() == ""
+
+    @patch("vera_bench.runner.run_single_problem")
+    def test_parallel_aborts_and_cancels_queued_futures(self, mock_run, tmp_path):
+        """With 2 workers and 4 problems, the auth failure on the first
+        must cancel the two QUEUED futures — without the explicit
+        executor.shutdown(cancel_futures=True), the with-block's
+        implicit shutdown(wait=True) drains the queue and every
+        remaining problem fires a doomed API call."""
+        import time as _time
+
+        from vera_bench.models import AuthError
+        from vera_bench.runner import run_benchmark
+
+        invoked: list[str] = []
+
+        def _side_effect(problem: dict, **kw: object) -> list:
+            invoked.append(problem["id"])
+            if problem["id"] == "VB-X-0":
+                _time.sleep(0.05)
+                raise AuthError("bad API key")
+            _time.sleep(0.5)  # keep the second worker busy past the abort
+            return []
+
+        mock_run.side_effect = _side_effect
+        with pytest.raises(AuthError, match="bad API key"):
+            run_benchmark(
+                problems=[self._problem(f"VB-X-{i}") for i in range(6)],
+                client=MagicMock(),
+                skill_md="",
+                vera=None,
+                language="python",
+                output_path=tmp_path / "out.jsonl",
+                parallel=2,
+            )
+        # Inherent race: a freed worker may dequeue ONE more task before
+        # the main thread processes the failed future — cancel_futures
+        # can only stop work that hasn't been dequeued. The guarantee
+        # under test is that the queue TAIL is cancelled: without the
+        # explicit shutdown(cancel_futures=True), all six problems run.
+        assert len(invoked) <= 3
+        assert set(invoked).isdisjoint({"VB-X-3", "VB-X-4", "VB-X-5"})
+        out = tmp_path / "out.jsonl"
+        assert not out.exists() or out.read_text() == ""
+
+    @patch("vera_bench.runner.run_single_problem")
+    def test_other_exceptions_still_recorded_as_crashes(self, mock_run, tmp_path):
+        """Non-auth crashes keep the v0.0.15 crash-row semantics."""
+        import json as _json
+
+        from vera_bench.runner import run_benchmark
+
+        def _side_effect(problem: dict, **kw: object) -> list:
+            raise RuntimeError("worker blew up")
+
+        mock_run.side_effect = _side_effect
+        results = run_benchmark(
+            problems=[self._problem("VB-X-0")],
+            client=MagicMock(_model="m"),
+            skill_md="",
+            vera=None,
+            language="python",
+            output_path=tmp_path / "out.jsonl",
+            parallel=1,
+        )
+        assert len(results) == 1
+        row = _json.loads((tmp_path / "out.jsonl").read_text().strip())
+        assert "worker blew up" in row["error_message"]
+
+
+class TestEnvironmentErrorPropagatesFromClient:
+    """CR #91 critical: the abort path is only real if EnvironmentError
+    survives run_single_problem — its client.complete() guards catch
+    Exception and previously converted auth failures into per-problem
+    'API error' rows, making the run_benchmark abort handlers dead
+    code. These tests mock the CLIENT, not run_single_problem, so the
+    real swallowing layer is exercised."""
+
+    def _problem(self) -> dict:
+        return {
+            "id": "VB-X-0",
+            "entry_point": "f",
+            "description": "d",
+            "description_neutral": "d",
+            "test_cases": [],
+        }
+
+    def test_attempt1_reraises_environment_error(self, tmp_path):
+        from vera_bench.models import AuthError
+        from vera_bench.runner import run_single_problem
+
+        client = MagicMock()
+        client.complete.side_effect = AuthError("bad API key")
+        with pytest.raises(AuthError, match="bad API key"):
+            run_single_problem(
+                problem=self._problem(),
+                client=client,
+                skill_md="",
+                vera=None,
+                work_dir=tmp_path,
+                language="python",
+            )
+
+    def test_non_auth_api_error_still_becomes_row(self, tmp_path):
+        from vera_bench.runner import run_single_problem
+
+        client = MagicMock()
+        client.complete.side_effect = RuntimeError("rate-limited")
+        results = run_single_problem(
+            problem=self._problem(),
+            client=client,
+            skill_md="",
+            vera=None,
+            work_dir=tmp_path,
+            language="python",
+        )
+        assert len(results) == 1
+        assert "API error: rate-limited" in results[0].error_message
+
+    def test_end_to_end_abort_through_real_run_single_problem(self, tmp_path):
+        """The full chain: client raises -> run_single_problem re-raises
+        -> run_benchmark aborts with no rows written."""
+        from vera_bench.models import AuthError
+        from vera_bench.runner import run_benchmark
+
+        client = MagicMock(_model="m")
+        client.complete.side_effect = AuthError("bad API key")
+        with pytest.raises(AuthError, match="bad API key"):
+            run_benchmark(
+                problems=[self._problem()],
+                client=client,
+                skill_md="",
+                vera=None,
+                language="python",
+                output_path=tmp_path / "out.jsonl",
+                parallel=1,
+            )
+        out = tmp_path / "out.jsonl"
+        assert not out.exists() or out.read_text() == ""
+
+
+class TestConnectionErrorDoesNotAbortSweep:
+    """AuthError is deliberately narrower than EnvironmentError.
+
+    EnvironmentError IS OSError, so re-raising it broadly would abort
+    the whole sweep on a transient ConnectionError from the HTTP
+    client. A network blip must cost one problem, not the run."""
+
+    def _problem(self) -> dict:
+        return {
+            "id": "VB-X-0",
+            "entry_point": "f",
+            "description": "d",
+            "description_neutral": "d",
+            "test_cases": [],
+        }
+
+    def test_connection_error_becomes_a_row_not_an_abort(self, tmp_path):
+        from vera_bench.runner import run_benchmark
+
+        client = MagicMock(_model="m")
+        client.complete.side_effect = ConnectionError("connection reset by peer")
+        results = run_benchmark(
+            problems=[self._problem()],
+            client=client,
+            skill_md="",
+            vera=None,
+            language="python",
+            output_path=tmp_path / "out.jsonl",
+            parallel=1,
+        )
+        # Recorded, not raised.
+        assert len(results) == 1
+        assert "connection reset by peer" in results[0].error_message
+        assert (tmp_path / "out.jsonl").read_text().strip()

@@ -20,6 +20,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicit exit-code marker when silent) into `error_message`,
   matching the AILANG evaluator's existing pattern. Both evaluators
   now share a `_first_run_error` formatting helper.
+- **Prompt-cache instrumentation for OpenAI and Moonshot clients**
+  ([#61](https://github.com/aallan/vera-bench/issues/61)). Both
+  providers now cache automatically server-side (OpenAI ≥1024-token
+  prompts; Moonshot longest-prefix matching — a request cache-hits
+  only when it shares a prefix with a prior request) — the work is
+  routing and observability, not cache management:
+  - New `cached_tokens` field on `LLMResponse` and `ProblemResult`
+    (JSONL rows): the cache-hit portion of `input_tokens`. Anthropic
+    reports `cache_read_input_tokens`; OpenAI-compatible providers
+    report `usage.prompt_tokens_details.cached_tokens` (read via a
+    shared `_openai_cached_tokens` guard that tolerates absent /
+    None / non-int fields). Sweep cost analysis can now compute
+    cache-hit rates per provider directly from result files.
+  - OpenAI requests carry a stable `prompt_cache_key` (SHA-256 of
+    the system prompt, via `extra_body`) so same-prefix requests
+    route to the same cache shard — recommended by OpenAI for the
+    GPT-5.6 family. During sweeps the ~28k-token SKILL.md prefix
+    gets its own shard per language-mode.
+  - Moonshot sends no cache parameter — their Context Caching is
+    fully automatic with no routing key (their earlier explicit
+    X-Msh-* header scheme is obsolete).
+- **OpenAI and Moonshot clients hardened to the OpenRouter error
+  standard**: `AuthenticationError` → `EnvironmentError` (abort the
+  run — retrying 60 problems on a bad key is waste), `RateLimitError`
+  / `BadRequestError` / `APIStatusError` → clean `RuntimeError`
+  messages, and explicit errors on empty `choices` / empty `content`
+  (previously returned `text=""` and the harness blamed the model
+  for "did not define entry point").
 
 ### Fixed
 

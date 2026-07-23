@@ -392,3 +392,204 @@ class TestOpenRouterComplete:
 
         with pytest.raises(RuntimeError, match="rate-limited"):
             client.complete("sys", "user")
+
+
+class TestCachedTokensHelpers:
+    """Unit tests for the #61 cache-accounting helpers."""
+
+    def test_openai_cached_tokens_real_int(self):
+        from vera_bench.models import _openai_cached_tokens
+
+        usage = MagicMock()
+        usage.prompt_tokens_details.cached_tokens = 27000
+        assert _openai_cached_tokens(usage) == 27000
+
+    def test_openai_cached_tokens_rejects_bool(self):
+        """bool is an int subclass — a provider quirk returning True
+        must not count as 1 cached token (type() check, not
+        isinstance)."""
+        from vera_bench.models import _openai_cached_tokens
+
+        usage = MagicMock()
+        usage.prompt_tokens_details.cached_tokens = True
+        assert _openai_cached_tokens(usage) == 0
+
+    def test_openai_cached_tokens_absent_details(self):
+        from vera_bench.models import _openai_cached_tokens
+
+        assert _openai_cached_tokens(object()) == 0
+
+    def test_openai_cached_tokens_none_details(self):
+        from vera_bench.models import _openai_cached_tokens
+
+        usage = MagicMock()
+        usage.prompt_tokens_details = None
+        assert _openai_cached_tokens(usage) == 0
+
+    def test_openai_cached_tokens_magicmock_leak_guard(self):
+        from vera_bench.models import _openai_cached_tokens
+
+        # A bare MagicMock auto-creates attributes — the isinstance
+        # guard must refuse the non-int and report 0, never leak a
+        # mock object into token accounting.
+        assert _openai_cached_tokens(MagicMock()) == 0
+
+    def test_prompt_cache_key_stable_and_distinct(self):
+        from vera_bench.models import _prompt_cache_key
+
+        k1 = _prompt_cache_key("prefix A")
+        assert k1 == _prompt_cache_key("prefix A")
+        assert k1 != _prompt_cache_key("prefix B")
+        assert k1.startswith("vera-bench-")
+
+
+class TestOpenAICachingAndHardening:
+    """#61: cache instrumentation + OpenRouter-standard error handling."""
+
+    def _client(self, monkeypatch: pytest.MonkeyPatch) -> object:
+        try:
+            from vera_bench.models import OpenAIClient
+        except ImportError:
+            pytest.skip("openai not installed")
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        return OpenAIClient("gpt-test")
+
+    def _wire(self, client: object, mock_inner: MagicMock) -> None:
+        client._client = MagicMock()
+        client._client.with_options.return_value = mock_inner
+
+    def _ok_response(self, cached: int = 0) -> MagicMock:
+        resp = MagicMock()
+        choice = MagicMock()
+        choice.message.content = "hello"
+        resp.choices = [choice]
+        resp.model = "gpt-test"
+        resp.usage.prompt_tokens = 30000
+        resp.usage.completion_tokens = 50
+        resp.usage.prompt_tokens_details.cached_tokens = cached
+        return resp
+
+    def test_cached_tokens_flow_into_response(self, monkeypatch):
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response(
+            cached=28000
+        )
+        self._wire(client, mock_inner)
+        result = client.complete("sys", "user")
+        assert result.cached_tokens == 28000
+        assert result.input_tokens == 30000
+
+    def test_prompt_cache_key_sent_via_extra_body(self, monkeypatch):
+        from vera_bench.models import _prompt_cache_key
+
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("the system prefix", "user")
+        kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert kwargs["extra_body"] == {
+            "prompt_cache_key": _prompt_cache_key("the system prefix")
+        }
+
+    def test_authentication_error_aborts(self, monkeypatch):
+        try:
+            import openai
+        except ImportError:
+            pytest.skip("openai not installed")
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.side_effect = openai.AuthenticationError(
+            message="Invalid API key", response=MagicMock(), body=None
+        )
+        self._wire(client, mock_inner)
+        with pytest.raises(EnvironmentError, match="OpenAI authentication"):
+            client.complete("sys", "user")
+
+    def test_empty_choices_raises(self, monkeypatch):
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        resp = MagicMock()
+        resp.choices = []
+        mock_inner.chat.completions.create.return_value = resp
+        self._wire(client, mock_inner)
+        with pytest.raises(RuntimeError, match="no choices"):
+            client.complete("sys", "user")
+
+    def test_empty_content_raises(self, monkeypatch):
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        resp = MagicMock()
+        choice = MagicMock()
+        choice.message.content = None
+        choice.finish_reason = "content_filter"
+        resp.choices = [choice]
+        mock_inner.chat.completions.create.return_value = resp
+        self._wire(client, mock_inner)
+        with pytest.raises(RuntimeError, match="empty content"):
+            client.complete("sys", "user")
+
+
+class TestMoonshotCachingAndHardening:
+    """#61: Moonshot caching is automatic — accounting + hardening only."""
+
+    def _client(self, monkeypatch: pytest.MonkeyPatch) -> object:
+        try:
+            from vera_bench.models import MoonshotClient
+        except ImportError:
+            pytest.skip("openai not installed")
+        monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
+        return MoonshotClient("moonshot/kimi-test")
+
+    def _wire(self, client: object, mock_inner: MagicMock) -> None:
+        client._client = MagicMock()
+        client._client.with_options.return_value = mock_inner
+
+    def test_no_cache_param_sent(self, monkeypatch):
+        """Moonshot's Context Caching is fully automatic — the request
+        must NOT carry an extra_body cache key (their API, their
+        routing)."""
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        resp = MagicMock()
+        choice = MagicMock()
+        choice.message.content = "hi"
+        resp.choices = [choice]
+        resp.model = "kimi-test"
+        resp.usage.prompt_tokens = 100
+        resp.usage.completion_tokens = 10
+        resp.usage.prompt_tokens_details.cached_tokens = 64
+        mock_inner.chat.completions.create.return_value = resp
+        self._wire(client, mock_inner)
+        result = client.complete("sys", "user")
+        kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert "extra_body" not in kwargs
+        assert result.cached_tokens == 64
+
+    def test_authentication_error_aborts(self, monkeypatch):
+        try:
+            import openai
+        except ImportError:
+            pytest.skip("openai not installed")
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.chat.completions.create.side_effect = openai.AuthenticationError(
+            message="Invalid API key", response=MagicMock(), body=None
+        )
+        self._wire(client, mock_inner)
+        with pytest.raises(EnvironmentError, match="Moonshot authentication"):
+            client.complete("sys", "user")
+
+    def test_empty_content_raises(self, monkeypatch):
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        resp = MagicMock()
+        choice = MagicMock()
+        choice.message.content = None
+        choice.finish_reason = "length"
+        resp.choices = [choice]
+        mock_inner.chat.completions.create.return_value = resp
+        self._wire(client, mock_inner)
+        with pytest.raises(RuntimeError, match="empty content"):
+            client.complete("sys", "user")

@@ -17,7 +17,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress
 
-from vera_bench.models import LLMClient
+from vera_bench.models import AuthError, LLMClient
 from vera_bench.prompts import (
     build_ailang_fix_prompt,
     build_aver_fix_prompt,
@@ -72,6 +72,7 @@ class ProblemResult:
     tests_passed: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    cached_tokens: int = 0
     wall_time_s: float = 0.0
     timestamp: str = ""
     error_message: str | None = None
@@ -1021,6 +1022,13 @@ def run_single_problem(
             user=prompt["user"],
             max_tokens=max_tokens,
         )
+    except AuthError:
+        # Auth failures abort the sweep — never convert to a
+        # per-problem error row (run_benchmark's abort path
+        # depends on this propagating). AuthError is precise:
+        # a bare OSError/ConnectionError from the HTTP client
+        # must stay a one-problem failure, not kill the run.
+        raise
     except Exception as e:
         results.append(
             ProblemResult(
@@ -1062,6 +1070,7 @@ def run_single_problem(
             attempt=1,
             input_tokens=llm_response.input_tokens,
             output_tokens=llm_response.output_tokens,
+            cached_tokens=llm_response.cached_tokens,
             wall_time_s=llm_response.wall_time_s,
             timestamp=_now(),
             bench_version=bench_version,
@@ -1091,6 +1100,9 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
+        except AuthError:
+            # Auth failures abort the sweep (see attempt-1 handler).
+            raise
         except Exception as e:
             results.append(
                 ProblemResult(
@@ -1118,6 +1130,7 @@ def run_single_problem(
                 attempt=2,
                 input_tokens=fix_response.input_tokens,
                 output_tokens=fix_response.output_tokens,
+                cached_tokens=fix_response.cached_tokens,
                 wall_time_s=fix_response.wall_time_s,
                 timestamp=_now(),
                 bench_version=bench_version,
@@ -1145,6 +1158,9 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
+        except AuthError:
+            # Auth failures abort the sweep (see attempt-1 handler).
+            raise
         except Exception as e:
             results.append(
                 ProblemResult(
@@ -1172,6 +1188,7 @@ def run_single_problem(
                 attempt=2,
                 input_tokens=fix_response.input_tokens,
                 output_tokens=fix_response.output_tokens,
+                cached_tokens=fix_response.cached_tokens,
                 wall_time_s=fix_response.wall_time_s,
                 timestamp=_now(),
                 bench_version=bench_version,
@@ -1189,6 +1206,9 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
+        except AuthError:
+            # Auth failures abort the sweep (see attempt-1 handler).
+            raise
         except Exception as e:
             results.append(
                 ProblemResult(
@@ -1216,6 +1236,7 @@ def run_single_problem(
                 attempt=2,
                 input_tokens=fix_response.input_tokens,
                 output_tokens=fix_response.output_tokens,
+                cached_tokens=fix_response.cached_tokens,
                 wall_time_s=fix_response.wall_time_s,
                 timestamp=_now(),
                 bench_version=bench_version,
@@ -1319,6 +1340,13 @@ def run_benchmark(
                             bench_version=bench_version,
                             vera_version=vera_version,
                         )
+                    except AuthError:
+                        # Auth failures (bad API key) abort the whole
+                        # sweep — the model clients raise
+                        # EnvironmentError for exactly this reason.
+                        # Recording 60 crash rows on the same bad key
+                        # would defeat that abort semantics.
+                        raise
                     except Exception as exc:  # noqa: BLE001
                         tb = traceback.format_exc()
                         pid = problem.get("id", "?")
@@ -1363,6 +1391,16 @@ def run_benchmark(
                         problem = futures[fut]
                         try:
                             problem_results = fut.result()
+                        except AuthError:
+                            # Bad API key — abort the sweep (see the
+                            # sequential path). Cancel queued futures
+                            # explicitly: the with-block's implicit
+                            # shutdown(wait=True) would otherwise DRAIN
+                            # the queue, firing one doomed API call per
+                            # remaining problem before the exception
+                            # propagates.
+                            executor.shutdown(wait=False, cancel_futures=True)
+                            raise
                         except Exception as exc:  # noqa: BLE001
                             tb = traceback.format_exc()
                             pid = problem.get("id", "?")
