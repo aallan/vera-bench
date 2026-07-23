@@ -797,8 +797,11 @@ class TestOpenAIProRouting:
 
         from vera_bench.models import REASONING_MODES
 
-        mode_type = get_type_hints(Reasoning)["mode"]
-        literal = next(a for a in get_args(mode_type) if get_args(a))
+        hints = get_type_hints(Reasoning)
+        # No skip guard: pyproject floors openai at >=2.45, the first
+        # release declaring this field. If it is absent, the environment
+        # violates the declared floor and that should fail loudly.
+        literal = next(a for a in get_args(hints["mode"]) if get_args(a))
         assert REASONING_MODES <= set(get_args(literal))
 
     def test_unknown_reasoning_mode_raises(self, monkeypatch):

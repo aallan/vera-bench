@@ -69,6 +69,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (previously returned `text=""` and the harness blamed the model
   for "did not define entry point").
 
+### Changed
+
+- **Minimum `openai` SDK raised from `>=1.50` to `>=2.45`.** The
+  `openai-pro/` path calls `responses.create` with `prompt_cache_key`
+  and `reasoning={"mode": "pro"}`; the declared floor supported none of
+  the three. Verified against the wheels rather than inferred:
+  `responses.create` arrived in 1.66.0, `prompt_cache_key` in 2.0.0,
+  and `reasoning.mode` in 2.45.0. 2.0 would in fact work at runtime —
+  `maybe_transform` forwards keys a TypedDict does not declare, and the
+  response model is pydantic `extra="allow"` — but relying on that
+  makes a silent failure possible: if either behaviour changed, the
+  "pro" entry would run in standard mode, the effective-mode guard
+  would no-op, and the reasoning chart would compare a model against
+  itself while looking entirely normal.
+
 ### Fixed
 
 - **Claude Fable 5 returned no code at all.** `AnthropicClient.complete`

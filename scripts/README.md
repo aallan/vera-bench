@@ -6,7 +6,7 @@ the installed package, but kept in-repo for reproducibility.
 | Script | Purpose |
 |--------|---------|
 | [`preflight.sh`](#preflightsh--pre-sweep-gate) | Pre-sweep gate: model ids, auth, API parameters and every toolchain, one problem each |
-| [`run_full_benchmark.py`](#run_full_benchmarkpy--full-matrix-benchmark-runner) | Runs every target (Vera, spec-from-NL, Python, TypeScript, Aver + baselines) for one model |
+| [`run_full_benchmark.py`](#run_full_benchmarkpy--full-matrix-benchmark-runner) | Runs every target (Vera, spec-from-NL, Python, TypeScript, Aver, AILANG + baselines) for one model |
 | [`plot_results.py`](#plot_resultspy--benchmark-comparison-chart) | Generates the headline benchmark comparison chart |
 | [`plot_slide.py`](#plot_slidepy--v007-talk-slide-renderer) | Renders v0.0.7 result panels as 16:9 slides for talk presentation (specialised; v0.0.7 lineup pinned) |
 | [`validate_problems.py`](#validate_problemspy--problem-set-validation) | Validates every problem JSON + canonical Vera solution |
@@ -38,7 +38,7 @@ fix.
 | `s1` | Auth, id acceptance and request parameters — one problem per model, Python target (no ~28k-token prefix) | cheap |
 | `s2` | The reasoning-budget pair actually differs — same model, same problem, mode the only variable | 2 calls |
 | `s3` | Prompt-cache accounting: `cached_tokens` on a second call sharing the system prefix | 1 call |
-| `s5` | All six target languages end-to-end, proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
+| `s5` | All six target variants end-to-end (five languages — Vera runs in both full-spec and spec-from-NL), proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
 
 The model list is **not** duplicated in the script — `s0` and `s1` read it from
 `run_full_benchmark.py` (including its `_detect_provider`), so a model added to
@@ -362,19 +362,21 @@ Edit the `MODELS` list near the top of `plot_results.py`:
 
 ```python
 MODELS: list[ModelSpec] = [
-    ModelSpec("Claude Opus 4", "claude-opus-4-20250514", "flagship"),
+    ModelSpec("Claude Fable 5", "claude-fable-5", "fable"),
+    ModelSpec("Claude Opus 4.8", "claude-opus-4-8", "opus"),
     ...
-    ModelSpec("My New Model", "my-new-model-id", "flagship"),
+    ModelSpec("My New Model", "my-new-model-id", "sonnet"),
 ]
 ```
 
 - `display` — shown on the chart (keep short, ~12 chars)
 - `file_prefix` — the model-ID portion of the result filename (run
   `vera-bench run --model X ...` and inspect the resulting filename)
-- `tier` — `"flagship"` (top-left panel) or `"sonnet"` (top-right panel).
-  This is purely a layout decision about which panel the model renders in;
-  the split is "current flagship" vs "previous-gen / cost-tier" by
-  convention.
+- `tier` — any key in `TIER_TITLES`: `"fable"` (ceiling), `"opus"`
+  (flagship), `"sonnet"` (workhorse), plus the legacy `"flagship"` used by
+  historical 2-tier data. This is purely a layout decision about which
+  panel the model renders in. A tier not listed in `TIER_TITLES` still
+  renders, in a trailing panel with a title-cased fallback name.
 
 Row 1 renders **one panel per populated tier**, in `TIER_TITLES` order
 (`fable`, `opus`, `sonnet`, plus the legacy `flagship` for historical
@@ -457,7 +459,7 @@ this script.
 
 Renders the v0.0.7 result panels as **16:9 slides** sized and styled for
 talk presentation (2880×1620 px, slide-readable typography from the back
-of a room). Three slide types:
+of a room). Five slide types:
 
 - `delta` — the "Does Vera beat Python / TypeScript?" horizontal-bar
   chart (the headline storytelling slide)

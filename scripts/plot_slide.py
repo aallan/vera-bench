@@ -511,6 +511,12 @@ def render_ztd(
         models = [
             m for m, row in all_data.items() if all(md in row for md in ZTD_MODES)
         ]
+    if not models:
+        # Both paths empty. Without this the renderer writes a blank but
+        # otherwise well-formed 16:9 PNG — which is worse than an error,
+        # because you find out it is empty when it is already on screen.
+        print(f"  ztd slide: no model has all of {ZTD_MODES} — skipping")
+        return
 
     fig, ax = plt.subplots(figsize=(16, 9), dpi=180)
     x = np.arange(len(models))

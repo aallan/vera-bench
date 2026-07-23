@@ -276,12 +276,6 @@ def run(
                 "Install from https://github.com/sunholo-data/ailang[/red]"
             )
             raise SystemExit(1)
-        except _sp.TimeoutExpired:
-            console.print(
-                "[red]Error: `ailang --version` timed out after 5s. "
-                "Check for a hung ailang process or slow startup.[/red]"
-            )
-            raise SystemExit(1)
 
     # Set up output — dots to hyphens in versions for clean filenames
     def _ver_slug(v: str) -> str:
