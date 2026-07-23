@@ -1158,6 +1158,104 @@ class TestEvaluateAverCode:
         assert result["check_pass"] is True
         assert result["verify_pass"] is False
 
+    @patch("vera_bench.runner.subprocess.run")
+    def test_run_failure_captures_stderr(self, mock_run, tmp_path):
+        """Issue #72: a per-test runtime failure must land its stderr in
+        error_message — previously the loop silently `continue`d and the
+        row was indistinguishable from wrong-logic output."""
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.side_effect = [
+            self._mock_subprocess(returncode=0),  # aver check
+            self._mock_subprocess(returncode=0),  # aver verify
+            self._mock_subprocess(returncode=1, stderr="panic: div by zero"),
+        ]
+        problem = self._sample_problem(test_cases=[{"args": [1], "expected": 1}])
+        result = _evaluate_aver_code(
+            'module T\n    intent = "t"\n\nfn absolute_value(x: Int) -> Int\n    x\n',
+            problem,
+            tmp_path,
+            1,
+        )
+        assert result["run_correct"] is False
+        assert "test 0: panic: div by zero" in result["error_message"]
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_run_timeout_captures_diagnostic(self, mock_run, tmp_path):
+        """Issue #72: per-test timeout is recorded, first-error-wins."""
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.side_effect = [
+            self._mock_subprocess(returncode=0),  # aver check
+            self._mock_subprocess(returncode=0),  # aver verify
+            subprocess.TimeoutExpired(cmd="aver", timeout=30),  # tc0
+            self._mock_subprocess(returncode=1, stderr="later error"),  # tc1
+        ]
+        problem = self._sample_problem(
+            test_cases=[
+                {"args": [1], "expected": 1},
+                {"args": [2], "expected": 2},
+            ]
+        )
+        result = _evaluate_aver_code(
+            'module T\n    intent = "t"\n\nfn absolute_value(x: Int) -> Int\n    x\n',
+            problem,
+            tmp_path,
+            1,
+        )
+        assert result["run_correct"] is False
+        # First error wins: the timeout on tc0, not tc1's stderr.
+        assert result["error_message"] == "test 0: aver run timed out after 30s"
+
+    @patch("vera_bench.runner.subprocess.run")
+    def test_run_failure_does_not_clobber_upstream_error(self, mock_run, tmp_path):
+        """A check-stage error_message must survive a later run failure."""
+        from vera_bench.runner import _evaluate_aver_code
+
+        mock_run.side_effect = [
+            self._mock_subprocess(returncode=1, stderr="type error at 3:1"),
+        ]
+        problem = self._sample_problem(test_cases=[{"args": [1], "expected": 1}])
+        result = _evaluate_aver_code("bad code", problem, tmp_path, 1)
+        assert result["check_pass"] is False
+        assert "type error at 3:1" in result["error_message"]
+
+
+class TestFirstRunError:
+    """Unit tests for the shared per-test diagnostic formatter (#72)."""
+
+    def test_timeout_marker(self):
+        from vera_bench.runner import _first_run_error
+
+        assert _first_run_error(3, None, "aver") == (
+            "test 3: aver run timed out after 30s"
+        )
+
+    def test_stderr_preferred(self):
+        from vera_bench.runner import _first_run_error
+
+        proc = MagicMock(returncode=1, stderr="boom", stdout="ignored")
+        assert _first_run_error(0, proc, "ailang") == "test 0: boom"
+
+    def test_stdout_fallback(self):
+        from vera_bench.runner import _first_run_error
+
+        proc = MagicMock(returncode=2, stderr="", stdout="compile diag")
+        assert _first_run_error(1, proc, "aver") == "test 1: compile diag"
+
+    def test_no_output_marker(self):
+        from vera_bench.runner import _first_run_error
+
+        proc = MagicMock(returncode=137, stderr="", stdout="")
+        assert _first_run_error(2, proc, "aver") == "test 2: exit 137 (no output)"
+
+    def test_truncation_at_400(self):
+        from vera_bench.runner import _first_run_error
+
+        proc = MagicMock(returncode=1, stderr="x" * 1000, stdout="")
+        msg = _first_run_error(0, proc, "aver")
+        assert len(msg) == len("test 0: ") + 400
+
 
 class TestRunSingleProblemAver:
     def _mock_client(self, text):

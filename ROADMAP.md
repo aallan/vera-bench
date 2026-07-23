@@ -23,7 +23,7 @@ This file tracks **forward-looking** milestones. For what has shipped in each re
 - [x] Strengthen postconditions to catch slot-swap bugs (issue #14)
 - [ ] Improve SKILL.md coverage of where blocks (issue #15)
 - [x] Test coverage ([issue #5](https://github.com/aallan/vera-bench/issues/5), ongoing — target 90%) — CI enforces 80% floor via `--cov-fail-under=80` in [ci.yml](.github/workflows/ci.yml), current coverage shown by [![codecov](https://codecov.io/gh/aallan/vera-bench/graph/badge.svg)](https://codecov.io/gh/aallan/vera-bench)
-- [ ] Per-test subprocess-failure diagnostics — Aver and AILANG evaluators currently `continue` on per-test failures without capturing stderr, unlike the Python/TypeScript paths. Small shared-helper refactor (issue [#72](https://github.com/aallan/vera-bench/issues/72))
+- [x] Per-test subprocess-failure diagnostics — shared `_first_run_error` helper; Aver evaluator now captures first-failure stderr like AILANG (issue [#72](https://github.com/aallan/vera-bench/issues/72), [PR #90](https://github.com/aallan/vera-bench/pull/90))
 
 ## Milestone 2: Longitudinal tracking
 
