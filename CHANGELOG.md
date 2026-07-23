@@ -46,10 +46,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `_complete_responses` passes it as a typed kwarg. Restated with the
     reason that still holds (shared request path with the Moonshot and
     OpenRouter clients).
-  - `ci.yml` presented the pip CVE workaround's removal condition as
-    settled and pointed at issue #63, which is closed while the step
-    remains. Now states plainly that it may be redundant and how to
-    check.
+  - **Removed the `pip install --upgrade pip` CVE-2026-3219 workaround
+    from `ci.yml`** and its `KNOWN_ISSUES.md` entry. Its removal
+    trigger — "when the runner image ships pip >= 26.1 natively" — had
+    fired without anyone checking. A CI run log settles it: the
+    `actions/setup-python@v7` image now provides **pip 26.1.2**, so the
+    upgrade step was resolving to `Requirement already satisfied` and
+    downloading nothing. Issue
+    [#63](https://github.com/aallan/vera-bench/issues/63) was already
+    closed; the code had simply outlived it.
   - `KNOWN_ISSUES.md` records the first measured cache-hit rates —
     OpenAI 99%, Anthropic 100%, Moonshot still unmeasured.
 

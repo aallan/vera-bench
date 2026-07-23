@@ -12,39 +12,6 @@ For language gotchas (Vera and Aver syntax rules), see
 
 ---
 
-## CI workarounds
-
-### CI: `pip install --upgrade pip` in the dependency-audit job
-
-**File:** `.github/workflows/ci.yml`, `dependency-audit` job
-**Tracking issue:** [#63](https://github.com/aallan/vera-bench/issues/63)
-**Related:** [aallan/vera#537](https://github.com/aallan/vera/issues/537)
-(same workaround, same root cause)
-
-[CVE-2026-3219](https://nvd.nist.gov/vuln/detail/CVE-2026-3219) is a
-vulnerability in pip 26.0.1's archive handling. It was fixed in pip 26.1
-(released 2026-04-26). However, the `actions/setup-python` toolchain
-image baked pip 26.0.1 into its Python 3.12 environment, so `pip-audit`
-running inside the runner reported the runner's own pip as vulnerable
-until GitHub refreshed the image.
-
-The workaround is a `pip install --upgrade pip` step before `pip-audit`
-runs, pulling pip 26.1 from PyPI to replace the bundled 26.0.1.
-
-**Status:** issue #63 is **closed**, but the workaround is still present
-in `ci.yml` and the action has since been bumped to `@v7`. Nobody has
-verified whether the `@v7` image ships pip ≥ 26.1 natively, so the step
-may now be redundant.
-
-**Removal trigger:** confirm what pip version the current
-`actions/setup-python@v7` image ships (add a temporary `pip --version`
-step, or check a recent run log). If it is ≥ 26.1, drop the
-`pip install --upgrade pip &&` prefix from the `Install dependencies and
-pip-audit` step and delete this entry. If it is still older, reopen #63
-so the trigger has a live home again.
-
----
-
 ## Documentation pins
 
 ### `assets/results-graph.png` shows v0.0.7 data, not the latest
