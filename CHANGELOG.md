@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `preflight.sh`'s undocumented `curl`/`jq` dependency.
   - `KNOWN_ISSUES.md` records the first measured cache-hit rates: OpenAI 99%,
     Anthropic 100%, Moonshot not yet measured.
+- **`preflight.sh` s3 now probes one model per provider.** It previously
+  probed only `$REASON_BASE` (OpenAI), so Moonshot went unmeasured and
+  Anthropic was covered only incidentally by s5. A cache probe needs both a
+  prompt over the provider's minimum and a repeat call against it; s1 gives
+  every model a prompt but it is 70 tokens, which cannot cache. Overridable
+  via `PREFLIGHT_CACHE_PROBE`.
 - **Removed the CVE-2026-3219 `pip install --upgrade pip` workaround** from
   `ci.yml`, and its `KNOWN_ISSUES.md` entry
   ([#63](https://github.com/aallan/vera-bench/issues/63)). `actions/setup-python`

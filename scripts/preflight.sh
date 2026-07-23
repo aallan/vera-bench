@@ -264,27 +264,59 @@ fi
 # system prefix (S2's default run was the first), so a working cache
 # should report cached_tokens > 0 here and 0 there.
 if want s3; then
-note "S3  cache accounting (2nd call on the same 28k prefix)"
-$VB run --model "$REASON_BASE" --problem VB-T1-002 \
-   --output-dir "$SMOKE/s3" >"$SMOKE/log-s3.txt" 2>&1
-$PY - "$SMOKE" <<'PY'
+note "S3  cache accounting (2nd call on the same ~29k prefix)"
+# One model per provider. A cache probe needs BOTH a prompt over the
+# provider's minimum (the ~29k SKILL.md prefix, i.e. a Vera target) and a
+# repeat call against it. Neither S1 nor S5 gives that to every provider:
+# S1 uses the 70-token Python target, which cannot cache at all, and S5
+# only runs the canary. Probing a single model here left Moonshot
+# unmeasured through the whole v0.0.16 gate, and Anthropic measured only
+# by accident (S5 runs vera-full then vera-nl, which share the prefix).
+CACHE_PROBE="${PREFLIGHT_CACHE_PROBE:-$REASON_BASE $CANARY moonshot/kimi-k3}"
+for m in $CACHE_PROBE; do
+  slug="${m//\//-}"
+  busy "cache probe: $m (2 calls)"
+  # Two different problems so the user half differs while the system
+  # prefix is identical — that is what makes the second call a cache hit
+  # rather than an exact-request replay.
+  $VB run --model "$m" --problem VB-T1-001 \
+     --output-dir "$SMOKE/s3/$slug/warm" >"$SMOKE/log-s3-$slug-1.txt" 2>&1
+  $VB run --model "$m" --problem VB-T1-002 \
+     --output-dir "$SMOKE/s3/$slug/probe" >"$SMOKE/log-s3-$slug-2.txt" 2>&1
+done
+$PY - "$SMOKE/s3" <<'PY'
 import json, pathlib, sys
 d = pathlib.Path(sys.argv[1])
-def show(label, sub):
-    for f in sorted((d / sub).rglob("*.jsonl")):
+def row(path):
+    for f in sorted(path.rglob("*.jsonl")):
         for line in f.read_text().splitlines():
-            if not line.strip(): continue
-            r = json.loads(line)
-            i, c = r.get("input_tokens", 0), r.get("cached_tokens", 0)
-            pct = (100 * c / i) if i else 0
-            print(f"  {label:<12} {r['model'][:26]:<26} input={i:>6} "
-                  f"cached={c:>6} ({pct:.0f}%)")
-show("S2 1st call", "s2/default")
-show("S3 2nd call", "s3")
-print("  (OpenAI auto-caches prompts >=1024 tokens; a 0 on the 2nd call means")
-print("   either the prefix differs per problem or cached_tokens isn't plumbed)")
-print("\n  --- all providers, S1 rows ---")
-show("S1", "s1")
+            if line.strip():
+                return json.loads(line)
+    return None
+print(f"  {'model':<26} {'call':<6} {'input':>7} {'cached':>7}  {'%':>4}")
+unproven = []
+for slug in sorted(p.name for p in d.iterdir() if p.is_dir()):
+    second = None
+    for call in ("warm", "probe"):
+        r = row(d / slug / call)
+        if not r:
+            print(f"  {slug[:26]:<26} {call:<6}  (no result row)")
+            continue
+        i, c = r.get("input_tokens", 0), r.get("cached_tokens", 0)
+        print(f"  {r['model'][:26]:<26} {call:<6} {i:>7} {c:>7}  "
+              f"{100*c/i if i else 0:>3.0f}%")
+        if call == "probe":
+            second = (r["model"], i, c)
+    if second and second[1] and second[2] == 0:
+        unproven.append(second[0])
+print()
+if unproven:
+    print(f"  NOTE: no cache hit observed on the 2nd call for {unproven}.")
+    print("        Either the provider does not cache this prefix, or our")
+    print("        cached_tokens read is wrong for that provider. Both")
+    print("        matter for cost estimates — worth chasing before a sweep.")
+else:
+    print("  All probed providers reported a cache hit on the 2nd call.")
 PY
 fi
 
