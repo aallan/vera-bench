@@ -17,7 +17,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress
 
-from vera_bench.models import LLMClient
+from vera_bench.models import AuthError, LLMClient
 from vera_bench.prompts import (
     build_ailang_fix_prompt,
     build_aver_fix_prompt,
@@ -1022,10 +1022,12 @@ def run_single_problem(
             user=prompt["user"],
             max_tokens=max_tokens,
         )
-    except EnvironmentError:
+    except AuthError:
         # Auth failures abort the sweep — never convert to a
         # per-problem error row (run_benchmark's abort path
-        # depends on this propagating; CR #91 critical).
+        # depends on this propagating). AuthError is precise:
+        # a bare OSError/ConnectionError from the HTTP client
+        # must stay a one-problem failure, not kill the run.
         raise
     except Exception as e:
         results.append(
@@ -1098,7 +1100,7 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
-        except EnvironmentError:
+        except AuthError:
             # Auth failures abort the sweep (see attempt-1 handler).
             raise
         except Exception as e:
@@ -1156,7 +1158,7 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
-        except EnvironmentError:
+        except AuthError:
             # Auth failures abort the sweep (see attempt-1 handler).
             raise
         except Exception as e:
@@ -1204,7 +1206,7 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
-        except EnvironmentError:
+        except AuthError:
             # Auth failures abort the sweep (see attempt-1 handler).
             raise
         except Exception as e:
@@ -1338,7 +1340,7 @@ def run_benchmark(
                             bench_version=bench_version,
                             vera_version=vera_version,
                         )
-                    except EnvironmentError:
+                    except AuthError:
                         # Auth failures (bad API key) abort the whole
                         # sweep — the model clients raise
                         # EnvironmentError for exactly this reason.
@@ -1389,7 +1391,7 @@ def run_benchmark(
                         problem = futures[fut]
                         try:
                             problem_results = fut.result()
-                        except EnvironmentError:
+                        except AuthError:
                             # Bad API key — abort the sweep (see the
                             # sequential path). Cancel queued futures
                             # explicitly: the with-block's implicit

@@ -12,6 +12,30 @@ from typing import Any, Protocol, TypeVar
 _T = TypeVar("_T")
 
 
+class AuthError(EnvironmentError):
+    """API credential failure — aborts the whole sweep.
+
+    Subclasses EnvironmentError so existing callers and tests that
+    catch/expect EnvironmentError keep working, but gives the runner a
+    precise type to re-raise on. That precision matters: EnvironmentError
+    IS OSError, so catching it broadly would also abort the sweep on a
+    transient ConnectionError from the HTTP client — a network blip
+    should cost one problem, not the whole run.
+    """
+
+
+def _as_count(value: object) -> int:
+    """Normalise a provider-reported token counter to a safe int.
+
+    Providers occasionally report None (field absent), and mocks report
+    MagicMock. Either reaches ProblemResult and then json.dumps, which
+    raises "Object of type X is not JSON serializable" mid-sweep — after
+    the API spend. Negative values are equally nonsensical. type() not
+    isinstance(): bool is an int subclass.
+    """
+    return value if type(value) is int and value >= 0 else 0
+
+
 @dataclass
 class LLMResponse:
     text: str
@@ -78,9 +102,7 @@ def _call_openai_compatible(
     except openai.APITimeoutError as e:
         raise TimeoutError(f"{label} API timed out: {e}") from e
     except openai.AuthenticationError as e:
-        raise EnvironmentError(
-            f"{label} authentication failed (check {key_hint}): {e}"
-        ) from e
+        raise AuthError(f"{label} authentication failed (check {key_hint}): {e}") from e
     except openai.RateLimitError as e:
         raise RuntimeError(
             f"{label} rate-limited the model={model!r} "
@@ -113,8 +135,13 @@ def _validate_openai_response_text(response: Any, label: str, model: str) -> str
             f"(finish_reason={finish_reason})"
         )
     choice = response.choices[0]
-    text = choice.message.content if choice.message else None
-    if not text:
+    message = getattr(choice, "message", None)
+    text = getattr(message, "content", None) if message is not None else None
+    # isinstance check, not just truthiness: newer APIs can return
+    # structured content (a list of blocks) where a bare truthiness test
+    # would pass a non-str through to LLMResponse.text, and extract_code's
+    # regex would then fail far from the cause.
+    if not isinstance(text, str) or not text:
         finish_reason = getattr(choice, "finish_reason", "unknown")
         raise RuntimeError(
             f"{label} returned empty content for model={model!r} "
@@ -212,11 +239,15 @@ class AnthropicClient:
         cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
         return LLMResponse(
             text=text,
-            input_tokens=usage.input_tokens + cache_creation + cache_read,
-            output_tokens=usage.output_tokens,
+            input_tokens=(
+                _as_count(usage.input_tokens)
+                + _as_count(cache_creation)
+                + _as_count(cache_read)
+            ),
+            output_tokens=_as_count(usage.output_tokens),
             wall_time_s=round(elapsed, 2),
             model=response.model,
-            cached_tokens=cache_read if isinstance(cache_read, int) else 0,
+            cached_tokens=_as_count(cache_read),
         )
 
 
@@ -266,8 +297,8 @@ class OpenAIClient:
         usage = response.usage
         return LLMResponse(
             text=text,
-            input_tokens=usage.prompt_tokens if usage else 0,
-            output_tokens=usage.completion_tokens if usage else 0,
+            input_tokens=_as_count(usage.prompt_tokens) if usage else 0,
+            output_tokens=_as_count(usage.completion_tokens) if usage else 0,
             wall_time_s=round(elapsed, 2),
             model=response.model or self._model,
             cached_tokens=_openai_cached_tokens(usage) if usage else 0,
@@ -325,8 +356,8 @@ class MoonshotClient:
         usage = response.usage
         return LLMResponse(
             text=text,
-            input_tokens=usage.prompt_tokens if usage else 0,
-            output_tokens=usage.completion_tokens if usage else 0,
+            input_tokens=_as_count(usage.prompt_tokens) if usage else 0,
+            output_tokens=_as_count(usage.completion_tokens) if usage else 0,
             wall_time_s=round(elapsed, 2),
             model=response.model or self._model,
             cached_tokens=_openai_cached_tokens(usage) if usage else 0,
@@ -388,8 +419,8 @@ class OpenRouterClient:
         usage = response.usage
         return LLMResponse(
             text=text,
-            input_tokens=usage.prompt_tokens if usage else 0,
-            output_tokens=usage.completion_tokens if usage else 0,
+            input_tokens=_as_count(usage.prompt_tokens) if usage else 0,
+            output_tokens=_as_count(usage.completion_tokens) if usage else 0,
             wall_time_s=round(elapsed, 2),
             model=response.model or self._model,
             cached_tokens=_openai_cached_tokens(usage) if usage else 0,
