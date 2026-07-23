@@ -200,11 +200,10 @@ def create_client(model: str) -> LLMClient:
     )
 
 
-# Maps our user-facing reasoning-mode names onto the values the OpenAI
-# Chat Completions `reasoning_effort` parameter actually accepts
-# (none/minimal/low/medium/high/xhigh/max as of openai-python 2.47).
-# "pro" is our name for the ceiling tier; the API calls it "max".
-REASONING_MODE_EFFORT: dict[str, str] = {"pro": "max"}
+# Reasoning execution modes, per the OpenAI Responses API `reasoning.mode`
+# field (Literal["standard", "pro"] in openai-python 2.47). This is a
+# different axis from `reasoning.effort` — see OpenAIClient.__init__.
+REASONING_MODES: frozenset[str] = frozenset({"standard", "pro"})
 
 
 def _anthropic_text(content: object) -> str:
@@ -304,27 +303,26 @@ class OpenAIClient:
 
         self._client = openai.OpenAI(api_key=api_key)
         self._model = model.removeprefix("openai/")
-        # Reasoning tier for the ceiling ("pro") benchmark entry. Set by
-        # the openai-pro/ routing prefix in create_client; never via the
-        # runner (the complete() Protocol carries no per-call config —
-        # see the openai-pro design notes in the v0.0.16 plan).
+        # Reasoning execution mode for the ceiling ("pro") benchmark
+        # entry. Set by the openai-pro/ routing prefix in create_client;
+        # never via the runner (the complete() Protocol carries no
+        # per-call config — see the v0.0.16 plan).
         #
-        # The user-facing name stays "pro" — it is baked into the model
-        # string, the result filenames and the talk slides — but the API
-        # has no such value. Chat Completions takes `reasoning_effort`
-        # from a fixed set (none/minimal/low/medium/high/xhigh/max), so
-        # "pro" maps to the ceiling, "max".
-        self._reasoning_mode = reasoning_mode
-        self._reasoning_effort = REASONING_MODE_EFFORT.get(reasoning_mode or "")
-        if reasoning_mode and self._reasoning_effort is None:
-            # Failing loudly matters here: an unmapped mode would send no
-            # reasoning parameter at all, so the "pro" entry would quietly
-            # run at default effort and the pro-vs-default comparison would
-            # be a comparison of a model against itself.
+        # `mode` and `effort` are INDEPENDENT axes: mode selects standard
+        # vs pro execution, effort controls how much reasoning happens
+        # within it. Pro mode exists only on the Responses API, so a
+        # client with a mode set routes there instead of Chat
+        # Completions. Chat Completions rejects the parameter outright
+        # (400 "Unknown parameter: 'reasoning'"), and mapping pro onto
+        # reasoning_effort="max" does not work either — gpt-5.6-sol
+        # rejects "max" on Chat Completions, and effort is the wrong axis
+        # regardless. Both verified live, 2026-07-23.
+        if reasoning_mode is not None and reasoning_mode not in REASONING_MODES:
             raise ValueError(
                 f"Unknown reasoning mode {reasoning_mode!r}. "
-                f"Known modes: {sorted(REASONING_MODE_EFFORT)}"
+                f"Known modes: {sorted(REASONING_MODES)}"
             )
+        self._reasoning_mode = reasoning_mode
 
     def complete(
         self,
@@ -340,19 +338,12 @@ class OpenAIClient:
         effective_max = max_tokens
         if self._reasoning_mode:
             effective_max = max(max_tokens, 16000)
+            return self._complete_responses(system, user, effective_max, timeout)
 
         # Cache-shard routing for the shared system prefix, passed via
         # extra_body so it works on any 1.x SDK regardless of
         # typed-kwarg support (#61).
         extra_body: dict = {"prompt_cache_key": _prompt_cache_key(system)}
-
-        # Reasoning goes in as the typed `reasoning_effort` kwarg. The
-        # nested `reasoning={"mode": ...}` shape belongs to the Responses
-        # API; Chat Completions rejects it outright with
-        # 400 "Unknown parameter: 'reasoning'" (smoke S2, 2026-07-23).
-        kwargs: dict = {}
-        if self._reasoning_effort:
-            kwargs["reasoning_effort"] = self._reasoning_effort
 
         start = time.monotonic()
         response = _call_openai_compatible(
@@ -368,7 +359,6 @@ class OpenAIClient:
                     {"role": "user", "content": user},
                 ],
                 extra_body=extra_body,
-                **kwargs,
             ),
             label="OpenAI",
             key_hint="OPENAI_API_KEY",
@@ -377,19 +367,73 @@ class OpenAIClient:
         elapsed = time.monotonic() - start
         text = _validate_openai_response_text(response, "OpenAI", self._model)
         usage = response.usage
-        # Both Sol variants report the same API model id — suffix the
-        # reasoning mode so JSONL rows are self-describing (filenames
-        # are already distinct via the CLI model string).
-        reported_model = response.model or self._model
-        if self._reasoning_mode:
-            reported_model = f"{reported_model}#{self._reasoning_mode}"
         return LLMResponse(
             text=text,
             input_tokens=_as_count(usage.prompt_tokens) if usage else 0,
             output_tokens=_as_count(usage.completion_tokens) if usage else 0,
             wall_time_s=round(elapsed, 2),
-            model=reported_model,
+            model=response.model or self._model,
             cached_tokens=_openai_cached_tokens(usage) if usage else 0,
+        )
+
+    def _complete_responses(
+        self, system: str, user: str, max_output: int, timeout: float
+    ) -> LLMResponse:
+        """Run through the Responses API, the only endpoint carrying
+        `reasoning.mode`. Chat Completions rejects the parameter."""
+        start = time.monotonic()
+        response = _call_openai_compatible(
+            lambda: self._client.with_options(timeout=timeout).responses.create(
+                model=self._model,
+                instructions=system,
+                input=user,
+                reasoning={"mode": self._reasoning_mode},
+                max_output_tokens=max_output,
+                prompt_cache_key=_prompt_cache_key(system),
+            ),
+            label="OpenAI",
+            key_hint="OPENAI_API_KEY",
+            model=self._model,
+        )
+        elapsed = time.monotonic() - start
+
+        # The response echoes the *effective* execution mode, so a silent
+        # downgrade to standard is detectable here rather than inferred
+        # later from suspiciously-similar wall times. A pro entry that
+        # actually ran standard would make the headline comparison a
+        # model against itself, so it must not pass quietly.
+        effective = getattr(getattr(response, "reasoning", None), "mode", None)
+        if effective and effective != self._reasoning_mode:
+            raise RuntimeError(
+                f"OpenAI ran model={self._model!r} in reasoning mode "
+                f"{effective!r}, not the requested {self._reasoning_mode!r}"
+            )
+
+        text = (response.output_text or "").strip()
+        if not text:
+            detail = getattr(response, "incomplete_details", None)
+            reason = getattr(detail, "reason", None) or getattr(
+                response, "status", "unknown"
+            )
+            raise ValueError(
+                f"OpenAI returned no output text for model={self._model!r} "
+                f"(status/reason: {reason}). Reasoning may have consumed the "
+                f"entire {max_output}-token budget."
+            )
+
+        usage = response.usage
+        details = getattr(usage, "input_tokens_details", None) if usage else None
+        # Both Sol variants report the same API model id — suffix the
+        # reasoning mode so JSONL rows are self-describing (filenames
+        # are already distinct via the CLI model string).
+        reported = f"{response.model or self._model}#{self._reasoning_mode}"
+        return LLMResponse(
+            text=text,
+            input_tokens=_as_count(getattr(usage, "input_tokens", 0)) if usage else 0,
+            output_tokens=_as_count(getattr(usage, "output_tokens", 0)) if usage else 0,
+            wall_time_s=round(elapsed, 2),
+            model=reported,
+            cached_tokens=_as_count(getattr(details, "cached_tokens", 0)),
         )
 
 

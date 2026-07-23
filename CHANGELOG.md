@@ -82,19 +82,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Caught by smoke S1 (2026-07-23); the pre-existing unit test missed it
   because a bare `MagicMock` auto-supplies any attribute, including the
   `.text` the real `ThinkingBlock` lacks.
-- **`openai-pro/` sent a parameter the API does not accept.** The
-  reasoning tier was passed as `extra_body={"reasoning": {"mode":
-  "pro"}}` — the *Responses API* shape. Chat Completions rejects it
-  with `400 Unknown parameter: 'reasoning'`, so every Sol@pro call
-  failed. Chat Completions takes a typed `reasoning_effort` kwarg from
-  a fixed set (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`),
-  with no `"pro"` member; the user-facing "pro" name is retained (it is
-  baked into model strings, filenames and slides) and mapped to the API
-  ceiling `"max"` via `REASONING_MODE_EFFORT`. An unmapped mode now
-  raises rather than silently sending no reasoning parameter — that
-  failure mode would have run the "pro" entry at default effort and
-  turned the headline pro-vs-default comparison into a model compared
-  against itself. Confirms the CodeRabbit finding on
+- **`openai-pro/` went to the wrong endpoint — now uses the Responses
+  API.** The reasoning tier was passed as `extra_body={"reasoning":
+  {"mode": "pro"}}` on Chat Completions, which rejects it with `400
+  Unknown parameter: 'reasoning'`, so every Sol@pro call failed. Per
+  OpenAI's reasoning guide, **mode and effort are independent axes** —
+  mode selects standard vs pro *execution*, effort controls how much
+  reasoning happens — and `reasoning.mode` exists only on the Responses
+  API (`Literal["standard", "pro"]` in openai-python 2.47). Pro is
+  therefore not expressible on Chat Completions at all: `reasoning` is
+  rejected as unknown, and `reasoning_effort="max"` is rejected too
+  (`gpt-5.6-sol` accepts only `none`/`low`/`medium`/`high`/`xhigh`
+  there — `max` is Responses-only). A client with a reasoning mode set
+  now routes to `responses.create` with `instructions`/`input`/
+  `max_output_tokens` and reads usage from `input_tokens` /
+  `output_tokens` / `input_tokens_details.cached_tokens`. Two new
+  guards: an unknown mode raises at construction, and a response whose
+  echoed *effective* `reasoning.mode` differs from the requested one
+  raises rather than being recorded as a pro result — a silent
+  downgrade would turn the headline pro-vs-default comparison into a
+  model compared against itself. Confirms the CodeRabbit finding on
   [#92](https://github.com/aallan/vera-bench/pull/92) that was declined
   pending evidence.
 - **Long result paths wrapped mid-token in console output.** `Output:
