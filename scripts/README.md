@@ -414,6 +414,13 @@ of a room). Three slide types:
 - `all-modes` — every model × the 4 core modes in a single grouped-bar panel
 - `ztd` — zero-training-data slide: Vera vs Aver vs AILANG on the models
   that ran those generation targets (opt-in; not part of `--type all`)
+- `reasoning` — the reasoning-budget slide: one model at two effort
+  levels (`REASONING_PAIR`, default `GPT-5.6 Sol` vs `GPT-5.6 Sol (pro)`)
+  across every core mode, with the per-language delta annotated. Answers
+  "does more deliberation help, and does it help *less* on Vera?" — the
+  controlled comparison no other provider offers, since both entries are
+  the same underlying model. Opt-in; needs both halves of the pair in
+  the results directory
 
 ### Scope and lifecycle
 

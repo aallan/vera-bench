@@ -589,9 +589,7 @@ def main():
     for col, (tier_key, tier_data) in enumerate(tiers.items()):
         ax_t = fig.add_subplot(gs[0, col])
         title = TIER_TITLES.get(tier_key, tier_key.title())
-        plot_tier(
-            ax_t, tier_data, f"{title} \u2014 run_correct", comparison_modes
-        )
+        plot_tier(ax_t, tier_data, f"{title} \u2014 run_correct", comparison_modes)
 
     # Row 2: delta chart
     ax3 = fig.add_subplot(gs[1, :])

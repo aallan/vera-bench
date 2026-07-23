@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Render benchmark result panels as 16:9 slides for talk presentation.
 
-Four slide types are supported:
+Five slide types are supported:
 
 - `delta`     — the "Does Vera beat Python / TypeScript?" horizontal-bar chart
                 (the headline storytelling slide; Vera-wins read as green
@@ -15,6 +15,13 @@ Four slide types are supported:
                 subset of models that ran the ZTD generation targets. Needs
                 Aver/AILANG result files, so it's opt-in (--type ztd), not
                 part of --type all.
+- `reasoning` — one model at two reasoning budgets (REASONING_PAIR) across
+                every core mode, per-language delta annotated. The
+                controlled comparison: both entries are the SAME model, so
+                deliberation is the only variable — if Vera's delta is ~0
+                while comparison languages gain, the language is supplying
+                structure the reasoning budget otherwise reconstructs.
+                Opt-in; needs both halves of the pair.
 
 Standalone script — not part of the documentation chart-generation flow in
 `plot_results.py`. Slide rendering has different typography and layout
@@ -559,11 +566,145 @@ def render_ztd(
     _save(fig, output, background)
 
 
+# ----------------------------------------------------------------------
+# Reasoning-budget slide — same model, two effort levels
+# ----------------------------------------------------------------------
+
+# Display names of a (default, pro) pair from plot_results.MODELS. Both
+# entries are the SAME underlying model at different reasoning budgets,
+# so the only variable between them is deliberation.
+REASONING_PAIR = ("GPT-5.6 Sol", "GPT-5.6 Sol (pro)")
+REASONING_MODES = ["Vera", "Vera NL", "Python", "TypeScript"]
+
+
+def render_reasoning(
+    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
+) -> None:
+    """Does a bigger reasoning budget help — and does it help less on Vera?
+
+    The controlled comparison no other provider offers: one model, two
+    effort levels, every language. If Vera's delta is ~0 while the
+    comparison languages gain from extra deliberation, the language is
+    supplying the structure the reasoning budget otherwise has to
+    reconstruct.
+    """
+    all_data = _merge_tiers(tiers)
+    base_name, pro_name = REASONING_PAIR
+    missing = [n for n in REASONING_PAIR if n not in all_data]
+    if missing:
+        print(f"  reasoning slide: no data for {missing} — skipping")
+        return
+
+    base, pro = all_data[base_name], all_data[pro_name]
+    modes = [m for m in REASONING_MODES if m in base and m in pro]
+    deltas = [pro[m] - base[m] for m in modes]
+
+    fig, ax = plt.subplots(figsize=(16, 9), dpi=180)
+    x = np.arange(len(modes))
+    width = 0.36
+
+    for offset, row, label, alpha, hatch in (
+        (-width / 2, base, "default effort", 0.95, None),
+        (width / 2, pro, "reasoning: pro", 0.75, "//"),
+    ):
+        values = [row[m] for m in modes]
+        bars = ax.bar(
+            x + offset,
+            values,
+            width,
+            label=label,
+            color=[COLORS[m] for m in modes],
+            edgecolor=CREAM,
+            linewidth=0.8,
+            alpha=alpha,
+            hatch=hatch,
+        )
+        for bar, val in zip(bars, values):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 1.5,
+                f"{val}",
+                ha="center",
+                va="bottom",
+                fontsize=BAR_LABEL_PT_MEDIUM,
+                fontweight="bold",
+                color=BROWN_700,
+            )
+
+    # The point of the slide: the per-language delta.
+    for xi, d in zip(x, deltas):
+        sign = "+" if d > 0 else ""
+        ax.text(
+            xi,
+            108,
+            f"{sign}{d} pp",
+            ha="center",
+            va="center",
+            fontsize=BAR_LABEL_PT_MEDIUM,
+            fontweight="bold",
+            color=GREEN if d > 0 else (BROWN_500 if d == 0 else RED),
+        )
+
+    ax.set_ylabel("run_correct (%)", fontsize=AXIS_LABEL_PT, color=BROWN_500)
+    # Punchy title + explanatory subtitle: the long single-line form
+    # clips at 16:9 even at TITLE_PT - 2.
+    ax.set_title(
+        "Does more reasoning help?",
+        fontsize=TITLE_PT,
+        fontweight="bold",
+        pad=44,
+        fontfamily=FONT_HEADING,
+        color=BROWN_900,
+    )
+    ax.text(
+        0.5,
+        1.015,
+        f"{base_name} — one model, two reasoning budgets",
+        transform=ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=SUBTITLE_PT,
+        color=BROWN_500,
+    )
+    ax.set_xticks(x)
+    ax.set_xticklabels(modes, fontsize=TICK_PT_LARGE)
+    ax.set_ylim(0, 118)
+    ax.set_yticks([0, 25, 50, 75, 100])
+    ax.tick_params(axis="y", labelsize=TICK_PT_SMALL)
+    ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.8, alpha=0.4)
+    _style_ax(ax)
+
+    # Neutral legend: colour already encodes language, so the legend
+    # only needs to distinguish the two effort levels.
+    ax.legend(
+        handles=[
+            Patch(
+                facecolor="#888888", edgecolor=CREAM, alpha=0.95, label="default effort"
+            ),
+            Patch(
+                facecolor="#888888",
+                edgecolor=CREAM,
+                alpha=0.75,
+                hatch="//",
+                label="reasoning: pro",
+            ),
+        ],
+        loc="lower left",
+        fontsize=LEGEND_PT,
+        framealpha=0.85,
+        edgecolor=BROWN_300,
+    )
+
+    fig.tight_layout(rect=(0.02, 0.02, 0.98, 0.95))
+    _save(fig, output, background)
+
+
 RENDERERS = {
     "delta": render_delta,
     "tiers": render_tiers,
     "all-modes": render_all_modes,
     "ztd": render_ztd,
+    "reasoning": render_reasoning,
 }
 
 
@@ -617,7 +758,7 @@ def main() -> None:
     # result files that historical versions don't have; request it
     # explicitly with --type ztd.
     if args.type == "all":
-        types = [t for t in types if t != "ztd"]
+        types = [t for t in types if t not in ("ztd", "reasoning")]
     modes = ["Vera", "Vera NL", "Python", "TypeScript"]
     if "ztd" in types:
         modes += ["Aver", "AILANG"]
