@@ -809,6 +809,21 @@ class TestOpenAIProRouting:
         assert kwargs["max_output_tokens"] == 16000
         assert result.model == f"gpt-5.6-sol#{mode}"
 
+    def test_responses_opts_out_of_server_side_storage(self, monkeypatch):
+        """Responses defaults store=True; Chat Completions does not persist.
+
+        Retained prompts and completions could feed cross-run caching or
+        personalisation, which would make a second sweep not independent
+        of the first — a benchmark informed by its own previous run is
+        not measuring what it claims to.
+        """
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user")
+        assert mock_inner.responses.create.call_args.kwargs["store"] is False
+
     def test_budget_floor_does_not_cap_a_larger_request(self, monkeypatch):
         """`max(max_tokens, 16000)` — not a bare 16000, which would
         silently cap an explicit --max-tokens above the floor."""

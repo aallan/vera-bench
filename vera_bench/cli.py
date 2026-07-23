@@ -359,7 +359,25 @@ def _print_metrics(model: str, metrics, language: str = "vera") -> None:
     if language in ("vera", "aver"):
         table.add_row("verify@1", _fmt_rate(metrics.verify_rate))
         table.add_row("fix@1", _fmt_rate(metrics.fix_rate))
-    table.add_row("run_correct", _fmt_rate(metrics.run_correct_rate))
+    # run_correct is measured over the problems that compiled, not over
+    # all of them, so state the denominator rather than leaving the
+    # reader to assume it is total_problems.
+    eligible = getattr(metrics, "run_eligible", 0)
+    run_cell = _fmt_rate(metrics.run_correct_rate)
+    if eligible and eligible != metrics.total_problems:
+        run_cell = f"{run_cell} ({eligible}/{metrics.total_problems} graded)"
+    table.add_row("run_correct", run_cell)
+
+    # Printed unconditionally when non-zero. A run where most calls died
+    # at the API otherwise looks entirely healthy: check@1 drops, which
+    # is a normal result for a model struggling with Vera, while
+    # run_correct rises because the failures left its denominator.
+    errored = getattr(metrics, "errored", 0)
+    if errored:
+        table.add_row(
+            "[red]errored[/red]",
+            f"[red]{errored}/{metrics.total_problems}[/red]",
+        )
 
     if metrics.by_tier:
         table.add_section()

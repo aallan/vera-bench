@@ -234,8 +234,22 @@ def extract_data(
                 continue
             used_paths.append(path)
             metrics = compute_metrics(_load_jsonl(path))
-            rate = metrics.run_correct_rate or 0.0
-            row[mode] = round(rate * 100)
+            if metrics.run_correct_rate is None:
+                # The file exists but nothing in it was gradeable — every
+                # attempt errored or failed to compile, so `run_eligible`
+                # is 0. `or 0.0` would turn "no measurement" into a
+                # plotted 0%, which is the same conflation this `missing`
+                # set exists to prevent, one layer down: absent *data*
+                # rather than an absent *file*.
+                warnings.append(
+                    f"  {model.display} / {mode}: file exists but 0 of "
+                    f"{metrics.total_problems} problems were gradeable "
+                    f"({metrics.errored} errored) — {path.name}"
+                )
+                row[mode] = 0
+                missing.add((model.display, mode))
+                continue
+            row[mode] = round(metrics.run_correct_rate * 100)
 
         tiers.setdefault(model.tier, {})[model.display] = row
 

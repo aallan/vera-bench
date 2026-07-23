@@ -86,6 +86,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A sweep with most calls failing could report an excellent score**
+  ([#95](https://github.com/aallan/vera-bench/issues/95)). `run_correct`
+  is measured over `run_eligible` — problems whose attempt compiled —
+  so rows that never reached the compiler (API errors, auth rejections,
+  timeouts) left the denominator entirely. Verified: **40 API failures
+  plus 20 successes reported `run_correct = 100%`**, and nothing in the
+  output said so; `check@1` merely dropped, which is a normal result
+  for a model struggling with Vera. The rate itself is unchanged, since
+  altering it would break comparability with published results.
+  Instead `BenchmarkMetrics` gained `run_eligible` and `errored`, the
+  CLI summary now prints the graded denominator whenever it differs
+  from the problem count plus an `errored: N/60` row in red, and
+  `extract_data` treats a file with nothing gradeable as *missing*
+  rather than plotting it as a genuine 0% — the same conflation the
+  `missing` set already prevents for absent files, one layer down.
+- **Both Sol arms now send `store=False`.** The Responses API defaults
+  to `store=True` where Chat Completions does not persist at all, so
+  the pro routing silently introduced 30-day server-side retention of
+  every prompt and completion. Beyond the data-handling question,
+  retained content could feed cross-run caching or personalisation —
+  and a benchmark whose second run is informed by its first is not
+  measuring what it claims to.
 - **Claude Fable 5 returned no code at all.** `AnthropicClient.complete`
   read `response.content[0].text`, but models with extended thinking
   return `ThinkingBlock` entries *ahead of* the `TextBlock` — so every

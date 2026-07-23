@@ -25,6 +25,21 @@ class BenchmarkMetrics:
     fix_rate: float | None
     run_correct_rate: float | None
     by_tier: dict[int, TierMetrics]
+    # `run_correct_rate` is measured over `run_eligible`, not over
+    # `total_problems`: a problem whose attempt never compiled cannot be
+    # graded on output. That is defensible, but it means the denominator
+    # moves — and nothing else in this dataclass said so, so a run where
+    # most calls died at the API reported an excellent rate over the
+    # handful that survived. 40 API failures plus 20 successes read as
+    # run_correct 100%.
+    #
+    # These two fields exist to make that visible without changing the
+    # rate, which would break comparability with published results.
+    run_eligible: int = 0
+    errored: int = 0
+    """Problems whose best attempt carries an `error_message` — API
+    failures, auth rejections, timeouts. Counted separately from
+    "compiled but wrong", which is a real result."""
 
 
 def load_results(path: Path) -> list[dict]:
@@ -81,6 +96,7 @@ def compute_metrics(
     fix_eligible = 0
     run_correct_count = 0
     run_eligible = 0
+    errored = 0
 
     for pid, attempts in by_problem.items():
         attempt_1 = next((a for a in attempts if a.get("attempt") == 1), None)
@@ -108,6 +124,12 @@ def compute_metrics(
                 if vp:
                     verify_pass_count += 1
 
+        # An error_message on the best attempt means the problem never
+        # reached a verdict — it is absent from run_eligible below, so
+        # without this tally the shrinking denominator is invisible.
+        if best and best.get("error_message"):
+            errored += 1
+
         # run_correct (on best passing attempt)
         if best and best.get("check_pass"):
             rc = best.get("run_correct")
@@ -123,6 +145,8 @@ def compute_metrics(
         fix_rate=_rate(fix_success, fix_eligible),
         run_correct_rate=_rate(run_correct_count, run_eligible),
         by_tier=_compute_by_tier(by_problem),
+        run_eligible=run_eligible,
+        errored=errored,
     )
     return overall
 

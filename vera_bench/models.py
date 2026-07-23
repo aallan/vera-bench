@@ -422,6 +422,14 @@ class OpenAIClient:
                 reasoning={"mode": self._reasoning_mode},
                 max_output_tokens=max_output,
                 prompt_cache_key=_prompt_cache_key(system),
+                # Responses defaults store=True; Chat Completions does not
+                # persist at all. Opting out keeps repeat sweeps mutually
+                # independent — retained prompts and completions could feed
+                # cross-run caching or personalisation, and a benchmark whose
+                # second run is informed by its first is not measuring what
+                # it claims to. (It also keeps 60 problems' worth of prompts
+                # and generated code off the provider's servers.)
+                store=False,
             ),
             label="OpenAI",
             key_hint="OPENAI_API_KEY",
