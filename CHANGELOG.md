@@ -11,9 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Documentation consistency sweep.** No harness changes, so no version bump.
   - The README described OpenRouter as "used for AILANG-capable models". It is
-    not: AILANG is a *target language* (`--language ailang`), not a provider, and
-    needs no API key of its own — it runs against Claude, GPT or Kimi like any
-    other target. No OpenRouter account is required.
+    simply another supported provider; the qualifier was wrong and is gone.
   - Restored the empty `## [Unreleased]` heading, omitted during the v0.0.16
     promotion, which left its compare-link pointing at nothing.
   - Corrected counts and claims across `preflight.sh`, `scripts/README.md` and
