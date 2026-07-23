@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Per-test subprocess-failure diagnostics for the Aver evaluator**
+  ([#72](https://github.com/aallan/vera-bench/issues/72)). The
+  `_evaluate_aver_code` per-test loop previously `continue`d silently
+  on timeout and non-zero exit — a model whose type-correct Aver
+  crashed at runtime was indistinguishable in JSONL from one with
+  wrong logic (`error_message=None, check_pass=True,
+  run_correct=False`). The loop now captures the first failing
+  test's diagnostic (stderr-or-stdout coalesce, 400-char truncation,
+  explicit exit-code marker when silent) into `error_message`,
+  matching the AILANG evaluator's existing pattern. Both evaluators
+  now share a `_first_run_error` formatting helper.
+
 ### Fixed
 
 - **Vera 0.1.x compatibility for the problem set and canonical

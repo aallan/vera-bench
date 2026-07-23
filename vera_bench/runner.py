@@ -408,6 +408,28 @@ def _evaluate_typescript_code(
     return result
 
 
+def _first_run_error(
+    i: int, proc: subprocess.CompletedProcess | None, tool: str
+) -> str:
+    """Format a per-test-case run-failure diagnostic (issue #72).
+
+    ``proc is None`` means the subprocess timed out. Otherwise coalesce
+    stderr-or-stdout (runtime errors usually land on stderr, but quiet
+    modes and some compile-stage diagnostics land on stdout), truncate
+    to keep JSONL rows readable, and fall back to an explicit exit-code
+    marker when the process produced no output at all.
+
+    Callers keep first-error-wins semantics: only the first failing
+    test's diagnostic is captured per evaluation.
+    """
+    if proc is None:
+        return f"test {i}: {tool} run timed out after 30s"
+    err = (proc.stderr or proc.stdout or "").strip()[:400]
+    if err:
+        return f"test {i}: {err}"
+    return f"test {i}: exit {proc.returncode} (no output)"
+
+
 def _evaluate_aver_code(
     code: str,
     problem: dict,
@@ -487,6 +509,12 @@ def _evaluate_aver_code(
     code_without_main = _strip_module_effects(_strip_aver_main(code))
 
     all_pass = True
+    # Capture the first per-test failure diagnostic — without this, a
+    # model whose type-correct Aver crashes at runtime is
+    # indistinguishable in JSONL from one with wrong logic
+    # (error_message=None, check_pass=True, run_correct=False).
+    # Mirrors the AILANG evaluator's pattern (issue #72).
+    last_run_error: str | None = None
     for i, tc in enumerate(test_cases):
         if not isinstance(tc, dict):
             continue
@@ -531,10 +559,14 @@ def _evaluate_aver_code(
             )
         except subprocess.TimeoutExpired:
             all_pass = False
+            if last_run_error is None:
+                last_run_error = _first_run_error(i, None, "aver")
             continue
 
         if run_proc.returncode != 0:
             all_pass = False
+            if last_run_error is None:
+                last_run_error = _first_run_error(i, run_proc, "aver")
             continue
 
         actual_output = run_proc.stdout.strip()
@@ -545,6 +577,10 @@ def _evaluate_aver_code(
             all_pass = False
 
     result["run_correct"] = all_pass
+    # Only attach if no upstream error (e.g. from the check step) —
+    # preserve the original failure mode.
+    if last_run_error is not None and not result.get("error_message"):
+        result["error_message"] = last_run_error
     return result
 
 
@@ -802,21 +838,12 @@ def _evaluate_ailang_code(
             )
         except subprocess.TimeoutExpired:
             if last_run_error is None:
-                last_run_error = f"test {i}: ailang run timed out after 30s"
+                last_run_error = _first_run_error(i, None, "ailang")
             continue
 
         if run_proc.returncode != 0:
             if last_run_error is None:
-                # stderr-or-stdout coalesce: AILANG runtime errors land on
-                # stderr in most cases, but quiet mode + some compile-stage
-                # diagnostics land on stdout. Truncate to keep JSONL rows
-                # readable.
-                err = (run_proc.stderr or run_proc.stdout or "").strip()[:400]
-                last_run_error = (
-                    f"test {i}: {err}"
-                    if err
-                    else (f"test {i}: exit {run_proc.returncode} (no output)")
-                )
+                last_run_error = _first_run_error(i, run_proc, "ailang")
             continue
 
         actual = run_proc.stdout.strip()
