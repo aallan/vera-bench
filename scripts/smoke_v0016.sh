@@ -150,6 +150,18 @@ def row(sub):
 base, pro = row("default"), row("pro")
 if not base or not pro:
     print("  FAIL  missing one half of the pair — see log-s2-*.txt"); raise SystemExit
+# An errored call reports wall=0.0 and out_tok=0, which the ratio test
+# below would read as "pro looks identical to default" — the exact
+# wrong conclusion. It said that on 2026-07-23 when pro was in fact
+# 400-ing. Check for errors first.
+failed = False
+for lbl, r in (("default", base), ("pro", pro)):
+    if r.get("error_message"):
+        print(f"  FAIL  {lbl} errored: {r['error_message'][:200]}")
+        failed = True
+if failed:
+    print("  VERDICT : inconclusive — fix the error above, then re-run s2")
+    raise SystemExit
 for lbl, r in (("default", base), ("pro", pro)):
     print(f"  {lbl:<8}: model={r['model']!r} wall={r['wall_time_s']:.1f}s "
           f"out_tok={r['output_tokens']} check={r['check_pass']}")
