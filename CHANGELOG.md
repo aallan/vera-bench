@@ -9,54 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Documentation consistency sweep.** No harness changes — nothing here
-  alters what the benchmark measures, so no version bump.
-  - **The README claimed OpenRouter was "used for AILANG-capable
-    models".** It is not, and never was: AILANG is a *target language*
-    (`--language ailang`), not a provider, and runs against Claude, GPT
-    or Kimi like any other target. No AILANG code path references
-    OpenRouter — `OPENROUTER_API_KEY` is read in exactly one place, by
-    `OpenRouterClient`, reached only via the `or/` model prefix, and no
-    OpenRouter model is in the current matrix. Every individual claim in
-    that sentence was true; only the relationship between them was
-    false, which is why the earlier audit (checking claims against code)
-    did not catch it.
-  - Restored the empty `## [Unreleased]` heading, omitted during the
-    v0.0.16 promotion — leaving an `[Unreleased]:` compare-link pointing
-    at a section that did not exist.
-  - `preflight.sh` header said "S0-S5", implying an S4 that has never
-    existed, and "~40 target-runs" where a full sweep is ~52 (8 models ×
-    6 LLM targets, plus 4 baselines). It also now states its `curl` and
-    `jq` dependency: without `jq`, S0's provider listings come back empty
-    and every model reports NOT LISTED.
-  - `scripts/README.md`: `s0` was described as checking *every*
-    configured model id, but Anthropic publishes no `/v1/models`
-    equivalent, so three of eight are covered by `s1` instead; the doc
-    chart is no longer four panels; the `TIER_TITLES` order was given as
-    fable/opus/sonnet when `flagship` sits deliberately *between* `opus`
-    and `sonnet`; `--extra ailang` was undocumented alongside
-    `--extra aver`; and the `plot_slide.py` usage block showed a bare
-    invocation without noting that `--version` **defaults to 0.0.7**, so
-    it silently renders the frozen historical lineup.
-  - `CONTRIBUTING.md` said a missing baseline "drops below the full
-    problem count" — baselines only ever execute the 36 problems that
-    carry `test_cases`.
-  - `models.py` justified sending `prompt_cache_key` via `extra_body` as
-    1.x-SDK compatibility; the floor is now `openai>=2.45`, and
-    `_complete_responses` passes it as a typed kwarg. Restated with the
-    reason that still holds (shared request path with the Moonshot and
-    OpenRouter clients).
-  - **Removed the `pip install --upgrade pip` CVE-2026-3219 workaround
-    from `ci.yml`** and its `KNOWN_ISSUES.md` entry. Its removal
-    trigger — "when the runner image ships pip >= 26.1 natively" — had
-    fired without anyone checking. A CI run log settles it: the
-    `actions/setup-python@v7` image now provides **pip 26.1.2**, so the
-    upgrade step was resolving to `Requirement already satisfied` and
-    downloading nothing. Issue
-    [#63](https://github.com/aallan/vera-bench/issues/63) was already
-    closed; the code had simply outlived it.
-  - `KNOWN_ISSUES.md` records the first measured cache-hit rates —
-    OpenAI 99%, Anthropic 100%, Moonshot still unmeasured.
+- **Documentation consistency sweep.** No harness changes, so no version bump.
+  - The README described OpenRouter as "used for AILANG-capable models". It is
+    not: AILANG is a *target language* (`--language ailang`), not a provider, and
+    needs no API key of its own — it runs against Claude, GPT or Kimi like any
+    other target. No OpenRouter account is required.
+  - Restored the empty `## [Unreleased]` heading, omitted during the v0.0.16
+    promotion, which left its compare-link pointing at nothing.
+  - Corrected counts and claims across `preflight.sh`, `scripts/README.md` and
+    `CONTRIBUTING.md`: the stage list (there is no S4), sweep size (~52
+    target-runs), `s0`'s coverage (Anthropic has no `/v1/models`), the doc
+    chart's panel count, `TIER_TITLES` order, `--extra ailang`, `plot_slide.py`'s
+    `--version` default of 0.0.7, the 36-problem baseline ceiling, and
+    `preflight.sh`'s undocumented `curl`/`jq` dependency.
+  - `KNOWN_ISSUES.md` records the first measured cache-hit rates: OpenAI 99%,
+    Anthropic 100%, Moonshot not yet measured.
+- **Removed the CVE-2026-3219 `pip install --upgrade pip` workaround** from
+  `ci.yml`, and its `KNOWN_ISSUES.md` entry
+  ([#63](https://github.com/aallan/vera-bench/issues/63)). `actions/setup-python`
+  now ships pip 26.1.2 natively, so the step was a no-op.
 
 ## [0.0.16] - 2026-07-23
 
