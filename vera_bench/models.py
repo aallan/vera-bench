@@ -176,7 +176,12 @@ def create_client(model: str) -> LLMClient:
     if model.startswith("claude-") or model.startswith("anthropic/"):
         return AnthropicClient(model)
     if model.startswith("openai-pro/"):
-        return OpenAIClient(model.removeprefix("openai-pro/"), reasoning_mode="pro")
+        bare = model.removeprefix("openai-pro/")
+        if not bare:
+            raise ValueError(
+                "openai-pro/ requires a model id, e.g. openai-pro/gpt-5.6-sol"
+            )
+        return OpenAIClient(bare, reasoning_mode="pro")
     if (
         model.startswith("gpt-")
         or model.startswith("o1-")

@@ -599,7 +599,11 @@ class TestOpenAIProRouting:
     """Sol@pro (openai-pro/ prefix) — the controlled reasoning-budget
     comparison entry. Same model id, distinct mode, distinct results."""
 
-    def _client(self, monkeypatch, model="openai-pro/gpt-5.6-sol"):
+    def _client(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        model: str = "openai-pro/gpt-5.6-sol",
+    ) -> object:
         try:
             from vera_bench.models import create_client
         except ImportError:
@@ -607,7 +611,7 @@ class TestOpenAIProRouting:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         return create_client(model)
 
-    def _ok_response(self):
+    def _ok_response(self) -> MagicMock:
         resp = MagicMock()
         choice = MagicMock()
         choice.message.content = "code"
@@ -618,7 +622,7 @@ class TestOpenAIProRouting:
         resp.usage.prompt_tokens_details.cached_tokens = 0
         return resp
 
-    def _wire(self, client, mock_inner):
+    def _wire(self, client: object, mock_inner: MagicMock) -> None:
         client._client = MagicMock()
         client._client.with_options.return_value = mock_inner
 
@@ -700,3 +704,10 @@ class TestOpenAIProRouting:
         self._wire(client, mock_inner)
         result = client.complete("sys", "user")
         assert result.model == "gpt-5.6-sol"
+
+    def test_bare_openai_pro_prefix_rejected(self, monkeypatch):
+        from vera_bench.models import create_client
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        with pytest.raises(ValueError, match="requires a model id"):
+            create_client("openai-pro/")
