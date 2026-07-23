@@ -7,31 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`preflight.sh` s3 probes prompt caching for every provider**, not just
+  `$REASON_BASE`. Moonshot was never measured and Anthropic was covered only
+  incidentally. 1 call becomes 6; override with `PREFLIGHT_CACHE_PROBE`.
+
+### Removed
+
+- **The CVE-2026-3219 `pip install --upgrade pip` workaround** in `ci.yml`, and
+  its `KNOWN_ISSUES.md` entry
+  ([#63](https://github.com/aallan/vera-bench/issues/63)) —
+  `actions/setup-python` now ships pip 26.1.2, so the step did nothing.
+
 ### Fixed
 
-- **Documentation consistency sweep.** No harness changes, so no version bump.
-  - The README described OpenRouter as "used for AILANG-capable models". It is
-    simply another supported provider; the qualifier was wrong and is gone.
-  - Restored the empty `## [Unreleased]` heading, omitted during the v0.0.16
-    promotion, which left its compare-link pointing at nothing.
-  - Corrected counts and claims across `preflight.sh`, `scripts/README.md` and
-    `CONTRIBUTING.md`: the stage list (there is no S4), sweep size (~52
-    target-runs), `s0`'s coverage (Anthropic has no `/v1/models`), the doc
-    chart's panel count, `TIER_TITLES` order, `--extra ailang`, `plot_slide.py`'s
-    `--version` default of 0.0.7, the 36-problem baseline ceiling, and
-    `preflight.sh`'s undocumented `curl`/`jq` dependency.
-  - `KNOWN_ISSUES.md` records the first measured cache-hit rates: OpenAI 99%,
-    Anthropic 100%, Moonshot not yet measured.
-- **`preflight.sh` s3 now probes one model per provider.** It previously
-  probed only `$REASON_BASE` (OpenAI), so Moonshot went unmeasured and
-  Anthropic was covered only incidentally by s5. A cache probe needs both a
-  prompt over the provider's minimum and a repeat call against it; s1 gives
-  every model a prompt but it is 70 tokens, which cannot cache. Overridable
-  via `PREFLIGHT_CACHE_PROBE`.
-- **Removed the CVE-2026-3219 `pip install --upgrade pip` workaround** from
-  `ci.yml`, and its `KNOWN_ISSUES.md` entry
-  ([#63](https://github.com/aallan/vera-bench/issues/63)). `actions/setup-python`
-  now ships pip 26.1.2 natively, so the step was a no-op.
+- **Documentation consistency pass** over `README.md`, `CLAUDE.md`,
+  `CONTRIBUTING.md`, `KNOWN_ISSUES.md`, `scripts/README.md` and
+  `preflight.sh`: stale counts, inaccurate claims and a missing
+  `## [Unreleased]` heading. One worth calling out — OpenRouter is a supported
+  provider like any other, not something AILANG requires.
 
 ## [0.0.16] - 2026-07-23
 
