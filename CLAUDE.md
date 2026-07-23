@@ -15,7 +15,7 @@ VeraBench is a HumanEval/MBPP-style benchmark for [Vera](https://github.com/aall
 
 ```bash
 pip install git+https://github.com/aallan/vera.git
-vera version   # should print vera 0.0.103 or later
+vera version   # should print vera 0.1.6 or later
 ```
 
 ## Problem structure
@@ -78,14 +78,14 @@ Both issues have caused false baseline failures (VB-T4-003 for Python, VB-T1-006
 
 ### Adding a new comparison language
 
-The pattern for adding a new language is established by the Python, TypeScript, and Aver implementations:
+The pattern for adding a new language is established by the Python, TypeScript, Aver, and AILANG implementations:
 
 1. **Prompt builder** (`prompts.py`) — `build_{lang}_prompt()` that uses `description_neutral` + the language's reference doc
 2. **Code evaluator** (`runner.py`) — `_evaluate_{lang}_code()` that writes code to a temp file, runs the compiler/interpreter, and checks output
 3. **Baseline runner** (`baseline_runner.py`) — `run_{lang}_baseline()` for canonical solutions
 4. **CLI integration** (`cli.py`) — add to `--language` choices
 5. **Canonical solutions** (`solutions/{lang}/`) — one per problem
-6. **Reference doc** — fetched at runtime (SKILL.md for Vera, llms.txt for Aver)
+6. **Reference doc** — SKILL.md for Vera and llms.txt for Aver are fetched at runtime; AILANG's is read from the installed compiler (`ailang prompt --source embedded`), which keeps it version-locked to the binary being graded
 
 ### Aver
 

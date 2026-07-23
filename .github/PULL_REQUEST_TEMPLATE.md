@@ -15,6 +15,6 @@ What does this PR do?
 - [ ] All new `.vera` solutions pass `vera verify`
 - [ ] Problem JSON definitions have all required fields
 - [ ] Test cases have correct expected outputs
-- [ ] Python/TypeScript baselines match Vera solutions
-- [ ] `scripts/validate_problems.py` passes
+- [ ] Python, TypeScript, Aver and AILANG baselines match the Vera solutions
+- [ ] `vera-bench validate` passes (or `scripts/validate_problems.py`)
 

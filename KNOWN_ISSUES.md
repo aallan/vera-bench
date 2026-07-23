@@ -23,18 +23,25 @@ For language gotchas (Vera and Aver syntax rules), see
 
 [CVE-2026-3219](https://nvd.nist.gov/vuln/detail/CVE-2026-3219) is a
 vulnerability in pip 26.0.1's archive handling. It was fixed in pip 26.1
-(released 2026-04-26). However, `actions/setup-python@v6` bakes pip
-26.0.1 into its Python 3.12 toolchain image, so `pip-audit` running
-inside the runner reports the runner's own pip as vulnerable until
-GitHub refreshes the toolchain image.
+(released 2026-04-26). However, the `actions/setup-python` toolchain
+image baked pip 26.0.1 into its Python 3.12 environment, so `pip-audit`
+running inside the runner reported the runner's own pip as vulnerable
+until GitHub refreshed the image.
 
 The workaround is a `pip install --upgrade pip` step before `pip-audit`
 runs, pulling pip 26.1 from PyPI to replace the bundled 26.0.1.
 
-**Removal trigger:** when `actions/setup-python@v6` ships a runner
-image with pip ≥ 26.1 natively, drop the `pip install --upgrade pip &&`
-prefix from the `Install dependencies and pip-audit` step. Verification
-guidance is in issue #63.
+**Status:** issue #63 is **closed**, but the workaround is still present
+in `ci.yml` and the action has since been bumped to `@v7`. Nobody has
+verified whether the `@v7` image ships pip ≥ 26.1 natively, so the step
+may now be redundant.
+
+**Removal trigger:** confirm what pip version the current
+`actions/setup-python@v7` image ships (add a temporary `pip --version`
+step, or check a recent run log). If it is ≥ 26.1, drop the
+`pip install --upgrade pip &&` prefix from the `Install dependencies and
+pip-audit` step and delete this entry. If it is still older, reopen #63
+so the trigger has a live home again.
 
 ---
 
@@ -91,13 +98,21 @@ because:
   rolled into the same field, so the *count* is comparable but the
   *per-token cost* implicit in that count is not.
 
-For analyses that need the breakdown, see
-[issue #61](https://github.com/aallan/vera-bench/issues/61) — the
-follow-up to expose `cached_tokens` separately is tracked there.
+**Resolved as of v0.0.16:** [#61](https://github.com/aallan/vera-bench/issues/61)
+landed, and `cached_tokens` is now a first-class field on `ProblemResult`
+and in every JSONL row, for Anthropic, OpenAI and Moonshot alike. The
+breakdown is therefore structurally available going forward:
+`input_tokens` is still the total billed input, and `cached_tokens` says
+how much of it was a cache read.
 
-**Removal trigger:** none — this is a permanent provenance note about
-a metric semantic change. Will eventually move to a CHANGELOG note
-once #61 is resolved and the breakdown is exposed structurally.
+The caveat above still applies to **JSONL written between PR #60 and
+v0.0.16** — those rows have the summed `input_tokens` with no way to
+recover the split. Treat that window's per-token cost as unknowable
+rather than inferring it.
+
+**Removal trigger:** none — this is a permanent provenance note about a
+metric semantic change in historical data. It stops being load-bearing
+once no published analysis draws on results from that window.
 
 ---
 
@@ -121,10 +136,45 @@ git clone https://github.com/aallan/vera.git /tmp/vera
 pip install -e /tmp/vera
 ```
 
-Verify with `vera version` — should print `vera 0.0.111` or later, not
+Verify with `vera version` — should print `vera 0.1.6` or later, not
 the Homebrew tool's banner.
+
+`VERA_PATH` overrides the lookup if you need to point at a specific
+binary without reordering `$PATH`:
+
+```bash
+export VERA_PATH="$PWD/.venv/bin/vera"
+```
 
 **Removal trigger:** none — this is a permanent dev-env hazard
 caused by a name collision with an unrelated tool. Will stay until
 either Homebrew's package renames or we ship a wrapper that errors out
 helpfully when invoked from the wrong path.
+
+### AILANG installs into the venv, and has no `$PATH` override
+
+**Affected:** `vera-bench run --language ailang`, `baselines --language
+ailang`, and the `s5` stage of `scripts/preflight.sh`.
+
+The `ailang` binary is a ~90 MB Go build that ends up **inside
+`.venv/bin/`**, despite not being a Python package. Two consequences:
+
+1. `pip install -e ".[dev,llm]"` will **not** restore it, and
+   `rm -rf .venv` **deletes it**. Any venv rebuild silently costs you
+   the AILANG targets until you reinstall from
+   [ailang](https://github.com/sunholo-data/ailang).
+2. Unlike `vera` (which honours `VERA_PATH`) and `aver` (which is
+   normally installed globally by `cargo`), the harness resolves AILANG
+   **by `$PATH` only** — there is no `AILANG_PATH` escape hatch. A shell
+   without `.venv/bin` on `$PATH` reports `ailang not found on PATH`,
+   which reads like "not installed" when it is merely not visible.
+
+So any shell running AILANG targets needs:
+
+```bash
+export PATH="$PWD/.venv/bin:$PATH"
+```
+
+**Removal trigger:** if the harness grows an `AILANG_PATH` override
+(mirroring `VERA_PATH`), point 2 goes away and this entry shrinks to the
+venv-fragility note.

@@ -113,7 +113,8 @@ Afterwards you should be able to print the Vera version from the terminal,
 vera version   
 ```
 
-this should return v0.0.108 or later.
+this should return v0.1.6 or later. Vera 0.1.x changed several semantics the
+benchmark depends on, so older compilers will fail validation.
 
 ## Quick start
 
@@ -125,25 +126,25 @@ vera-bench validate
 
 # Run benchmark against a model
 export ANTHROPIC_API_KEY=sk-ant-...
-vera-bench run --model claude-sonnet-4-6
+vera-bench run --model claude-sonnet-5
 
 # Run a single tier
-vera-bench run --model claude-sonnet-4-6 --tier 1
+vera-bench run --model claude-sonnet-5 --tier 1
 
 # Run a single problem
-vera-bench run --model claude-sonnet-4-6 --problem VB-T1-001
+vera-bench run --model claude-sonnet-5 --problem VB-T1-001
 
 # Spec-from-NL mode (agent writes its own contracts)
-vera-bench run --model claude-sonnet-4-6 --mode spec-from-nl
+vera-bench run --model claude-sonnet-5 --mode spec-from-nl
 
 # Ask the same model to write Python, TypeScript, Aver, or AILANG for comparison
-vera-bench run --model claude-sonnet-4-6 --language python
-vera-bench run --model claude-sonnet-4-6 --language typescript
-vera-bench run --model claude-sonnet-4-6 --language aver
-vera-bench run --model claude-sonnet-4-6 --language ailang
+vera-bench run --model claude-sonnet-5 --language python
+vera-bench run --model claude-sonnet-5 --language typescript
+vera-bench run --model claude-sonnet-5 --language aver
+vera-bench run --model claude-sonnet-5 --language ailang
 
 # Slow model? Dispatch problems concurrently (default is sequential)
-vera-bench run --model kimi-k2.5 --parallel 10
+vera-bench run --model moonshot/kimi-k2.6 --parallel 10
 
 # Run canonical baselines as a reference
 vera-bench baselines
@@ -154,7 +155,7 @@ vera-bench baselines --language ailang
 # Generate a combined report
 vera-bench report results/
 
-# Or run the full benchmark suite (all 8 targets) with one command
+# Or run the full benchmark suite (all 10 targets) with one command
 python scripts/run_full_benchmark.py
 ```
 
@@ -175,7 +176,7 @@ Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
 
 ```bash
-vera-bench run --model claude-sonnet-4-6 --skill-md /path/to/SKILL.md
+vera-bench run --model claude-sonnet-5 --skill-md /path/to/SKILL.md
 ```
 
 ## Report generation

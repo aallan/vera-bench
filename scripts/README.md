@@ -333,7 +333,7 @@ each model × mode combination:
 | Aver (opt-in) | `{prefix}-aver-bench-{X-Y-Z}-aver-*.jsonl` |
 
 Where `{prefix}` is the model's `file_prefix` from the `MODELS` registry
-(e.g. `claude-opus-4-8`, `moonshot-kimi-k2.5`). Dots in the version are
+(e.g. `claude-opus-4-8`, `moonshot-kimi-k2.6`). Dots in the version are
 converted to dashes to match the filename convention; Anthropic's
 4.6-generation dateless IDs (e.g. `claude-opus-4-8`) already match the
 filename convention without conversion.
