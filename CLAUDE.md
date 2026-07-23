@@ -138,4 +138,22 @@ vera-bench baselines --language ailang     # AILANG baselines
 vera-bench report results/DIR/         # generate report
 ```
 
+```bash
+bash scripts/preflight.sh              # pre-sweep gate: ids, auth, params, toolchains
+bash scripts/preflight.sh s2 s5        # re-run only these stages (calls cost money)
+```
+
+Run `preflight.sh` before any large sweep. It gates every model in
+`run_full_benchmark.py` — reading that list rather than duplicating it — plus
+provider auth, the request parameters each model accepts, and the Vera / Aver /
+AILANG toolchains, at one problem per check. It judges **result rows, not exit
+codes**: `vera-bench run` records an API error as a JSONL row and still exits 0,
+so a check reading `$?` reports success for a model that never answered. Details
+in [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate).
+
+**There is no resume.** `vera-bench run` unlinks the output file for that
+model × language × mode at startup, and filenames carry no timestamp — an
+interrupted target must be re-run in full, and its partial results are gone.
+Never plan to "top up" a sweep.
+
 `--parallel N` dispatches problems to a `ThreadPoolExecutor` with N workers. Default `parallel=1` preserves the sequential path. Workers are I/O-bound on LLM calls + subprocess `check`/`run`, so the GIL is not a bottleneck. Use this when sweeping slow models (e.g. Kimi K2.5 at ~50s/problem sequentially drops to ~5s/problem at `--parallel 10`). JSONL output ordering is by completion order in parallel mode; each line is self-contained (carries `problem_id`) so downstream consumers can sort if needed.

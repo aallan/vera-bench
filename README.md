@@ -158,6 +158,18 @@ vera-bench report results/
 python scripts/run_full_benchmark.py
 ```
 
+Before committing to a large sweep, run the preflight gate. It checks every
+configured model id, provider auth, the request parameters each model accepts,
+and all four toolchains — one problem per check, so the whole thing is a couple
+of dollars against a sweep that is hours and no resume:
+
+```bash
+bash scripts/preflight.sh
+```
+
+See [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate) for the
+stage breakdown and how to re-run individual stages while fixing something.
+
 Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/) (used for AILANG-capable models). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
 
 The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
@@ -168,7 +180,11 @@ vera-bench run --model claude-sonnet-4-6 --skill-md /path/to/SKILL.md
 
 ## Report generation
 
-Running `vera-bench report results/` generates `results/summary.md` with a summary table, per-tier breakdowns, and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so partial runs are resumable and always reportable. Results files are in `.gitignore` — they are generated artifacts, not checked in.
+Running `vera-bench report results/` generates `results/summary.md` with a summary table, per-tier breakdowns, and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so a run that stops early is still reportable up to the problem it reached.
+
+> **There is no resume.** `vera-bench run` deletes any existing output file for that model × language × mode before it starts, so re-running an interrupted target repeats it from problem 1 rather than topping it up. Filenames carry no timestamp, so the old results are gone. Budget a full re-run for any target that does not finish.
+
+Results files are in `.gitignore` — they are generated artifacts, not checked in.
 
 ## Prior art
 
