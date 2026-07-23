@@ -23,6 +23,6 @@
   ],
   "test_cases": [],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Tests whether the agent discovers array_fold and writes the correct closure syntax. The closure inside array_fold needs its own effects(pure) annotation."
 }

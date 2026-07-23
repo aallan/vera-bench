@@ -2,7 +2,7 @@
 -- Clamp a value to a range [lo, hi].
 -- Parameters: clamp(value, lo, hi)
 -- @Int.0 = hi (rightmost), @Int.1 = lo, @Int.2 = value
-public fn clamp(@Int, @Int, @Int -> @Int)
+public fn clamp_to_range(@Int, @Int, @Int -> @Int)
   requires(@Int.1 <= @Int.0)
   ensures(@Int.result >= @Int.1)
   ensures(@Int.result <= @Int.0)

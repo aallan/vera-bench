@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Vera 0.1.x compatibility for the problem set and canonical
+  solutions.** Vera moved from v0.0.177 to v0.1.6+ (the v0.1.0 bug
+  burndown plus the 0.1.x line) and three compiler changes broke
+  `vera-bench validate` (22/60 failures). All three are now resolved;
+  the benchmark validates 60/60 against Vera HEAD (v0.1.6,
+  `f6f586b0`):
+  - **VB-T1-002 renamed `clamp` → `clamp_to_range`** across the
+    problem JSON (signature, entry_point, prose) and all five
+    canonical solutions (TypeScript as `clampToRange`). Vera 0.1.x
+    makes `clamp` a built-in (spec §9.6) and rejects redefinition
+    with `E151` — the problem was unwritable as specified. Problem
+    `id` is unchanged (`VB-T1-002`).
+  - **State-handler solutions updated for intrinsic-hybrid clause
+    semantics** ([vera#1003](https://github.com/aallan/vera/issues/1003),
+    shipped in Vera 0.1.x; see also vera#976/#973/#988). Handler
+    clause bodies used to be type-checked but never executed — the
+    runtime always used builtin state-cell semantics. Now clause
+    bodies execute, and the old `put(@Int) -> { resume(()) } with
+    @Int = @Int.0` idiom resolves `@Int.0` to the handler state, so
+    the "update" is state = old-state — a silent no-op that made
+    VB-T5-001 return 0 instead of 3 and broke 3 of 4 VB-T5-006 test
+    cases. All four State solutions (T5-001, T5-004, T5-006,
+    T5-009) drop the `with` clause; the intrinsic store threads
+    state natively (the canonical form in SKILL.md's `run_counter`
+    example). T5-004/T5-009 passed tests only incidentally and
+    carried the same latent no-op.
+  - **`vera_verify_tier1` flipped to `false` on 19 problems**
+    (T1-008, T1-010, T2-001, T2-010, T2-014, T3-001..005, T3-008,
+    T3-012, T4-001, T4-004, T4-005, T4-007, T4-008, T4-010,
+    T5-004). Vera 0.1.x auto-synthesises `int_overflow` /
+    `nat_to_int_coerce` proof obligations on all integer
+    arithmetic; on unbounded `Int`/`Nat` inputs these are
+    legitimately unprovable at Tier 1 (proving them would require
+    adding range preconditions — changing the published contracts
+    of 19 problems). The obligations are checked at Tier 3
+    (runtime) instead, which is the correct classification. This
+    flag gates only canonical validation; LLM `verify@1` scoring
+    is computed from `verify_pass` and is unaffected.
+
+### Compatibility note
+
+Requires Vera ≥ 0.1.x (the intrinsic-hybrid handler semantics and
+`clamp` built-in). Canonical Vera solutions no longer compile/run
+correctly on Vera ≤ 0.0.x: the renamed `clamp_to_range` does not
+collide there (fine), but the State solutions rely on the new
+clause-execution semantics. Aver baselines verified unchanged on
+Aver 0.27.1 (the v0.0.14 `Int.div` migration was forward-compatible
+throughout); AILANG baselines verified on AILANG v0.30.0.
+
 ## [0.0.15] - 2026-06-22
 
 ### Fixed

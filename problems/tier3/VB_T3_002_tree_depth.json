@@ -25,6 +25,6 @@
   ],
   "test_cases": [],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Requires let bindings for intermediate results inside Branch arm. Tests that the agent discovers max() is a prefix-less builtin. Inside Branch(@Tree, @Tree), @Tree.0 is right child, @Tree.1 is left."
 }

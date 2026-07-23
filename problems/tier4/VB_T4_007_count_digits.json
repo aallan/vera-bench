@@ -6,20 +6,55 @@
   "description_neutral": "Count the number of decimal digits in a non-negative integer. The number 0 has 1 digit.",
   "signature": "public fn count_digits(@Nat -> @Nat)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["@Nat.result >= 1"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 1"
+    ],
     "effects": "pure"
   },
   "entry_point": "count_digits",
-  "tags": ["recursion", "decreases", "termination", "division", "counting"],
+  "tags": [
+    "recursion",
+    "decreases",
+    "termination",
+    "division",
+    "counting"
+  ],
   "test_cases": [
-    {"args": [0], "expected": 1},
-    {"args": [9], "expected": 1},
-    {"args": [42], "expected": 2},
-    {"args": [12345], "expected": 5},
-    {"args": [1000000], "expected": 7}
+    {
+      "args": [
+        0
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        9
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        42
+      ],
+      "expected": 2
+    },
+    {
+      "args": [
+        12345
+      ],
+      "expected": 5
+    },
+    {
+      "args": [
+        1000000
+      ],
+      "expected": 7
+    }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "decreases(@Nat.0) works because n / 10 < n for n >= 10. The base case is n < 10."
 }

@@ -19,7 +19,7 @@ public fn count_three(@Unit -> @Int)
 {
   handle[State<Int>](@Int = 0) {
     get(@Unit) -> { resume(@Int.0) },
-    put(@Int) -> { resume(()) } with @Int = @Int.0
+    put(@Int) -> { resume(()) }
   } in {
     put(next_count(get(())));
     put(next_count(get(())));

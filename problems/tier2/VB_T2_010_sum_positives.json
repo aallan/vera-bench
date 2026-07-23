@@ -6,14 +6,25 @@
   "description_neutral": "Sum only the positive elements in an integer list.",
   "signature": "public fn sum_positives(@Array<Int> -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "sum_positives",
-  "tags": ["array", "builtin-discovery", "array-filter", "array-fold", "composition", "higher-order"],
+  "tags": [
+    "array",
+    "builtin-discovery",
+    "array-filter",
+    "array-fold",
+    "composition",
+    "higher-order"
+  ],
   "test_cases": [],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
+  "vera_verify_tier1": false,
   "notes": "Tests composing array_filter + array_fold. Both closures need effects(pure). The fold accumulator starts at 0."
 }

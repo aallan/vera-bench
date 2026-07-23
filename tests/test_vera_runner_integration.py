@@ -121,7 +121,7 @@ class TestVeraRunnerIntegration:
         r = VeraRunner()
         result = r.run_fn(
             SOLUTIONS_DIR / "VB-T1-002_clamp.vera",
-            "clamp",
+            "clamp_to_range",
             [150, 0, 100],
         )
         assert result.exit_code == 0
