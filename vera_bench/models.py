@@ -36,7 +36,9 @@ def _openai_cached_tokens(usage: object) -> int:
     """
     details = getattr(usage, "prompt_tokens_details", None)
     cached = getattr(details, "cached_tokens", 0) if details is not None else 0
-    return cached if isinstance(cached, int) else 0
+    # type() check, not isinstance: bool is an int subclass, and a
+    # provider quirk returning True must not count as 1 cached token.
+    return cached if type(cached) is int else 0
 
 
 def _prompt_cache_key(system: str) -> str:

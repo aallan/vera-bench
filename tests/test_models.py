@@ -404,6 +404,16 @@ class TestCachedTokensHelpers:
         usage.prompt_tokens_details.cached_tokens = 27000
         assert _openai_cached_tokens(usage) == 27000
 
+    def test_openai_cached_tokens_rejects_bool(self):
+        """bool is an int subclass — a provider quirk returning True
+        must not count as 1 cached token (type() check, not
+        isinstance)."""
+        from vera_bench.models import _openai_cached_tokens
+
+        usage = MagicMock()
+        usage.prompt_tokens_details.cached_tokens = True
+        assert _openai_cached_tokens(usage) == 0
+
     def test_openai_cached_tokens_absent_details(self):
         from vera_bench.models import _openai_cached_tokens
 
@@ -436,7 +446,7 @@ class TestCachedTokensHelpers:
 class TestOpenAICachingAndHardening:
     """#61: cache instrumentation + OpenRouter-standard error handling."""
 
-    def _client(self, monkeypatch):
+    def _client(self, monkeypatch: pytest.MonkeyPatch) -> object:
         try:
             from vera_bench.models import OpenAIClient
         except ImportError:
@@ -444,11 +454,11 @@ class TestOpenAICachingAndHardening:
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         return OpenAIClient("gpt-test")
 
-    def _wire(self, client, mock_inner):
+    def _wire(self, client: object, mock_inner: MagicMock) -> None:
         client._client = MagicMock()
         client._client.with_options.return_value = mock_inner
 
-    def _ok_response(self, cached=0):
+    def _ok_response(self, cached: int = 0) -> MagicMock:
         resp = MagicMock()
         choice = MagicMock()
         choice.message.content = "hello"
@@ -524,7 +534,7 @@ class TestOpenAICachingAndHardening:
 class TestMoonshotCachingAndHardening:
     """#61: Moonshot caching is automatic — accounting + hardening only."""
 
-    def _client(self, monkeypatch):
+    def _client(self, monkeypatch: pytest.MonkeyPatch) -> object:
         try:
             from vera_bench.models import MoonshotClient
         except ImportError:
@@ -532,7 +542,7 @@ class TestMoonshotCachingAndHardening:
         monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
         return MoonshotClient("moonshot/kimi-test")
 
-    def _wire(self, client, mock_inner):
+    def _wire(self, client: object, mock_inner: MagicMock) -> None:
         client._client = MagicMock()
         client._client.with_options.return_value = mock_inner
 

@@ -3180,3 +3180,72 @@ class TestEnvironmentErrorAbortsSweep:
         assert len(results) == 1
         row = _json.loads((tmp_path / "out.jsonl").read_text().strip())
         assert "worker blew up" in row["error_message"]
+
+
+class TestEnvironmentErrorPropagatesFromClient:
+    """CR #91 critical: the abort path is only real if EnvironmentError
+    survives run_single_problem — its client.complete() guards catch
+    Exception and previously converted auth failures into per-problem
+    'API error' rows, making the run_benchmark abort handlers dead
+    code. These tests mock the CLIENT, not run_single_problem, so the
+    real swallowing layer is exercised."""
+
+    def _problem(self) -> dict:
+        return {
+            "id": "VB-X-0",
+            "entry_point": "f",
+            "description": "d",
+            "description_neutral": "d",
+            "test_cases": [],
+        }
+
+    def test_attempt1_reraises_environment_error(self, tmp_path):
+        from vera_bench.runner import run_single_problem
+
+        client = MagicMock()
+        client.complete.side_effect = EnvironmentError("bad API key")
+        with pytest.raises(EnvironmentError, match="bad API key"):
+            run_single_problem(
+                problem=self._problem(),
+                client=client,
+                skill_md="",
+                vera=None,
+                work_dir=tmp_path,
+                language="python",
+            )
+
+    def test_non_auth_api_error_still_becomes_row(self, tmp_path):
+        from vera_bench.runner import run_single_problem
+
+        client = MagicMock()
+        client.complete.side_effect = RuntimeError("rate-limited")
+        results = run_single_problem(
+            problem=self._problem(),
+            client=client,
+            skill_md="",
+            vera=None,
+            work_dir=tmp_path,
+            language="python",
+        )
+        assert len(results) == 1
+        assert "API error: rate-limited" in results[0].error_message
+
+    def test_end_to_end_abort_through_real_run_single_problem(self, tmp_path):
+        """The full chain: client raises -> run_single_problem re-raises
+        -> run_benchmark aborts with no rows written."""
+        from vera_bench.runner import run_benchmark
+
+        client = MagicMock(_model="m")
+        client.complete.side_effect = EnvironmentError("bad API key")
+        with pytest.raises(EnvironmentError, match="bad API key"):
+            run_benchmark(
+                problems=[self._problem()],
+                client=client,
+                skill_md="",
+                vera=None,
+                language="python",
+                output_path=tmp_path / "out.jsonl",
+                parallel=1,
+            )
+        out = tmp_path / "out.jsonl"
+        assert not out.exists() or out.read_text() == ""

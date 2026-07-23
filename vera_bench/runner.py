@@ -1022,6 +1022,11 @@ def run_single_problem(
             user=prompt["user"],
             max_tokens=max_tokens,
         )
+    except EnvironmentError:
+        # Auth failures abort the sweep — never convert to a
+        # per-problem error row (run_benchmark's abort path
+        # depends on this propagating; CR #91 critical).
+        raise
     except Exception as e:
         results.append(
             ProblemResult(
@@ -1093,6 +1098,9 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
+        except EnvironmentError:
+            # Auth failures abort the sweep (see attempt-1 handler).
+            raise
         except Exception as e:
             results.append(
                 ProblemResult(
@@ -1148,6 +1156,9 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
+        except EnvironmentError:
+            # Auth failures abort the sweep (see attempt-1 handler).
+            raise
         except Exception as e:
             results.append(
                 ProblemResult(
@@ -1193,6 +1204,9 @@ def run_single_problem(
                 user=fix_prompt["user"],
                 max_tokens=max_tokens,
             )
+        except EnvironmentError:
+            # Auth failures abort the sweep (see attempt-1 handler).
+            raise
         except Exception as e:
             results.append(
                 ProblemResult(

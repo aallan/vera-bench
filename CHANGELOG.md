@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Prompt-cache instrumentation for OpenAI and Moonshot clients**
   ([#61](https://github.com/aallan/vera-bench/issues/61)). Both
   providers now cache automatically server-side (OpenAI ≥1024-token
-  prompts; Moonshot prefix-caches all requests) — the work here is
+  prompts; Moonshot longest-prefix matching — a request cache-hits
+  only when it shares a prefix with a prior request) — the work is
   routing and observability, not cache management:
   - New `cached_tokens` field on `LLMResponse` and `ProblemResult`
     (JSONL rows): the cache-hit portion of `input_tokens`. Anthropic
