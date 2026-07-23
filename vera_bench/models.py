@@ -205,6 +205,20 @@ def create_client(model: str) -> LLMClient:
 # different axis from `reasoning.effort` — see OpenAIClient.__init__.
 REASONING_MODES: frozenset[str] = frozenset({"standard", "pro"})
 
+# Models routed to the Responses API even without an explicit mode.
+#
+# This exists to keep the reasoning-budget comparison controlled.
+# `openai-pro/gpt-5.6-sol` can ONLY run on Responses (pro mode is
+# Responses-only), so if its default-mode counterpart ran on Chat
+# Completions the two arms would differ by endpoint as well as by mode —
+# and the slide claims the difference is deliberation. Pinning both Sol
+# entries here makes mode the only variable.
+#
+# Deliberately not every OpenAI model: gpt-5.6-terra is a separate tier
+# row, not half of a controlled pair, and leaving it on Chat Completions
+# avoids re-verifying a path that already works.
+RESPONSES_API_MODELS: frozenset[str] = frozenset({"gpt-5.6-sol"})
+
 
 def _anthropic_text(content: object) -> str:
     """Join the text blocks of an Anthropic response, skipping the rest.
@@ -322,6 +336,8 @@ class OpenAIClient:
                 f"Unknown reasoning mode {reasoning_mode!r}. "
                 f"Known modes: {sorted(REASONING_MODES)}"
             )
+        if reasoning_mode is None and self._model in RESPONSES_API_MODELS:
+            reasoning_mode = "standard"
         self._reasoning_mode = reasoning_mode
 
     def complete(
@@ -331,10 +347,12 @@ class OpenAIClient:
         max_tokens: int = 4096,
         timeout: float = 120.0,
     ) -> LLMResponse:
-        # Reasoning consumes completion budget on reasoning models —
-        # a 4096 default can be all deliberation and no output at the
-        # pro tier. Floor the budget when a reasoning mode is active;
-        # smoke test S2 validates against truncation.
+        # Reasoning consumes output budget on reasoning models — a 4096
+        # default can be all deliberation and no answer at the pro tier.
+        # The floor applies to standard mode too, not just pro: both arms
+        # of the reasoning-budget comparison must get the same ceiling,
+        # or the delta measures the budget as well as the mode. Smoke S2
+        # validates against truncation.
         effective_max = max_tokens
         if self._reasoning_mode:
             effective_max = max(max_tokens, 16000)

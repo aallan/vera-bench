@@ -708,7 +708,7 @@ class TestOpenAIProRouting:
         choice = MagicMock()
         choice.message.content = "code"
         resp.choices = [choice]
-        resp.model = "gpt-5.6-sol"
+        resp.model = "gpt-5.6-terra"
         resp.usage.prompt_tokens = 100
         resp.usage.completion_tokens = 5000
         resp.usage.prompt_tokens_details.cached_tokens = 0
@@ -726,8 +726,18 @@ class TestOpenAIProRouting:
         assert client._model == "gpt-5.6-sol"
         assert client._reasoning_mode == "pro"
 
-    def test_default_openai_has_no_reasoning_mode(self, monkeypatch):
+    def test_default_sol_pinned_to_standard_mode(self, monkeypatch):
+        """Sol's default entry is the other arm of the reasoning-budget
+        comparison, so it runs on the same endpoint as pro with an
+        explicit standard mode. Otherwise the two bars on the slide
+        differ by endpoint as well as by deliberation."""
         client = self._client(monkeypatch, model="gpt-5.6-sol")
+        assert client._reasoning_mode == "standard"
+
+    def test_non_paired_model_has_no_reasoning_mode(self, monkeypatch):
+        """Terra is a separate tier row, not half of a controlled pair —
+        it stays on Chat Completions."""
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
         assert client._reasoning_mode is None
 
     def test_unknown_prefix_still_rejected(self, monkeypatch):
@@ -761,7 +771,7 @@ class TestOpenAIProRouting:
         assert "prompt_cache_key" in kwargs
 
     def test_default_mode_uses_chat_completions(self, monkeypatch):
-        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
         mock_inner = MagicMock()
         mock_inner.chat.completions.create.return_value = self._chat_response()
         self._wire(client, mock_inner)
@@ -843,7 +853,7 @@ class TestOpenAIProRouting:
 
     def test_max_completion_tokens_sent_not_max_tokens(self, monkeypatch):
         """GPT-5.x reasoning families reject the legacy max_tokens kwarg."""
-        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
         mock_inner = MagicMock()
         mock_inner.chat.completions.create.return_value = self._chat_response()
         self._wire(client, mock_inner)
@@ -874,12 +884,12 @@ class TestOpenAIProRouting:
         assert result.model == "gpt-5.6-sol#pro"
 
     def test_default_response_model_unsuffixed(self, monkeypatch):
-        client = self._client(monkeypatch, model="gpt-5.6-sol")
+        client = self._client(monkeypatch, model="gpt-5.6-terra")
         mock_inner = MagicMock()
         mock_inner.chat.completions.create.return_value = self._chat_response()
         self._wire(client, mock_inner)
         result = client.complete("sys", "user")
-        assert result.model == "gpt-5.6-sol"
+        assert result.model == "gpt-5.6-terra"
 
     def test_bare_openai_pro_prefix_rejected(self, monkeypatch):
         from vera_bench.models import create_client

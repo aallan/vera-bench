@@ -104,6 +104,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   model compared against itself. Confirms the CodeRabbit finding on
   [#92](https://github.com/aallan/vera-bench/pull/92) that was declined
   pending evidence.
+
+  **Both Sol entries are pinned to the Responses API** via
+  `RESPONSES_API_MODELS`, with the default entry sending an explicit
+  `reasoning.mode: "standard"`. Pro mode exists only on Responses, so
+  leaving the default arm on Chat Completions would vary endpoint and
+  mode together and the reasoning-budget comparison could not attribute
+  its delta to deliberation. The 16000-token output floor applies to
+  both arms for the same reason. `gpt-5.6-terra` is a separate tier row
+  rather than half of a controlled pair, and stays on Chat Completions.
+  Sol rows now report `model` as `gpt-5.6-sol#standard` /
+  `gpt-5.6-sol#pro`; charts key on filenames, which are unchanged.
 - **Long result paths wrapped mid-token in console output.** `Output:
   <path>` was printed through rich, which wraps at the console width
   (80 when not a tty — CI, and any sweep log piped to a file), breaking
