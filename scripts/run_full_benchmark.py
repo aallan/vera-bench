@@ -68,6 +68,7 @@ def _detect_provider(model: str) -> str:
         or model.startswith("o1-")
         or model.startswith("o3-")
         or model.startswith("openai/")
+        or model.startswith("openai-pro/")
     ):
         return "openai"
     if model.startswith("moonshot/"):

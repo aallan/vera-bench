@@ -20,6 +20,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   explicit exit-code marker when silent) into `error_message`,
   matching the AILANG evaluator's existing pattern. Both evaluators
   now share a `_first_run_error` formatting helper.
+- **`openai-pro/` model-routing prefix — reasoning-mode benchmark
+  entries.** `openai-pro/gpt-5.6-sol` runs Sol at
+  `reasoning.mode: pro` as a distinct benchmark entry from
+  default-mode `gpt-5.6-sol`: same model, different reasoning
+  budget — a controlled comparison of whether Vera's contracts do
+  the work the reasoning budget otherwise would. Mechanics:
+  - `create_client` routes the prefix to `OpenAIClient(...,
+    reasoning_mode="pro")`; the runner needs no changes (the
+    `complete()` Protocol carries no per-call config by design).
+  - The reasoning mode rides `extra_body` alongside the #61
+    `prompt_cache_key`; the pro tier floors the completion budget
+    at 16k tokens (reasoning consumes completion budget).
+  - JSONL rows from pro runs report `model: "<api-model>#pro"` so
+    the two variants are self-describing; results filenames are
+    already distinct (built from the CLI model string).
+  - `OpenAIClient` now sends `max_completion_tokens` (the GPT-5.x
+    reasoning families reject the legacy `max_tokens` kwarg).
+  - `scripts/run_full_benchmark.py` `_detect_provider` recognises
+    the prefix (→ `OPENAI_API_KEY`).
+
 - **Prompt-cache instrumentation for OpenAI and Moonshot clients**
   ([#61](https://github.com/aallan/vera-bench/issues/61)). Both
   providers now cache automatically server-side (OpenAI ≥1024-token
