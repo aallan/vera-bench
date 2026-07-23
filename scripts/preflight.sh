@@ -32,8 +32,9 @@
 # scratch dir, never results/, so it cannot pollute a real sweep.
 #
 # Each stage writes to its own subdirectory. This is load-bearing, not
-# tidiness: result filenames carry no timestamp (cli.py:258-270) and
-# `run` UNLINKS an existing file (cli.py:273-274), so two stages that
+# tidiness: result filenames carry no timestamp (the `parts`/`_ver_slug`
+# block in vera_bench/cli.py) and `run` UNLINKS an existing file (the
+# "Truncate stale results" step), so two stages that
 # run the same model+language+mode would silently overwrite each other.
 #
 # Nothing here prints a key. The report at the end is safe to paste.
@@ -78,14 +79,23 @@ busy() { printf '  ...   %s\r' "$1"; }
 verdict () {  # label, results-dir, logfile
   local lbl=$1 dir=$2 log=$3
   local err
-  err=$($PY - "$dir" <<'PY'
+  # 2>&1: without it a traceback goes to stderr, $err is empty, and the
+  # verdict falls through to "ok" — the judge failing silently is exactly
+  # the failure mode this function was written to eliminate. A truncated
+  # JSONL line (the signature of a killed run) reaches here as a
+  # JSONDecodeError, and must read as FAIL rather than pass.
+  err=$($PY - "$dir" 2>&1 <<'PY'
 import json, pathlib, sys
 for f in sorted(pathlib.Path(sys.argv[1]).rglob("*.jsonl")):
-    for line in f.read_text().splitlines():
-        if line.strip():
+    for n, line in enumerate(f.read_text().splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
             r = json.loads(line)
-            if r.get("error_message"):
-                print(r["error_message"][:150]); raise SystemExit
+        except json.JSONDecodeError as e:
+            print(f"corrupt row {f.name}:{n} — {e}"); raise SystemExit
+        if r.get("error_message"):
+            print(r["error_message"][:150]); raise SystemExit
 PY
 )
   if [ -n "$err" ]; then bad "$lbl — $err"
@@ -123,9 +133,9 @@ msh=$(curl -s https://api.moonshot.ai/v1/models \
 while IFS='|' read -r provider bare; do
   [ -z "$bare" ] && continue
   case "$provider" in
-    openai)   grep -qx "$bare" <<<"$oai" && ok "openai: $bare" \
+    openai)   grep -qxF "$bare" <<<"$oai" && ok "openai: $bare" \
                 || bad "openai: $bare NOT LISTED" ;;
-    moonshot) grep -qx "$bare" <<<"$msh" && ok "moonshot: $bare" \
+    moonshot) grep -qxF "$bare" <<<"$msh" && ok "moonshot: $bare" \
                 || bad "moonshot: $bare NOT LISTED" ;;
   esac
 done < <($PY -c "
@@ -171,7 +181,7 @@ if [ "${#MODELS[@]}" -eq 0 ]; then
 else
   echo "  (${#MODELS[@]} models from run_full_benchmark.py)"
 fi
-for m in "${MODELS[@]}"; do
+for m in ${MODELS[@]+"${MODELS[@]}"}; do
   if [[ " $SKIP_MODELS " == *" $m "* ]]; then skip "$m"; continue; fi
   slug="${m//\//-}"
   log="$SMOKE/log-s1-$slug.txt"

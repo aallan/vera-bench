@@ -79,6 +79,7 @@ from scripts.plot_results import (  # noqa: E402
     GREEN,
     RED,
     ModelSpec,
+    complete_models,
     extract_data,
 )
 
@@ -208,8 +209,15 @@ def render_delta(
 ) -> None:
     """The 'Does Vera beat …?' horizontal-bar chart at 16:9."""
     all_data = _merge_tiers(tiers)
-    models = list(all_data.keys())
     comparison_modes = ["Python", "TypeScript"]
+    # Every bar here is a difference, so a missing file cannot be allowed
+    # through: Vera 100 minus an absent Python renders as +100 in Vera's
+    # favour — the strongest form of this slide's own claim, manufactured
+    # entirely from data that does not exist.
+    models = complete_models(all_data, missing, ["Vera", *comparison_modes])
+    if not models:
+        print("  delta slide: no model ran Vera + all comparisons — skipping")
+        return
 
     deltas = {
         mode: [all_data[m]["Vera"] - all_data[m][mode] for m in models]
@@ -311,9 +319,27 @@ def render_delta(
 
 
 def _draw_tier_panel(
-    ax: Axes, data: dict, title: str, comparison_modes: list[str]
+    ax: Axes,
+    data: dict,
+    title: str,
+    comparison_modes: list[str],
+    n_panels: int = 2,
 ) -> None:
-    """Grouped vertical bars: Vera vs each comparison language, per model."""
+    """Grouped vertical bars: Vera vs each comparison language, per model.
+
+    Typography scales with `n_panels`. The constants were chosen for two
+    half-width panels; at three the panels are a third of the figure and
+    nothing rescaled, so the rightmost title ran off the canvas and the
+    model labels collided in every panel. Measured, not guessed: the
+    "Sonnet Tier (workhorse)" title spanned to x=2964 on a 2880px figure.
+    """
+    # 2 panels -> 1.0 (unchanged, so the v0.0.7 slides are byte-stable);
+    # 3 panels -> 2/3.
+    scale = min(1.0, 2 / n_panels)
+    title_pt = round((TITLE_PT - 4) * scale)
+    tick_pt = round(TICK_PT_MEDIUM * scale)
+    bar_pt = round(BAR_LABEL_PT_MEDIUM * scale)
+    legend_pt = round(LEGEND_PT * scale)
     models = list(data.keys())
     languages = ["Vera", *comparison_modes]
     x = np.arange(len(models))
@@ -337,29 +363,31 @@ def _draw_tier_panel(
                 f"{val}%",
                 ha="center",
                 va="bottom",
-                fontsize=BAR_LABEL_PT_MEDIUM,
+                fontsize=bar_pt,
                 fontweight="bold",
                 color=BROWN_700,
             )
 
-    ax.set_ylabel("run_correct (%)", fontsize=AXIS_LABEL_PT, color=BROWN_500)
+    ax.set_ylabel(
+        "run_correct (%)", fontsize=round(AXIS_LABEL_PT * scale), color=BROWN_500
+    )
     ax.set_title(
         title,
-        fontsize=TITLE_PT - 4,
+        fontsize=title_pt,
         fontweight="bold",
         pad=16,
         fontfamily=FONT_HEADING,
         color=BROWN_900,
     )
     ax.set_xticks(x + width * (len(languages) - 1) / 2)
-    ax.set_xticklabels(models, fontsize=TICK_PT_MEDIUM)
+    ax.set_xticklabels(models, fontsize=tick_pt)
     ax.set_ylim(0, 118)
     ax.set_yticks([0, 25, 50, 75, 100])
-    ax.tick_params(axis="y", labelsize=TICK_PT_MEDIUM)
+    ax.tick_params(axis="y", labelsize=tick_pt)
     ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.8, alpha=0.4)
     _style_ax(ax)
     ax.legend(
-        loc="lower right", fontsize=LEGEND_PT, framealpha=0.85, edgecolor=BROWN_300
+        loc="lower right", fontsize=legend_pt, framealpha=0.85, edgecolor=BROWN_300
     )
 
 
@@ -379,7 +407,7 @@ def render_tiers(
     comparison_modes = ["Python", "TypeScript"]
     for ax, (tier_key, tier_data) in zip(axes, tiers.items()):
         title = TIER_TITLES.get(tier_key, tier_key.title())
-        _draw_tier_panel(ax, tier_data, title, comparison_modes)
+        _draw_tier_panel(ax, tier_data, title, comparison_modes, n_panels=n)
 
     fig.suptitle(
         "run_correct by model (Vera vs Python vs TypeScript)",
@@ -597,7 +625,7 @@ def render_ztd(
 
 
 # ----------------------------------------------------------------------
-# Reasoning-budget slide — same model, two effort levels
+# Reasoning-budget slide — same model, two reasoning modes
 # ----------------------------------------------------------------------
 
 # Display names of a (default, pro) pair from plot_results.MODELS. Both
@@ -616,7 +644,7 @@ def render_reasoning(
     """Does a bigger reasoning budget help — and does it help less on Vera?
 
     The controlled comparison no other provider offers: one model, two
-    effort levels, every language. If Vera's delta is ~0 while the
+    reasoning modes, every language. If Vera's delta is ~0 while the
     comparison languages gain from extra deliberation, the language is
     supplying the structure the reasoning budget otherwise has to
     reconstruct.
@@ -653,7 +681,7 @@ def render_reasoning(
     width = 0.36
 
     for offset, row, label, alpha, hatch in (
-        (-width / 2, base, "default effort", 0.95, None),
+        (-width / 2, base, "reasoning: standard", 0.95, None),
         (width / 2, pro, "reasoning: pro", 0.75, "//"),
     ):
         values = [row[m] for m in modes]
@@ -724,11 +752,14 @@ def render_reasoning(
     _style_ax(ax)
 
     # Neutral legend: colour already encodes language, so the legend
-    # only needs to distinguish the two effort levels.
+    # only needs to distinguish the two reasoning modes.
     ax.legend(
         handles=[
             Patch(
-                facecolor="#888888", edgecolor=CREAM, alpha=0.95, label="default effort"
+                facecolor="#888888",
+                edgecolor=CREAM,
+                alpha=0.95,
+                label="reasoning: standard",
             ),
             Patch(
                 facecolor="#888888",

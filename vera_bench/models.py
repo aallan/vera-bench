@@ -285,6 +285,20 @@ class AnthropicClient:
 
         elapsed = time.monotonic() - start
         text = _anthropic_text(response.content)
+        if not text:
+            # Mirrors _validate_openai_response_text. Without this, an
+            # empty string reaches extract_code and the row is recorded as
+            # "did not define entry point" — the model blamed for an
+            # API-side non-answer. Realistic for the thinking models this
+            # release adds: a response truncated mid-deliberation contains
+            # ThinkingBlocks and no TextBlock at all.
+            kinds = [getattr(b, "type", "?") for b in (response.content or [])]
+            raise RuntimeError(
+                f"Anthropic returned no text block for model={self._model!r} "
+                f"(stop_reason={getattr(response, 'stop_reason', 'unknown')}, "
+                f"blocks={kinds}). Extended thinking may have consumed the "
+                f"entire {max_tokens}-token budget — try raising --max-tokens."
+            )
         usage = response.usage
         cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
         cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
@@ -420,11 +434,20 @@ class OpenAIClient:
         # later from suspiciously-similar wall times. A pro entry that
         # actually ran standard would make the headline comparison a
         # model against itself, so it must not pass quietly.
+        # Absence must be as loud as mismatch. Both `reasoning` and `mode`
+        # are Optional with None defaults, so a server that did NOT apply
+        # the parameter most likely does not echo it either — and an
+        # `if effective and ...` guard short-circuits past precisely the
+        # case this exists to catch. The row is stamped "#pro" on the
+        # strength of this check, and the reasoning slide's entire claim
+        # rests on that suffix meaning something.
         effective = getattr(getattr(response, "reasoning", None), "mode", None)
-        if effective and effective != self._reasoning_mode:
+        if effective != self._reasoning_mode:
             raise RuntimeError(
-                f"OpenAI ran model={self._model!r} in reasoning mode "
-                f"{effective!r}, not the requested {self._reasoning_mode!r}"
+                f"OpenAI did not confirm the reasoning mode for "
+                f"model={self._model!r}: requested {self._reasoning_mode!r}, "
+                f"response reported {effective!r}. An unconfirmed mode must "
+                f"not be recorded as '#{self._reasoning_mode}'."
             )
 
         text = (response.output_text or "").strip()

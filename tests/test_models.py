@@ -135,6 +135,13 @@ class TestAnthropicTextExtraction:
 
     @pytest.mark.parametrize("content", [[], None, [_ThinkingBlock()]])
     def test_no_text_block_yields_empty_string(self, content):
+        """The helper reports absence; `complete` decides what it means.
+
+        See TestAnthropicComplete.test_thinking_only_response_raises —
+        returning "" here is correct, but letting "" reach the harness
+        is not: it would be scored as the model failing to define an
+        entry point when the fault is API-side.
+        """
         from vera_bench.models import _anthropic_text
 
         assert _anthropic_text(content) == ""
@@ -163,6 +170,33 @@ class TestAnthropicComplete:
         client._client.messages.create = MagicMock(return_value=mock_resp)
 
         assert client.complete("system", "user").text == "def f(): pass"
+
+    def test_thinking_only_response_raises(self, monkeypatch):
+        """A response with no TextBlock must not be scored as a model failure.
+
+        Realistic for the thinking models this release adds: truncate at
+        max_tokens while still inside a thinking block and the content
+        list holds no text at all. Returning "" would reach extract_code
+        and be recorded as "did not define entry point" — blaming the
+        model for an API-side non-answer. Mirrors the OpenAI guard.
+        """
+        try:
+            import anthropic  # noqa: F401
+
+            from vera_bench.models import AnthropicClient
+        except ImportError:
+            pytest.skip("anthropic not installed")
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        client = AnthropicClient("claude-fable-5")
+
+        mock_resp = MagicMock()
+        mock_resp.content = [_ThinkingBlock()]
+        mock_resp.stop_reason = "max_tokens"
+        client._client.messages.create = MagicMock(return_value=mock_resp)
+
+        with pytest.raises(RuntimeError, match="no text block"):
+            client.complete("system", "user")
 
     def test_complete_mock(self, monkeypatch):
         """Test Anthropic complete with a mocked SDK."""
@@ -747,6 +781,46 @@ class TestOpenAIProRouting:
         with pytest.raises(ValueError, match="Unknown model"):
             create_client("mystery/some-model")
 
+    @pytest.mark.parametrize(
+        ("model_id", "mode"),
+        [("openai-pro/gpt-5.6-sol", "pro"), ("gpt-5.6-sol", "standard")],
+    )
+    def test_both_arms_drive_their_own_mode(self, monkeypatch, model_id, mode):
+        """Drive BOTH halves of the controlled pair through complete().
+
+        Only the pro arm was exercised end-to-end, so hardcoding
+        `reasoning={"mode": "pro"}` passed the suite green — and that
+        would run *both* arms at pro, making the reasoning slide a
+        comparison of a model against itself. Same failure the
+        downgrade guard exists to catch, arriving from our side of the
+        wire instead of OpenAI's. The shared 16000 ceiling is asserted
+        for both arms too: an unequal budget is a second confound.
+        """
+        client = self._client(monkeypatch, model=model_id)
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = self._ok_response(mode=mode)
+        self._wire(client, mock_inner)
+
+        result = client.complete("sys", "user", max_tokens=4096)
+
+        mock_inner.chat.completions.create.assert_not_called()
+        kwargs = mock_inner.responses.create.call_args.kwargs
+        assert kwargs["reasoning"] == {"mode": mode}
+        assert kwargs["max_output_tokens"] == 16000
+        assert result.model == f"gpt-5.6-sol#{mode}"
+
+    def test_budget_floor_does_not_cap_a_larger_request(self, monkeypatch):
+        """`max(max_tokens, 16000)` — not a bare 16000, which would
+        silently cap an explicit --max-tokens above the floor."""
+        client = self._client(monkeypatch)
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = self._ok_response()
+        self._wire(client, mock_inner)
+        client.complete("sys", "user", max_tokens=32000)
+        assert (
+            mock_inner.responses.create.call_args.kwargs["max_output_tokens"] == 32000
+        )
+
     def test_pro_routes_to_responses_api(self, monkeypatch):
         """`reasoning.mode` exists only on the Responses API. Chat
         Completions rejects it (400 "Unknown parameter: 'reasoning'"),
@@ -813,6 +887,27 @@ class TestOpenAIProRouting:
         with pytest.raises(ValueError, match="Unknown reasoning mode"):
             OpenAIClient("gpt-5.6-sol", reasoning_mode="ultra")
 
+    @pytest.mark.parametrize("shape", ["mode_none", "reasoning_none"])
+    def test_unconfirmed_mode_raises(self, monkeypatch, shape):
+        """A server that ignored the parameter most likely does not echo it.
+
+        `reasoning` and `mode` are both Optional with None defaults, so
+        the likeliest wire signature of a silent downgrade is absence,
+        not a mismatched value — an `if effective and ...` guard would
+        short-circuit past exactly the case it exists to catch.
+        """
+        client = self._client(monkeypatch)
+        resp = self._ok_response()
+        if shape == "mode_none":
+            resp.reasoning.mode = None
+        else:
+            resp.reasoning = None
+        mock_inner = MagicMock()
+        mock_inner.responses.create.return_value = resp
+        self._wire(client, mock_inner)
+        with pytest.raises(RuntimeError, match="did not confirm"):
+            client.complete("sys", "user")
+
     def test_silent_downgrade_to_standard_raises(self, monkeypatch):
         """The response echoes the *effective* mode. If OpenAI quietly
         served standard, that must not be recorded as a pro result."""
@@ -820,7 +915,7 @@ class TestOpenAIProRouting:
         mock_inner = MagicMock()
         mock_inner.responses.create.return_value = self._ok_response(mode="standard")
         self._wire(client, mock_inner)
-        with pytest.raises(RuntimeError, match="not the requested 'pro'"):
+        with pytest.raises(RuntimeError, match="reported 'standard'"):
             client.complete("sys", "user")
 
     def test_empty_output_reports_budget_exhaustion(self, monkeypatch):

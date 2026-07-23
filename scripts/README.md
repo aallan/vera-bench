@@ -8,7 +8,7 @@ the installed package, but kept in-repo for reproducibility.
 | [`preflight.sh`](#preflightsh--pre-sweep-gate) | Pre-sweep gate: model ids, auth, API parameters and every toolchain, one problem each |
 | [`run_full_benchmark.py`](#run_full_benchmarkpy--full-matrix-benchmark-runner) | Runs every target (Vera, spec-from-NL, Python, TypeScript, Aver, AILANG + baselines) for one model |
 | [`plot_results.py`](#plot_resultspy--benchmark-comparison-chart) | Generates the headline benchmark comparison chart |
-| [`plot_slide.py`](#plot_slidepy--v007-talk-slide-renderer) | Renders v0.0.7 result panels as 16:9 slides for talk presentation (specialised; v0.0.7 lineup pinned) |
+| [`plot_slide.py`](#plot_slidepy--talk-slide-renderer) | Renders result panels as 16:9 slides for talk presentation |
 | [`validate_problems.py`](#validate_problemspy--problem-set-validation) | Validates every problem JSON + canonical Vera solution |
 
 ---
@@ -455,9 +455,9 @@ this script.
 
 ---
 
-## `plot_slide.py` — v0.0.7 talk-slide renderer
+## `plot_slide.py` — talk-slide renderer
 
-Renders the v0.0.7 result panels as **16:9 slides** sized and styled for
+Renders result panels as **16:9 slides** sized and styled for
 talk presentation (2880×1620 px, slide-readable typography from the back
 of a room). Five slide types:
 
@@ -468,8 +468,8 @@ of a room). Five slide types:
 - `all-modes` — every model × the 4 core modes in a single grouped-bar panel
 - `ztd` — zero-training-data slide: Vera vs Aver vs AILANG on the models
   that ran those generation targets (opt-in; not part of `--type all`)
-- `reasoning` — the reasoning-budget slide: one model at two effort
-  levels (`REASONING_PAIR`, default `GPT-5.6 Sol` vs `GPT-5.6 Sol (pro)`)
+- `reasoning` — the reasoning-budget slide: one model at two reasoning
+  modes (`standard` vs `pro`) (`REASONING_PAIR`, default `GPT-5.6 Sol` vs `GPT-5.6 Sol (pro)`)
   across every core mode, with the per-language delta annotated. Answers
   "does more deliberation help, and does it help *less* on Vera?" — the
   controlled comparison no other provider offers, since both entries are
@@ -478,13 +478,20 @@ of a room). Five slide types:
 
 ### Scope and lifecycle
 
-This is a **specialised, talk-specific** script — not a general slide
-renderer. The v0.0.7 model lineup (Claude Opus 4 / GPT-4.1 / Kimi K2.5
-in flagship; Claude Sonnet 4 / GPT-4o / Kimi K2 Turbo in sonnet) is
-hard-coded in `MODELS_V_0_0_7`, because the live `plot_results.MODELS`
-registry has since been updated to reflect the K2.6 migration (PR #69).
-If you want slides for a future release, either generalise the script
-or duplicate it with the new lineup.
+The script renders against whichever lineup matches the `--version` you
+ask for:
+
+- `--version 0.0.7` uses the frozen `MODELS_V_0_0_7` lineup (Claude Opus 4
+  / GPT-4.1 / Kimi K2.5 in flagship; Claude Sonnet 4 / GPT-4o / Kimi K2
+  Turbo in sonnet). Those slides must keep rendering identically, and the
+  live registry has moved on, so the historical lineup is pinned in code
+  rather than reconstructed.
+- **Any other version** uses the live `plot_results.MODELS`, so slides
+  track the current matrix without further edits.
+
+⚠ `--version` still **defaults to `0.0.7`**. A bare
+`python scripts/plot_slide.py` therefore renders the frozen historical
+lineup, not your current results — pass `--version` explicitly.
 
 It reuses palette, typography constants, and `extract_data()` from
 `plot_results.py` so the slide numbers match the README chart by

@@ -7,11 +7,11 @@ Usage:
 
   # Autonomous mode
   python scripts/run_full_benchmark.py \
-    --model claude-sonnet-4-6 --api-key sk-ant-...
+    --model claude-sonnet-5 --api-key sk-ant-...
 
   # Autonomous with env var
   ANTHROPIC_API_KEY=sk-ant-... \
-    python scripts/run_full_benchmark.py --model claude-sonnet-4-6
+    python scripts/run_full_benchmark.py --model claude-sonnet-5
 
 Runs all 10 targets:
   1. Vera full-spec

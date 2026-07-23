@@ -246,6 +246,26 @@ def extract_data(
     return ordered, warnings, used_paths, missing
 
 
+def complete_models(
+    all_data: dict, missing: set[tuple[str, str]] | None, modes: list[str]
+) -> list[str]:
+    """Models with a real result file for every mode in `modes`.
+
+    `extract_data` writes 0 for an absent file, so `mode in row` cannot
+    answer this — every key is always present.
+
+    A *bar* of 0 is the documented doc-chart behaviour: a visible gap you
+    go and fill. A *delta* against an absent file is a different animal.
+    It fabricates a number that carries a sign and a colour, and on the
+    "Does Vera beat Python?" panel an un-run Python target renders as
+    Vera winning by 100 — the strongest possible version of the claim
+    the chart exists to make, produced entirely by missing data. Any
+    renderer computing a difference must filter through this.
+    """
+    absent = missing or set()
+    return [m for m in all_data if all((m, mode) not in absent for mode in modes)]
+
+
 def _style_ax(ax):
     """Apply site styling to an axes."""
     ax.spines["top"].set_visible(False)
@@ -303,14 +323,21 @@ def plot_tier(ax, data: dict, title: str, comparison_modes: list[str]):
     ax.legend(loc="lower left", fontsize=9, framealpha=0.8, edgecolor=BROWN_300)
 
 
-def plot_vera_vs_comparison(ax, tiers: dict[str, dict], comparison_modes: list[str]):
+def plot_vera_vs_comparison(
+    ax,
+    tiers: dict[str, dict],
+    comparison_modes: list[str],
+    missing: set[tuple[str, str]] | None = None,
+):
     """Horizontal bars: Vera run_correct minus each comparison language, per model."""
     from matplotlib.patches import Patch  # noqa: E402
 
     all_data: dict = {}
     for tier_data in tiers.values():
         all_data.update(tier_data)
-    models = list(all_data.keys())
+    # A model missing any of Vera / the comparison languages would yield a
+    # fabricated delta rather than a visible gap — see complete_models.
+    models = complete_models(all_data, missing, ["Vera", *comparison_modes])
 
     # Per-comparison delta arrays and bar objects (one row per mode).
     deltas = {
@@ -560,9 +587,7 @@ def main():
             suffixes.append("_with-" + "-".join(args.extra))
         out = f"assets/results-graph{''.join(suffixes)}.png"
 
-    tiers, warnings, used_paths, _missing = extract_data(
-        results_dir, version, all_modes
-    )
+    tiers, warnings, used_paths, missing = extract_data(results_dir, version, all_modes)
     if warnings:
         print("Warnings:")
         for w in warnings:
@@ -608,7 +633,7 @@ def main():
 
     # Row 2: delta chart
     ax3 = fig.add_subplot(gs[1, :])
-    plot_vera_vs_comparison(ax3, tiers, comparison_modes)
+    plot_vera_vs_comparison(ax3, tiers, comparison_modes, missing=missing)
 
     # Row 3: all modes
     ax4 = fig.add_subplot(gs[2, :])
