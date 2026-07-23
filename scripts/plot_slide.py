@@ -138,8 +138,8 @@ def _patch_models_for_slide() -> tuple[ModuleType, list[ModelSpec]]:
 
 def _load_data(
     version: str, results_dir: Path, modes: list[str]
-) -> dict[str, dict[str, dict[str, int]]]:
-    """Load slide data as extract_data's tier dict.
+) -> tuple[dict[str, dict[str, dict[str, int]]], set[tuple[str, str]]]:
+    """Load slide data as extract_data's tier dict, plus the missing set.
 
     For version 0.0.7 the historical MODELS_V_0_0_7 lineup is patched
     in (the frozen talk lineup — labels would silently mis-map against
@@ -149,18 +149,18 @@ def _load_data(
     if version == "0.0.7":
         pr, original = _patch_models_for_slide()
         try:
-            tiers, warnings, _used = extract_data(results_dir, version, modes)
+            tiers, warnings, _used, missing = extract_data(results_dir, version, modes)
         finally:
             pr.MODELS = original
     else:
-        tiers, warnings, _used = extract_data(results_dir, version, modes)
+        tiers, warnings, _used, missing = extract_data(results_dir, version, modes)
 
     if warnings:
         print("Warnings:")
         for w in warnings:
             print(w)
 
-    return tiers
+    return tiers, missing
 
 
 def _merge_tiers(tiers: dict[str, dict]) -> dict:
@@ -201,7 +201,10 @@ def _style_ax(ax: Axes) -> None:
 
 
 def render_delta(
-    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict],
+    output: Path,
+    background: str = DEFAULT_BACKGROUND,
+    missing: set[tuple[str, str]] | None = None,
 ) -> None:
     """The 'Does Vera beat …?' horizontal-bar chart at 16:9."""
     all_data = _merge_tiers(tiers)
@@ -361,7 +364,10 @@ def _draw_tier_panel(
 
 
 def render_tiers(
-    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict],
+    output: Path,
+    background: str = DEFAULT_BACKGROUND,
+    missing: set[tuple[str, str]] | None = None,
 ) -> None:
     """Per-tier comparison panels side-by-side at 16:9 (2 or 3 tiers)."""
     from scripts.plot_results import TIER_TITLES
@@ -394,7 +400,10 @@ def render_tiers(
 
 
 def render_all_modes(
-    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict],
+    output: Path,
+    background: str = DEFAULT_BACKGROUND,
+    missing: set[tuple[str, str]] | None = None,
 ) -> None:
     """Single panel showing Vera, Vera NL, Python, TypeScript for every model."""
     all_data = _merge_tiers(tiers)
@@ -495,7 +504,10 @@ ZTD_MODES = ["Vera", "Aver", "AILANG"]
 
 
 def render_ztd(
-    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict],
+    output: Path,
+    background: str = DEFAULT_BACKGROUND,
+    missing: set[tuple[str, str]] | None = None,
 ) -> None:
     """Zero-training-data languages: Vera vs Aver vs AILANG at 16:9.
 
@@ -504,13 +516,25 @@ def render_ztd(
     percentage point comes from in-context instruction alone.
     """
     all_data = _merge_tiers(tiers)
-    models = [m for m in ZTD_MODELS if m in all_data]
+    absent = missing or set()
+
+    def ran_all_ztd(model: str) -> bool:
+        """Did this model actually produce every ZTD result file?
+
+        `extract_data` writes 0 for a missing file, so `mode in row` is
+        always true and cannot answer this — an un-run language would
+        otherwise be plotted at 0%, which on this slide reads as "the
+        language failed catastrophically" rather than "no data". This is
+        the ZTD thesis slide; a fabricated zero is the worst possible
+        error on it.
+        """
+        return all((model, mode) not in absent for mode in ZTD_MODES)
+
+    models = [m for m in ZTD_MODELS if m in all_data and ran_all_ztd(m)]
     if not models:
-        # Fall back to every model that has all three ZTD modes — keeps
-        # the renderer usable if the subset lineup changes.
-        models = [
-            m for m, row in all_data.items() if all(md in row for md in ZTD_MODES)
-        ]
+        # Fall back to every model that ran all three — keeps the
+        # renderer usable if the subset lineup changes.
+        models = [m for m in all_data if ran_all_ztd(m)]
     if not models:
         # Both paths empty. Without this the renderer writes a blank but
         # otherwise well-formed 16:9 PNG — which is worse than an error,
@@ -584,7 +608,10 @@ REASONING_MODES = ["Vera", "Vera NL", "Python", "TypeScript"]
 
 
 def render_reasoning(
-    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict],
+    output: Path,
+    background: str = DEFAULT_BACKGROUND,
+    missing: set[tuple[str, str]] | None = None,
 ) -> None:
     """Does a bigger reasoning budget help — and does it help less on Vera?
 
@@ -595,14 +622,30 @@ def render_reasoning(
     reconstruct.
     """
     all_data = _merge_tiers(tiers)
+    absent = missing or set()
     base_name, pro_name = REASONING_PAIR
-    missing = [n for n in REASONING_PAIR if n not in all_data]
-    if missing:
-        print(f"  reasoning slide: no data for {missing} — skipping")
+    unknown = [n for n in REASONING_PAIR if n not in all_data]
+    if unknown:
+        print(f"  reasoning slide: no data for {unknown} — skipping")
         return
 
     base, pro = all_data[base_name], all_data[pro_name]
-    modes = [m for m in REASONING_MODES if m in base and m in pro]
+    # Both halves must have a real result file for the mode. `m in base`
+    # cannot express that — extract_data writes 0 for a missing file, so
+    # every mode key is always present. Without this, an unrun mode
+    # contributes a fabricated delta of ±the other half's score, which is
+    # exactly the quantity this slide exists to report.
+    modes = [
+        m
+        for m in REASONING_MODES
+        if (base_name, m) not in absent and (pro_name, m) not in absent
+    ]
+    if not modes:
+        print(
+            f"  reasoning slide: no mode has results for both "
+            f"{base_name!r} and {pro_name!r} — skipping"
+        )
+        return
     deltas = [pro[m] - base[m] for m in modes]
 
     fig, ax = plt.subplots(figsize=(16, 9), dpi=180)
@@ -768,13 +811,13 @@ def main() -> None:
     modes = ["Vera", "Vera NL", "Python", "TypeScript"]
     if "ztd" in types:
         modes += ["Aver", "AILANG"]
-    tiers = _load_data(args.version, Path(args.results_dir), modes)
+    tiers, missing = _load_data(args.version, Path(args.results_dir), modes)
 
     for t in types:
         output = (
             Path(args.output) if args.output else Path(f"/tmp/vera-bench_slide_{t}.png")
         )
-        RENDERERS[t](tiers, output, background=args.background)
+        RENDERERS[t](tiers, output, background=args.background, missing=missing)
 
 
 if __name__ == "__main__":

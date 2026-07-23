@@ -184,7 +184,7 @@ def _load_jsonl(path: Path) -> list[dict]:
 
 def extract_data(
     results_dir: Path, version: str, modes: list[str]
-) -> tuple[dict[str, dict], list[str], list[Path]]:
+) -> tuple[dict[str, dict], list[str], list[Path], set[tuple[str, str]]]:
     """Extract run_correct percentages for every MODEL × MODE.
 
     Args:
@@ -193,7 +193,7 @@ def extract_data(
         modes: Mode labels to extract, in display order. Must be keys in
             MODE_PATTERNS.
 
-    Returns (tiers, warnings, used_paths).
+    Returns (tiers, warnings, used_paths, missing).
     tiers: dict[tier_key] -> dict[display_name] -> dict[mode_label] -> int
         percentage. Tier keys appear in TIER_TITLES order (unknown tiers
         last, in MODELS order); only tiers with at least one model are
@@ -204,10 +204,22 @@ def extract_data(
         problem count) from this list rather than re-globbing — re-globbing
         can pick up stale files that _find_result_file's mtime tie-breaker
         would have rejected.
+    missing: {(display_name, mode_label)} for which no result file existed.
+
+        A missing cell is still written into `tiers` as 0, because the
+        comprehensive doc chart deliberately renders it as a visible 0%
+        gap you can go and fill. But 0-because-absent and 0-because-the
+        -model-scored-nothing are then indistinguishable in `tiers`
+        alone, and for the specialised slides that difference is the
+        whole point: plotting an un-run language at 0% on the
+        zero-training-data slide would read as a catastrophic result for
+        that language rather than as no data. Renderers that must not
+        fabricate a bar consult this set.
     """
     tiers: dict[str, dict[str, dict[str, int]]] = {}
     warnings: list[str] = []
     used_paths: list[Path] = []
+    missing: set[tuple[str, str]] = set()
 
     for model in MODELS:
         row: dict[str, int] = {}
@@ -218,6 +230,7 @@ def extract_data(
                     f"  {model.display} / {mode}: no file matching bench-{version}"
                 )
                 row[mode] = 0
+                missing.add((model.display, mode))
                 continue
             used_paths.append(path)
             metrics = compute_metrics(_load_jsonl(path))
@@ -230,7 +243,7 @@ def extract_data(
     # first-seen order.
     ordered = {k: tiers[k] for k in TIER_TITLES if k in tiers}
     ordered.update({k: v for k, v in tiers.items() if k not in ordered})
-    return ordered, warnings, used_paths
+    return ordered, warnings, used_paths, missing
 
 
 def _style_ax(ax):
@@ -547,7 +560,9 @@ def main():
             suffixes.append("_with-" + "-".join(args.extra))
         out = f"assets/results-graph{''.join(suffixes)}.png"
 
-    tiers, warnings, used_paths = extract_data(results_dir, version, all_modes)
+    tiers, warnings, used_paths, _missing = extract_data(
+        results_dir, version, all_modes
+    )
     if warnings:
         print("Warnings:")
         for w in warnings:
