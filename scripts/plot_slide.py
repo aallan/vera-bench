@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Render v0.0.7 result panels as 16:9 slides for talk presentation.
+"""Render benchmark result panels as 16:9 slides for talk presentation.
 
-Three slide types are supported:
+Four slide types are supported:
 
 - `delta`     — the "Does Vera beat Python / TypeScript?" horizontal-bar chart
                 (the headline storytelling slide; Vera-wins read as green
                 positive bars).
-- `tiers`     — Flagship and Sonnet tier comparisons side-by-side, mirroring
-                the top row of the documentation chart.
-- `all-modes` — all 6 models × 4 modes (Vera, Vera NL, Python, TypeScript)
-                in a single grouped-bar panel.
+- `tiers`     — per-tier comparison panels side-by-side (2 panels for the
+                historical 2-tier data, 3 for the fable/opus/sonnet matrix),
+                mirroring the top row of the documentation chart.
+- `all-modes` — every model × the 4 core modes (Vera, Vera NL, Python,
+                TypeScript) in a single grouped-bar panel.
+- `ztd`       — the zero-training-data slide: Vera vs Aver vs AILANG on the
+                subset of models that ran the ZTD generation targets. Needs
+                Aver/AILANG result files, so it's opt-in (--type ztd), not
+                part of --type all.
 
 Standalone script — not part of the documentation chart-generation flow in
 `plot_results.py`. Slide rendering has different typography and layout
@@ -18,19 +23,21 @@ side-by-side per figure, landscape aspect) that don't belong in the README
 artefact. Reuses palette + data extraction from `plot_results.py` so the
 slide numbers match the README chart by construction.
 
-The historical v0.0.7 model lineup is hard-coded here because the live
-`plot_results.MODELS` registry now reflects the post-K2.6 lineup (PR #69)
-— slide must match what was actually run in v0.0.7.
+Version handling: `--version 0.0.7` renders against the frozen
+MODELS_V_0_0_7 lineup (what was actually run in v0.0.7 — the live
+registry has moved on); any other version renders against the live
+`plot_results.MODELS` matrix.
 
 Usage:
-    # Render all three by default
-    python scripts/plot_slide.py
-        # -> /tmp/vera-bench_slide_{delta,tiers,all-modes}.png
+    # Render the base trio (delta, tiers, all-modes)
+    python scripts/plot_slide.py --version 0.0.16
 
     # One at a time
-    python scripts/plot_slide.py --type delta
-    python scripts/plot_slide.py --type tiers
-    python scripts/plot_slide.py --type all-modes
+    python scripts/plot_slide.py --version 0.0.16 --type delta
+    python scripts/plot_slide.py --version 0.0.16 --type ztd
+
+    # The historical v0.0.7 talk slides still render identically
+    python scripts/plot_slide.py --version 0.0.7
 
     # Custom output path (only with single --type)
     python scripts/plot_slide.py --type delta --output ~/Desktop/slide-3.png
@@ -122,23 +129,39 @@ def _patch_models_for_slide() -> tuple[ModuleType, list[ModelSpec]]:
     return pr, original
 
 
-def _load_v0_0_7_data(
-    version: str, results_dir: Path
-) -> tuple[dict[str, dict[str, int]], dict[str, dict[str, int]]]:
-    """Load the v0.0.7 data once, patched against the historical lineup."""
-    pr, original = _patch_models_for_slide()
-    try:
-        modes = ["Vera", "Vera NL", "Python", "TypeScript"]
-        flagship, sonnet, warnings, _used = extract_data(results_dir, version, modes)
-    finally:
-        pr.MODELS = original
+def _load_data(
+    version: str, results_dir: Path, modes: list[str]
+) -> dict[str, dict[str, dict[str, int]]]:
+    """Load slide data as extract_data's tier dict.
+
+    For version 0.0.7 the historical MODELS_V_0_0_7 lineup is patched
+    in (the frozen talk lineup — labels would silently mis-map against
+    the live registry). Any other version uses plot_results.MODELS
+    as-is, so slides track the current matrix.
+    """
+    if version == "0.0.7":
+        pr, original = _patch_models_for_slide()
+        try:
+            tiers, warnings, _used = extract_data(results_dir, version, modes)
+        finally:
+            pr.MODELS = original
+    else:
+        tiers, warnings, _used = extract_data(results_dir, version, modes)
 
     if warnings:
         print("Warnings:")
         for w in warnings:
             print(w)
 
-    return flagship, sonnet
+    return tiers
+
+
+def _merge_tiers(tiers: dict[str, dict]) -> dict:
+    """Flatten the tier dict into display_name -> mode rows, tier order."""
+    merged: dict = {}
+    for tier_data in tiers.values():
+        merged.update(tier_data)
+    return merged
 
 
 def _slide_rcparams() -> None:
@@ -171,10 +194,10 @@ def _style_ax(ax: Axes) -> None:
 
 
 def render_delta(
-    flagship: dict, sonnet: dict, output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
 ) -> None:
     """The 'Does Vera beat …?' horizontal-bar chart at 16:9."""
-    all_data = {**flagship, **sonnet}
+    all_data = _merge_tiers(tiers)
     models = list(all_data.keys())
     comparison_modes = ["Python", "TypeScript"]
 
@@ -331,13 +354,19 @@ def _draw_tier_panel(
 
 
 def render_tiers(
-    flagship: dict, sonnet: dict, output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
 ) -> None:
-    """Flagship + Sonnet tier comparisons side-by-side at 16:9."""
-    fig, (ax_left, ax_right) = plt.subplots(1, 2, figsize=(16, 9), dpi=180)
+    """Per-tier comparison panels side-by-side at 16:9 (2 or 3 tiers)."""
+    from scripts.plot_results import TIER_TITLES
+
+    n = max(len(tiers), 1)
+    fig, axes = plt.subplots(1, n, figsize=(16, 9), dpi=180)
+    if n == 1:
+        axes = [axes]
     comparison_modes = ["Python", "TypeScript"]
-    _draw_tier_panel(ax_left, flagship, "Flagship Tier", comparison_modes)
-    _draw_tier_panel(ax_right, sonnet, "Sonnet Tier", comparison_modes)
+    for ax, (tier_key, tier_data) in zip(axes, tiers.items()):
+        title = TIER_TITLES.get(tier_key, tier_key.title())
+        _draw_tier_panel(ax, tier_data, title, comparison_modes)
 
     fig.suptitle(
         "run_correct by model (Vera vs Python vs TypeScript)",
@@ -358,10 +387,10 @@ def render_tiers(
 
 
 def render_all_modes(
-    flagship: dict, sonnet: dict, output: Path, background: str = DEFAULT_BACKGROUND
+    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
 ) -> None:
     """Single panel showing Vera, Vera NL, Python, TypeScript for every model."""
-    all_data = {**flagship, **sonnet}
+    all_data = _merge_tiers(tiers)
     models = list(all_data.keys())
     modes = ["Vera", "Vera NL", "Python", "TypeScript"]
 
@@ -442,10 +471,99 @@ def _save(fig, output: Path, background: str = DEFAULT_BACKGROUND) -> None:
     plt.close(fig)
 
 
+# ----------------------------------------------------------------------
+# Zero-training-data slide — Vera vs Aver vs AILANG
+# ----------------------------------------------------------------------
+
+# The Aver/AILANG generation targets run on a subset of the matrix
+# (sweep-scope decision: the opus-tier trio + the Anthropic ceiling).
+# Models listed here render on the ZTD slide when present in the data.
+ZTD_MODELS = [
+    "Claude Fable 5",
+    "Claude Opus 4.8",
+    "GPT-5.6 Sol",
+    "Kimi K3",
+]
+ZTD_MODES = ["Vera", "Aver", "AILANG"]
+
+
+def render_ztd(
+    tiers: dict[str, dict], output: Path, background: str = DEFAULT_BACKGROUND
+) -> None:
+    """Zero-training-data languages: Vera vs Aver vs AILANG at 16:9.
+
+    The strongest single slide for the language-design thesis: none of
+    the three languages appear in any model's training data — every
+    percentage point comes from in-context instruction alone.
+    """
+    all_data = _merge_tiers(tiers)
+    models = [m for m in ZTD_MODELS if m in all_data]
+    if not models:
+        # Fall back to every model that has all three ZTD modes — keeps
+        # the renderer usable if the subset lineup changes.
+        models = [
+            m for m, row in all_data.items() if all(md in row for md in ZTD_MODES)
+        ]
+
+    fig, ax = plt.subplots(figsize=(16, 9), dpi=180)
+    x = np.arange(len(models))
+    width = 0.8 / len(ZTD_MODES)
+
+    for i, mode in enumerate(ZTD_MODES):
+        values = [all_data[m].get(mode, 0) for m in models]
+        bars = ax.bar(
+            x + i * width,
+            values,
+            width,
+            label=mode,
+            color=COLORS[mode],
+            edgecolor=CREAM,
+            linewidth=0.8,
+        )
+        for bar, val in zip(bars, values):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 1.5,
+                f"{val}",
+                ha="center",
+                va="bottom",
+                fontsize=BAR_LABEL_PT_MEDIUM,
+                fontweight="bold",
+                color=BROWN_700,
+            )
+
+    ax.set_ylabel("run_correct (%)", fontsize=AXIS_LABEL_PT, color=BROWN_500)
+    ax.set_title(
+        "Zero-training-data languages — in-context instruction only",
+        fontsize=TITLE_PT,
+        fontweight="bold",
+        pad=20,
+        fontfamily=FONT_HEADING,
+        color=BROWN_900,
+    )
+    ax.set_xticks(x + width * (len(ZTD_MODES) - 1) / 2)
+    ax.set_xticklabels(models, fontsize=TICK_PT_MEDIUM)
+    ax.set_ylim(0, 118)
+    ax.set_yticks([0, 25, 50, 75, 100])
+    ax.tick_params(axis="y", labelsize=TICK_PT_SMALL)
+    ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.8, alpha=0.4)
+    _style_ax(ax)
+    ax.legend(
+        loc="lower left",
+        fontsize=LEGEND_PT,
+        framealpha=0.85,
+        edgecolor=BROWN_300,
+    )
+
+    fig.tight_layout(rect=(0.02, 0.02, 0.98, 0.95))
+    _save(fig, output, background)
+
+
 RENDERERS = {
     "delta": render_delta,
     "tiers": render_tiers,
     "all-modes": render_all_modes,
+    "ztd": render_ztd,
 }
 
 
@@ -459,13 +577,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--version",
-        choices=["0.0.7"],
         default="0.0.7",
         help=(
-            "Bench version to plot. Only '0.0.7' is supported — the model "
-            "lineup is hard-coded to MODELS_V_0_0_7 and other versions "
-            "would silently mis-map labels to data. Future versions would "
-            "need their own lineup and dispatch."
+            "Bench version to plot. '0.0.7' renders against the frozen "
+            "MODELS_V_0_0_7 talk lineup; any other version renders "
+            "against the live plot_results.MODELS matrix."
         ),
     )
     parser.add_argument(
@@ -496,14 +612,22 @@ def main() -> None:
         parser.error("--output is only valid when --type is a single slide type")
 
     _slide_rcparams()
-    flagship, sonnet = _load_v0_0_7_data(args.version, Path(args.results_dir))
-
     types = list(RENDERERS) if args.type == "all" else [args.type]
+    # "all" renders the base trio only — the ZTD slide needs Aver/AILANG
+    # result files that historical versions don't have; request it
+    # explicitly with --type ztd.
+    if args.type == "all":
+        types = [t for t in types if t != "ztd"]
+    modes = ["Vera", "Vera NL", "Python", "TypeScript"]
+    if "ztd" in types:
+        modes += ["Aver", "AILANG"]
+    tiers = _load_data(args.version, Path(args.results_dir), modes)
+
     for t in types:
         output = (
             Path(args.output) if args.output else Path(f"/tmp/vera-bench_slide_{t}.png")
         )
-        RENDERERS[t](flagship, sonnet, output, background=args.background)
+        RENDERERS[t](tiers, output, background=args.background)
 
 
 if __name__ == "__main__":

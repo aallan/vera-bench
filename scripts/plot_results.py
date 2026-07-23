@@ -56,6 +56,7 @@ COLORS = {
     "Python": ORANGE_400,
     "TypeScript": BROWN_300,
     "Aver": "#6B4FBB",  # indigo — visually distinct from the Vera greens
+    "AILANG": "#C2185B",  # magenta — distinct from Aver's indigo
 }
 
 # Neutral grey shades for the delta-chart legend (not per-language green/red).
@@ -87,28 +88,41 @@ matplotlib.rcParams.update(
 
 @dataclass(frozen=True)
 class ModelSpec:
-    display: str  # Shown on the chart (e.g. "Claude Opus 4")
+    display: str  # Shown on the chart (e.g. "Claude Fable 5")
     file_prefix: str  # Model-id portion of result filename
-    tier: str  # "flagship" or "sonnet" — controls chart layout
+    tier: str  # Key into TIER_TITLES — controls chart layout
 
+
+# Tier display order + panel titles. Any tier present in MODELS but not
+# listed here renders last with a title-cased fallback; a tier listed
+# here but absent from MODELS is skipped (no empty panel).
+TIER_TITLES: dict[str, str] = {
+    "fable": "Fable Tier (ceiling)",
+    "opus": "Opus Tier (flagship)",
+    # Legacy "flagship" sits between opus and sonnet so historical
+    # 2-tier renders (plot_slide's frozen v0.0.7 lineup) keep their
+    # original left-to-right order: Flagship, then Sonnet.
+    "flagship": "Flagship Tier",
+    "sonnet": "Sonnet Tier (workhorse)",
+}
 
 MODELS: list[ModelSpec] = [
-    # Flagship row — current top-tier model from each provider.
-    # Claude Opus 4.8 replaces the deprecated Opus 4 (claude-opus-4-20250514,
-    # retiring 2026-06-15) as Anthropic's flagship slot. Per Anthropic's
-    # 4.6-generation naming convention, the model ID is dateless and is itself
-    # a pinned snapshot, not an evergreen alias.
-    ModelSpec("Claude Opus 4.8", "claude-opus-4-8", "flagship"),
-    ModelSpec("GPT-4.1", "gpt-4.1-2025-04-14", "flagship"),
-    ModelSpec("Kimi K2.6", "moonshot-kimi-k2.6", "flagship"),
-    # Sonnet row — previous-generation / secondary slot from each provider.
-    # Kimi K2.5 moves here from flagship after Moonshot promoted K2.6 to
-    # the active flagship-line slot (kimi-k2-turbo-preview deprecated
-    # 2026-05-25, see #68). Claude Sonnet 4.6 replaces the deprecated
-    # Sonnet 4 (claude-sonnet-4-20250514, also retiring 2026-06-15).
-    ModelSpec("Claude Sonnet 4.6", "claude-sonnet-4-6", "sonnet"),
-    ModelSpec("GPT-4o", "gpt-4o", "sonnet"),
-    ModelSpec("Kimi K2.5", "moonshot-kimi-k2.5", "sonnet"),
+    # v0.0.16 matrix — three tiers mapped onto Anthropic's naming.
+    # The fable row is intentionally incomplete: Moonshot ships no
+    # ceiling-above-flagship model. openai-pro-gpt-5.6-sol is Sol at
+    # reasoning.mode=pro — same model as the opus-tier entry, different
+    # reasoning budget (the controlled comparison: if Vera's contracts
+    # make default ~= pro, the language is doing the work).
+    # ⚠ file_prefix must byte-match what cli.py writes (CLI string,
+    # '/'->'-'): verify against a real results filename before a sweep.
+    ModelSpec("Claude Fable 5", "claude-fable-5", "fable"),
+    ModelSpec("GPT-5.6 Sol (pro)", "openai-pro-gpt-5.6-sol", "fable"),
+    ModelSpec("Claude Opus 4.8", "claude-opus-4-8", "opus"),
+    ModelSpec("GPT-5.6 Sol", "gpt-5.6-sol", "opus"),
+    ModelSpec("Kimi K3", "moonshot-kimi-k3", "opus"),
+    ModelSpec("Claude Sonnet 5", "claude-sonnet-5", "sonnet"),
+    ModelSpec("GPT-5.6 Terra", "gpt-5.6-terra", "sonnet"),
+    ModelSpec("Kimi K2.6", "moonshot-kimi-k2.6", "sonnet"),
 ]
 
 # Mode label -> glob pattern fragment inserted between prefix and bench-VER.
@@ -121,15 +135,21 @@ MODE_PATTERNS: dict[str, str] = {
     "Python": "python-",  # {prefix}-python-bench-{v}.jsonl
     "TypeScript": "typescript-",  # {prefix}-typescript-bench-{v}.jsonl
     "Aver": "aver-",  # {prefix}-aver-bench-{v}-aver-*.jsonl
+    "AILANG": "ailang-",  # {prefix}-ailang-bench-{v}-ailang-*.jsonl
 }
 
-# Modes that have a trailing "-vera-{compiler}" or "-aver-{compiler}" suffix.
-_COMPILER_SUFFIXED = {"Vera": "vera", "Vera NL": "vera", "Aver": "aver"}
+# Modes that have a trailing "-{compiler}-{ver}" suffix in the filename.
+_COMPILER_SUFFIXED = {
+    "Vera": "vera",
+    "Vera NL": "vera",
+    "Aver": "aver",
+    "AILANG": "ailang",
+}
 
 # Default chart: Python + TypeScript as comparison languages. Opt in to Aver
-# (or future languages) via --extra.
+# / AILANG (or future languages) via --extra.
 DEFAULT_COMPARISON_MODES = ["Python", "TypeScript"]
-OPTIONAL_COMPARISON_MODES = {"aver": "Aver"}
+OPTIONAL_COMPARISON_MODES = {"aver": "Aver", "ailang": "AILANG"}
 
 
 def _version_to_filename(version: str) -> str:
@@ -164,17 +184,20 @@ def _load_jsonl(path: Path) -> list[dict]:
 
 def extract_data(
     results_dir: Path, version: str, modes: list[str]
-) -> tuple[dict, dict, list[str], list[Path]]:
+) -> tuple[dict[str, dict], list[str], list[Path]]:
     """Extract run_correct percentages for every MODEL × MODE.
 
     Args:
         results_dir: Directory containing JSONL result files.
-        version: Bench version (e.g. "0.0.9").
+        version: Bench version (e.g. "0.0.16").
         modes: Mode labels to extract, in display order. Must be keys in
             MODE_PATTERNS.
 
-    Returns (flagship, sonnet, warnings, used_paths).
-    flagship/sonnet: dict[display_name] -> dict[mode_label] -> int percentage
+    Returns (tiers, warnings, used_paths).
+    tiers: dict[tier_key] -> dict[display_name] -> dict[mode_label] -> int
+        percentage. Tier keys appear in TIER_TITLES order (unknown tiers
+        last, in MODELS order); only tiers with at least one model are
+        present — an unpopulated tier gets no empty panel.
     warnings: human-readable list of missing files.
     used_paths: the actual JSONL files consulted (one per successful lookup).
         Downstream code should derive subtitle metadata (compiler version,
@@ -182,8 +205,7 @@ def extract_data(
         can pick up stale files that _find_result_file's mtime tie-breaker
         would have rejected.
     """
-    flagship: dict[str, dict[str, int]] = {}
-    sonnet: dict[str, dict[str, int]] = {}
+    tiers: dict[str, dict[str, dict[str, int]]] = {}
     warnings: list[str] = []
     used_paths: list[Path] = []
 
@@ -202,9 +224,13 @@ def extract_data(
             rate = metrics.run_correct_rate or 0.0
             row[mode] = round(rate * 100)
 
-        (flagship if model.tier == "flagship" else sonnet)[model.display] = row
+        tiers.setdefault(model.tier, {})[model.display] = row
 
-    return flagship, sonnet, warnings, used_paths
+    # Order tiers: TIER_TITLES order first, then any unknown tiers in
+    # first-seen order.
+    ordered = {k: tiers[k] for k in TIER_TITLES if k in tiers}
+    ordered.update({k: v for k, v in tiers.items() if k not in ordered})
+    return ordered, warnings, used_paths
 
 
 def _style_ax(ax):
@@ -264,13 +290,13 @@ def plot_tier(ax, data: dict, title: str, comparison_modes: list[str]):
     ax.legend(loc="lower left", fontsize=9, framealpha=0.8, edgecolor=BROWN_300)
 
 
-def plot_vera_vs_comparison(
-    ax, flagship: dict, sonnet: dict, comparison_modes: list[str]
-):
+def plot_vera_vs_comparison(ax, tiers: dict[str, dict], comparison_modes: list[str]):
     """Horizontal bars: Vera run_correct minus each comparison language, per model."""
     from matplotlib.patches import Patch  # noqa: E402
 
-    all_data = {**flagship, **sonnet}
+    all_data: dict = {}
+    for tier_data in tiers.values():
+        all_data.update(tier_data)
     models = list(all_data.keys())
 
     # Per-comparison delta arrays and bar objects (one row per mode).
@@ -368,9 +394,11 @@ def plot_vera_vs_comparison(
 plot_vera_vs_both = plot_vera_vs_comparison
 
 
-def plot_all_modes(ax, flagship: dict, sonnet: dict, modes: list[str]):
+def plot_all_modes(ax, tiers: dict[str, dict], modes: list[str]):
     """Grouped comparison: all modes (Vera + Vera NL + comparisons) per model."""
-    all_data = {**flagship, **sonnet}
+    all_data: dict = {}
+    for tier_data in tiers.values():
+        all_data.update(tier_data)
     models = list(all_data.keys())
     x = np.arange(len(models))
     width = 0.8 / len(modes)
@@ -519,9 +547,7 @@ def main():
             suffixes.append("_with-" + "-".join(args.extra))
         out = f"assets/results-graph{''.join(suffixes)}.png"
 
-    flagship, sonnet, warnings, used_paths = extract_data(
-        results_dir, version, all_modes
-    )
+    tiers, warnings, used_paths = extract_data(results_dir, version, all_modes)
     if warnings:
         print("Warnings:")
         for w in warnings:
@@ -544,9 +570,12 @@ def main():
         color=BROWN_900,
     )
 
+    # Row 1 holds one panel per populated tier (2 for legacy data,
+    # 3 for the v0.0.16 matrix); rows 2-4 span the full width.
+    n_tiers = max(len(tiers), 1)
     gs = fig.add_gridspec(
         4,
-        2,
+        n_tiers,
         hspace=0.35,
         wspace=0.3,
         height_ratios=[1, 1, 1, 0.3],
@@ -556,20 +585,21 @@ def main():
         bottom=0.04,
     )
 
-    # Row 1: tier comparisons
-    ax1 = fig.add_subplot(gs[0, 0])
-    plot_tier(ax1, flagship, "Flagship Tier \u2014 run_correct", comparison_modes)
-
-    ax2 = fig.add_subplot(gs[0, 1])
-    plot_tier(ax2, sonnet, "Sonnet Tier \u2014 run_correct", comparison_modes)
+    # Row 1: one tier panel per populated tier, in TIER_TITLES order.
+    for col, (tier_key, tier_data) in enumerate(tiers.items()):
+        ax_t = fig.add_subplot(gs[0, col])
+        title = TIER_TITLES.get(tier_key, tier_key.title())
+        plot_tier(
+            ax_t, tier_data, f"{title} \u2014 run_correct", comparison_modes
+        )
 
     # Row 2: delta chart
     ax3 = fig.add_subplot(gs[1, :])
-    plot_vera_vs_comparison(ax3, flagship, sonnet, comparison_modes)
+    plot_vera_vs_comparison(ax3, tiers, comparison_modes)
 
     # Row 3: all modes
     ax4 = fig.add_subplot(gs[2, :])
-    plot_all_modes(ax4, flagship, sonnet, all_modes)
+    plot_all_modes(ax4, tiers, all_modes)
 
     # Row 4: footer — explanation (left 3/4) + branding (right 1/4)
     # Footer spans full width
