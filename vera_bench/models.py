@@ -200,6 +200,33 @@ def create_client(model: str) -> LLMClient:
     )
 
 
+# Maps our user-facing reasoning-mode names onto the values the OpenAI
+# Chat Completions `reasoning_effort` parameter actually accepts
+# (none/minimal/low/medium/high/xhigh/max as of openai-python 2.47).
+# "pro" is our name for the ceiling tier; the API calls it "max".
+REASONING_MODE_EFFORT: dict[str, str] = {"pro": "max"}
+
+
+def _anthropic_text(content: object) -> str:
+    """Join the text blocks of an Anthropic response, skipping the rest.
+
+    Models with extended thinking return ThinkingBlock (and possibly
+    RedactedThinkingBlock) entries *ahead of* the TextBlock, so
+    `content[0]` is not the answer — Claude Fable 5 fails outright on a
+    blind `content[0].text` with "'ThinkingBlock' object has no
+    attribute 'text'". Blocks are matched on `.type` rather than
+    isinstance so a future SDK can add block kinds without breaking
+    this, and every text block is joined rather than just the first,
+    since nothing guarantees there is exactly one.
+    """
+    parts = [
+        getattr(block, "text", "") or ""
+        for block in (content or [])
+        if getattr(block, "type", None) == "text"
+    ]
+    return "".join(parts)
+
+
 class AnthropicClient:
     def __init__(self, model: str) -> None:
         try:
@@ -244,7 +271,7 @@ class AnthropicClient:
             raise TimeoutError(f"Anthropic API timed out: {e}") from e
 
         elapsed = time.monotonic() - start
-        text = response.content[0].text if response.content else ""
+        text = _anthropic_text(response.content)
         usage = response.usage
         cache_creation = getattr(usage, "cache_creation_input_tokens", 0) or 0
         cache_read = getattr(usage, "cache_read_input_tokens", 0) or 0
@@ -277,11 +304,27 @@ class OpenAIClient:
 
         self._client = openai.OpenAI(api_key=api_key)
         self._model = model.removeprefix("openai/")
-        # Reasoning mode (e.g. "pro" for gpt-5.6-sol's ceiling tier).
-        # Set by the openai-pro/ routing prefix in create_client; never
-        # via the runner (the complete() Protocol carries no per-call
-        # config — see the openai-pro design notes in the v0.0.16 plan).
+        # Reasoning tier for the ceiling ("pro") benchmark entry. Set by
+        # the openai-pro/ routing prefix in create_client; never via the
+        # runner (the complete() Protocol carries no per-call config —
+        # see the openai-pro design notes in the v0.0.16 plan).
+        #
+        # The user-facing name stays "pro" — it is baked into the model
+        # string, the result filenames and the talk slides — but the API
+        # has no such value. Chat Completions takes `reasoning_effort`
+        # from a fixed set (none/minimal/low/medium/high/xhigh/max), so
+        # "pro" maps to the ceiling, "max".
         self._reasoning_mode = reasoning_mode
+        self._reasoning_effort = REASONING_MODE_EFFORT.get(reasoning_mode or "")
+        if reasoning_mode and self._reasoning_effort is None:
+            # Failing loudly matters here: an unmapped mode would send no
+            # reasoning parameter at all, so the "pro" entry would quietly
+            # run at default effort and the pro-vs-default comparison would
+            # be a comparison of a model against itself.
+            raise ValueError(
+                f"Unknown reasoning mode {reasoning_mode!r}. "
+                f"Known modes: {sorted(REASONING_MODE_EFFORT)}"
+            )
 
     def complete(
         self,
@@ -300,13 +343,16 @@ class OpenAIClient:
 
         # Cache-shard routing for the shared system prefix, passed via
         # extra_body so it works on any 1.x SDK regardless of
-        # typed-kwarg support (#61). The reasoning mode rides the same
-        # channel ("reasoning.mode" per OpenAI's gpt-5.5-pro
-        # deprecation notice); smoke S2 verifies the exact accepted
-        # shape before the sweep.
+        # typed-kwarg support (#61).
         extra_body: dict = {"prompt_cache_key": _prompt_cache_key(system)}
-        if self._reasoning_mode:
-            extra_body["reasoning"] = {"mode": self._reasoning_mode}
+
+        # Reasoning goes in as the typed `reasoning_effort` kwarg. The
+        # nested `reasoning={"mode": ...}` shape belongs to the Responses
+        # API; Chat Completions rejects it outright with
+        # 400 "Unknown parameter: 'reasoning'" (smoke S2, 2026-07-23).
+        kwargs: dict = {}
+        if self._reasoning_effort:
+            kwargs["reasoning_effort"] = self._reasoning_effort
 
         start = time.monotonic()
         response = _call_openai_compatible(
@@ -322,6 +368,7 @@ class OpenAIClient:
                     {"role": "user", "content": user},
                 ],
                 extra_body=extra_body,
+                **kwargs,
             ),
             label="OpenAI",
             key_hint="OPENAI_API_KEY",

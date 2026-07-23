@@ -227,7 +227,13 @@ def run(
                 )
                 raise SystemExit(1)
             aver_ver = _parse_version_banner(_av_proc.stdout)
-        except (FileNotFoundError, _sp.TimeoutExpired):
+        except _sp.TimeoutExpired:
+            console.print(
+                "[red]Error: aver --version timed out after 5s. "
+                "Check your aver installation.[/red]"
+            )
+            raise SystemExit(1)
+        except FileNotFoundError:
             console.print(
                 "[red]Error: aver not found on PATH. "
                 "Install with: cargo install aver-lang[/red]"
@@ -255,7 +261,16 @@ def run(
                 )
                 raise SystemExit(1)
             ailang_ver = _parse_version_banner(_al_proc.stdout)
-        except (FileNotFoundError, _sp.TimeoutExpired):
+        except _sp.TimeoutExpired:
+            # Distinct from not-found: the binary exists but is wedged.
+            # Reporting "not on PATH" here sends you to reinstall
+            # something that is already installed.
+            console.print(
+                "[red]Error: ailang --version timed out after 5s. "
+                "Check your ailang installation.[/red]"
+            )
+            raise SystemExit(1)
+        except FileNotFoundError:
             console.print(
                 "[red]Error: ailang not found on PATH. "
                 "Install from https://github.com/sunholo-data/ailang[/red]"
@@ -303,7 +318,11 @@ def run(
         console.print(f"Vera:     v{vera_ver}")
     if ailang_ver:
         console.print(f"AILANG:   v{ailang_ver}")
-    console.print(f"Output:   {output_path}\n")
+    # soft_wrap: rich wraps at the console width (80 when not a tty, as
+    # in CI and when piping a sweep log to a file), which breaks a long
+    # result path across lines mid-token. The path is meant to be
+    # copy-pasteable and greppable, so let it overflow instead.
+    console.print(f"Output:   {output_path}\n", soft_wrap=True)
 
     # Run benchmark
     results = run_benchmark(
@@ -440,7 +459,11 @@ def baselines(language: str, output_dir: Path | None):
             raise SystemExit(1)
 
     console.print(f"Language: {language}")
-    console.print(f"Output:   {output_path}\n")
+    # soft_wrap: rich wraps at the console width (80 when not a tty, as
+    # in CI and when piping a sweep log to a file), which breaks a long
+    # result path across lines mid-token. The path is meant to be
+    # copy-pasteable and greppable, so let it overflow instead.
+    console.print(f"Output:   {output_path}\n", soft_wrap=True)
 
     # Run baselines
     results = run_all_baselines(

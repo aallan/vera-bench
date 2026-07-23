@@ -71,6 +71,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Claude Fable 5 returned no code at all.** `AnthropicClient.complete`
+  read `response.content[0].text`, but models with extended thinking
+  return `ThinkingBlock` entries *ahead of* the `TextBlock` — so every
+  Fable 5 call died with `'ThinkingBlock' object has no attribute
+  'text'`, recorded as an API-error row with no generated code. The
+  whole fable tier of the v0.0.16 matrix would have come back empty.
+  A new `_anthropic_text` helper selects blocks by `.type == "text"`
+  and joins them, ignoring thinking and redacted-thinking blocks.
+  Caught by smoke S1 (2026-07-23); the pre-existing unit test missed it
+  because a bare `MagicMock` auto-supplies any attribute, including the
+  `.text` the real `ThinkingBlock` lacks.
+- **`openai-pro/` sent a parameter the API does not accept.** The
+  reasoning tier was passed as `extra_body={"reasoning": {"mode":
+  "pro"}}` — the *Responses API* shape. Chat Completions rejects it
+  with `400 Unknown parameter: 'reasoning'`, so every Sol@pro call
+  failed. Chat Completions takes a typed `reasoning_effort` kwarg from
+  a fixed set (`none`/`minimal`/`low`/`medium`/`high`/`xhigh`/`max`),
+  with no `"pro"` member; the user-facing "pro" name is retained (it is
+  baked into model strings, filenames and slides) and mapped to the API
+  ceiling `"max"` via `REASONING_MODE_EFFORT`. An unmapped mode now
+  raises rather than silently sending no reasoning parameter — that
+  failure mode would have run the "pro" entry at default effort and
+  turned the headline pro-vs-default comparison into a model compared
+  against itself. Confirms the CodeRabbit finding on
+  [#92](https://github.com/aallan/vera-bench/pull/92) that was declined
+  pending evidence.
+- **Long result paths wrapped mid-token in console output.** `Output:
+  <path>` was printed through rich, which wraps at the console width
+  (80 when not a tty — CI, and any sweep log piped to a file), breaking
+  paths across lines mid-word and making them un-greppable and
+  un-copy-pasteable. Now printed with `soft_wrap=True`. This was also
+  failing `test_run_ailang_full_path_success` on `main`.
+- **`aver`/`ailang` version-probe timeouts reported the wrong cause.**
+  A `TimeoutExpired` from `--version` was either unhandled (ailang) or
+  folded into the not-found branch (aver), which advised reinstalling a
+  compiler that is already installed. Both now report the timeout
+  distinctly.
 - **AILANG version parsing corrupted result filenames.** `run
   --language ailang` built its output filename from the compiler's
   raw `--version` stdout. `ailang --version` prints a **seven-line**

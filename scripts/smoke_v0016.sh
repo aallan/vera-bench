@@ -48,6 +48,30 @@ ok()   { printf '  ok    %s\n' "$1"; pass=$((pass+1)); }
 bad()  { printf '  FAIL  %s\n' "$1"; fail=$((fail+1)); }
 skip() { printf '  --    %s (skipped)\n' "$1"; }
 
+# Exit code is NOT success. `vera-bench run` records an API error as a
+# JSONL row and still exits 0 — that is deliberate (a transient error
+# costs one problem, not the whole sweep), but it means a smoke check
+# that reads $? reports "ok" for a model that never answered. Both
+# fable-tier models passed that way on 2026-07-23. Judge the rows.
+verdict () {  # label, results-dir, logfile
+  local lbl=$1 dir=$2 log=$3
+  local err
+  err=$($PY - "$dir" <<'PY'
+import json, pathlib, sys
+for f in sorted(pathlib.Path(sys.argv[1]).rglob("*.jsonl")):
+    for line in f.read_text().splitlines():
+        if line.strip():
+            r = json.loads(line)
+            if r.get("error_message"):
+                print(r["error_message"][:150]); raise SystemExit
+PY
+)
+  if [ -n "$err" ]; then bad "$lbl — $err"
+  elif [ ! -d "$dir" ] || [ -z "$(find "$dir" -name '*.jsonl' 2>/dev/null)" ]; then
+    bad "$lbl — no result row ($(grep -iE 'error|Traceback' "$log" | head -1 | cut -c1-100))"
+  else ok "$lbl"; fi
+}
+
 note "keys present (values never printed)"
 for k in ANTHROPIC_API_KEY OPENAI_API_KEY MOONSHOT_API_KEY; do
   if [ -n "${!k:-}" ]; then ok "$k set"; else bad "$k MISSING — export it and re-run"; fi
@@ -94,13 +118,12 @@ MODELS=(
 )
 for m in "${MODELS[@]}"; do
   if [[ " $SKIP_MODELS " == *" $m "* ]]; then skip "$m"; continue; fi
-  log="$SMOKE/log-s1-${m//\//-}.txt"
-  if $VB run --model "$m" --problem VB-T1-001 --language python \
-        --output-dir "$SMOKE/s1" >"$log" 2>&1; then
-    ok "$m"
-  else
-    bad "$m — $(grep -iE 'error|Traceback|unsupported|invalid' "$log" | head -1 | cut -c1-140)"
-  fi
+  slug="${m//\//-}"
+  log="$SMOKE/log-s1-$slug.txt"
+  # Per-model dir so verdict() judges only this model's rows.
+  $VB run --model "$m" --problem VB-T1-001 --language python \
+     --output-dir "$SMOKE/s1/$slug" >"$log" 2>&1
+  verdict "$m" "$SMOKE/s1/$slug" "$log"
 done
 fi
 
@@ -180,12 +203,10 @@ if want s5; then
 note "S5  all six targets, one problem, one model"
 run_target () {  # label, extra args...
   local lbl=$1; shift
-  if $VB run --model claude-sonnet-5 --problem VB-T1-001 "$@" \
-        --output-dir "$SMOKE/s5" >"$SMOKE/log-s5-$lbl.txt" 2>&1; then
-    ok "canary $lbl"
-  else
-    bad "canary $lbl — $(grep -iE 'error' "$SMOKE/log-s5-$lbl.txt" | head -1 | cut -c1-120)"
-  fi
+  local log="$SMOKE/log-s5-$lbl.txt"
+  $VB run --model claude-sonnet-5 --problem VB-T1-001 "$@" \
+     --output-dir "$SMOKE/s5/$lbl" >"$log" 2>&1
+  verdict "canary $lbl" "$SMOKE/s5/$lbl" "$log"
 }
 run_target vera-full
 run_target vera-nl      --mode spec-from-nl

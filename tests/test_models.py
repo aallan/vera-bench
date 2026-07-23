@@ -86,7 +86,84 @@ class TestOpenAIClient:
             pytest.skip("openai package not installed")
 
 
+def _text_block(text: str):
+    """A TextBlock stand-in. `.type` matters — the real SDK discriminates
+    content blocks on it, and MagicMock's auto-attributes would hide a
+    bug that only shows up against the live API."""
+    block = MagicMock()
+    block.type = "text"
+    block.text = text
+    return block
+
+
+class _ThinkingBlock:
+    """A ThinkingBlock stand-in with **no** `.text` attribute, which is
+    what makes this faithful: the live failure was
+    "'ThinkingBlock' object has no attribute 'text'". A MagicMock would
+    have silently supplied one and reproduced nothing."""
+
+    type = "thinking"
+    thinking = "let me work through this"
+
+
+class TestAnthropicTextExtraction:
+    """Claude Fable 5 returns extended-thinking blocks ahead of the text,
+    so content[0] is not the answer (smoke S1, 2026-07-23)."""
+
+    def test_skips_leading_thinking_block(self):
+        from vera_bench.models import _anthropic_text
+
+        assert _anthropic_text([_ThinkingBlock(), _text_block("answer")]) == "answer"
+
+    def test_plain_text_response(self):
+        from vera_bench.models import _anthropic_text
+
+        assert _anthropic_text([_text_block("answer")]) == "answer"
+
+    def test_joins_multiple_text_blocks(self):
+        from vera_bench.models import _anthropic_text
+
+        blocks = [_ThinkingBlock(), _text_block("part one "), _text_block("part two")]
+        assert _anthropic_text(blocks) == "part one part two"
+
+    def test_unknown_block_types_ignored(self):
+        from vera_bench.models import _anthropic_text
+
+        redacted = MagicMock()
+        redacted.type = "redacted_thinking"
+        assert _anthropic_text([redacted, _text_block("answer")]) == "answer"
+
+    @pytest.mark.parametrize("content", [[], None, [_ThinkingBlock()]])
+    def test_no_text_block_yields_empty_string(self, content):
+        from vera_bench.models import _anthropic_text
+
+        assert _anthropic_text(content) == ""
+
+
 class TestAnthropicComplete:
+    def test_thinking_response_does_not_crash(self, monkeypatch):
+        """End-to-end regression for the Fable 5 failure."""
+        try:
+            import anthropic  # noqa: F401
+
+            from vera_bench.models import AnthropicClient
+        except ImportError:
+            pytest.skip("anthropic not installed")
+
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+        client = AnthropicClient("claude-fable-5")
+
+        mock_resp = MagicMock()
+        mock_resp.content = [_ThinkingBlock(), _text_block("def f(): pass")]
+        mock_resp.usage.input_tokens = 100
+        mock_resp.usage.output_tokens = 50
+        mock_resp.usage.cache_creation_input_tokens = 0
+        mock_resp.usage.cache_read_input_tokens = 0
+        mock_resp.model = "claude-fable-5"
+        client._client.messages.create = MagicMock(return_value=mock_resp)
+
+        assert client.complete("system", "user").text == "def f(): pass"
+
     def test_complete_mock(self, monkeypatch):
         """Test Anthropic complete with a mocked SDK."""
         try:
@@ -101,7 +178,7 @@ class TestAnthropicComplete:
         client = AnthropicClient("claude-test")
 
         mock_resp = MagicMock()
-        mock_resp.content = [MagicMock(text="hello")]
+        mock_resp.content = [_text_block("hello")]
         mock_resp.usage.input_tokens = 100
         mock_resp.usage.output_tokens = 50
         mock_resp.usage.cache_creation_input_tokens = 0
@@ -645,14 +722,20 @@ class TestOpenAIProRouting:
         with pytest.raises(ValueError, match="Unknown model"):
             create_client("mystery/some-model")
 
-    def test_reasoning_mode_sent_in_extra_body(self, monkeypatch):
+    def test_pro_sends_reasoning_effort_kwarg(self, monkeypatch):
+        """Chat Completions takes `reasoning_effort`, not a nested
+        `reasoning` object — the latter is the Responses-API shape and
+        is rejected with 400 "Unknown parameter: 'reasoning'" (smoke
+        S2, 2026-07-23). "pro" is our name; the API ceiling is "max"."""
         client = self._client(monkeypatch)
         mock_inner = MagicMock()
         mock_inner.chat.completions.create.return_value = self._ok_response()
         self._wire(client, mock_inner)
         client.complete("sys", "user")
         kwargs = mock_inner.chat.completions.create.call_args.kwargs
-        assert kwargs["extra_body"]["reasoning"] == {"mode": "pro"}
+        assert kwargs["reasoning_effort"] == "max"
+        assert "reasoning" not in kwargs
+        assert "reasoning" not in kwargs["extra_body"]
         # Cache key still rides alongside (#61)
         assert "prompt_cache_key" in kwargs["extra_body"]
 
@@ -663,7 +746,28 @@ class TestOpenAIProRouting:
         self._wire(client, mock_inner)
         client.complete("sys", "user")
         kwargs = mock_inner.chat.completions.create.call_args.kwargs
+        assert "reasoning_effort" not in kwargs
         assert "reasoning" not in kwargs["extra_body"]
+
+    def test_reasoning_effort_is_a_value_the_api_accepts(self, monkeypatch):
+        """Guard against inventing a value the SDK's Literal rejects."""
+        from typing import get_args
+
+        from openai.types.shared.reasoning_effort import ReasoningEffort
+
+        from vera_bench.models import REASONING_MODE_EFFORT
+
+        valid = {v for v in get_args(get_args(ReasoningEffort)[0]) if v}
+        assert set(REASONING_MODE_EFFORT.values()) <= valid
+
+    def test_unmapped_reasoning_mode_raises(self, monkeypatch):
+        """Silently dropping the parameter would make the 'pro' entry run
+        at default effort — a comparison of a model against itself."""
+        from vera_bench.models import OpenAIClient
+
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        with pytest.raises(ValueError, match="Unknown reasoning mode"):
+            OpenAIClient("gpt-5.6-sol", reasoning_mode="ultra")
 
     def test_max_completion_tokens_sent_not_max_tokens(self, monkeypatch):
         """GPT-5.x reasoning families reject the legacy max_tokens kwarg."""
