@@ -5,8 +5,11 @@ from __future__ import annotations
 import hashlib
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol, TypeVar
+
+_T = TypeVar("_T")
 
 
 @dataclass
@@ -50,7 +53,9 @@ def _prompt_cache_key(system: str) -> str:
     return f"vera-bench-{digest}"
 
 
-def _call_openai_compatible(create_fn, label: str, key_hint: str, model: str):
+def _call_openai_compatible(
+    create_fn: Callable[[], _T], label: str, key_hint: str, model: str
+) -> _T:
     """Invoke an OpenAI-compatible create() with the standard error map.
 
     Shared by OpenAIClient / MoonshotClient / OpenRouterClient — same
@@ -91,7 +96,7 @@ def _call_openai_compatible(create_fn, label: str, key_hint: str, model: str):
         ) from e
 
 
-def _validate_openai_response_text(response, label: str, model: str) -> str:
+def _validate_openai_response_text(response: Any, label: str, model: str) -> str:
     """Extract text from an OpenAI-compatible response, or raise.
 
     Explicit errors on empty choices / empty content — without these

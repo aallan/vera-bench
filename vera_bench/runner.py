@@ -1377,9 +1377,13 @@ def run_benchmark(
                             problem_results = fut.result()
                         except EnvironmentError:
                             # Bad API key — abort the sweep (see the
-                            # sequential path). Propagating out of the
-                            # executor context cancels the run rather
-                            # than writing a crash row per problem.
+                            # sequential path). Cancel queued futures
+                            # explicitly: the with-block's implicit
+                            # shutdown(wait=True) would otherwise DRAIN
+                            # the queue, firing one doomed API call per
+                            # remaining problem before the exception
+                            # propagates.
+                            executor.shutdown(wait=False, cancel_futures=True)
                             raise
                         except Exception as exc:  # noqa: BLE001
                             tb = traceback.format_exc()

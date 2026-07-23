@@ -3088,9 +3088,11 @@ class TestAilangCLI:
 class TestEnvironmentErrorAbortsSweep:
     """Auth failures must abort the whole sweep, not become 60 crash
     rows — EnvironmentError re-raises through the crash-recording
-    layer in both benchmark paths (#61 hardening, CR follow-up)."""
+    layer in both benchmark paths, and the parallel path cancels
+    queued futures so no further doomed API calls fire (#61
+    hardening, CR follow-ups)."""
 
-    def _problem(self, pid):
+    def _problem(self, pid: str) -> dict:
         return {"id": pid, "test_cases": []}
 
     @patch("vera_bench.runner.run_single_problem")
@@ -3108,18 +3110,36 @@ class TestEnvironmentErrorAbortsSweep:
                 output_path=tmp_path / "out.jsonl",
                 parallel=1,
             )
-        # Aborted on the first problem — no crash rows written.
+        # Aborted on the FIRST problem: exactly one invocation, no rows.
+        assert mock_run.call_count == 1
         out = tmp_path / "out.jsonl"
         assert not out.exists() or out.read_text() == ""
 
     @patch("vera_bench.runner.run_single_problem")
-    def test_parallel_aborts_on_environment_error(self, mock_run, tmp_path):
+    def test_parallel_aborts_and_cancels_queued_futures(self, mock_run, tmp_path):
+        """With 2 workers and 4 problems, the auth failure on the first
+        must cancel the two QUEUED futures — without the explicit
+        executor.shutdown(cancel_futures=True), the with-block's
+        implicit shutdown(wait=True) drains the queue and every
+        remaining problem fires a doomed API call."""
+        import time as _time
+
         from vera_bench.runner import run_benchmark
 
-        mock_run.side_effect = EnvironmentError("bad API key")
+        invoked: list[str] = []
+
+        def _side_effect(problem: dict, **kw: object) -> list:
+            invoked.append(problem["id"])
+            if problem["id"] == "VB-X-0":
+                _time.sleep(0.05)
+                raise EnvironmentError("bad API key")
+            _time.sleep(0.5)  # keep the second worker busy past the abort
+            return []
+
+        mock_run.side_effect = _side_effect
         with pytest.raises(EnvironmentError, match="bad API key"):
             run_benchmark(
-                problems=[self._problem(f"VB-X-{i}") for i in range(3)],
+                problems=[self._problem(f"VB-X-{i}") for i in range(6)],
                 client=MagicMock(),
                 skill_md="",
                 vera=None,
@@ -3127,6 +3147,13 @@ class TestEnvironmentErrorAbortsSweep:
                 output_path=tmp_path / "out.jsonl",
                 parallel=2,
             )
+        # Inherent race: a freed worker may dequeue ONE more task before
+        # the main thread processes the failed future — cancel_futures
+        # can only stop work that hasn't been dequeued. The guarantee
+        # under test is that the queue TAIL is cancelled: without the
+        # explicit shutdown(cancel_futures=True), all six problems run.
+        assert len(invoked) <= 3
+        assert set(invoked).isdisjoint({"VB-X-3", "VB-X-4", "VB-X-5"})
         out = tmp_path / "out.jsonl"
         assert not out.exists() or out.read_text() == ""
 
@@ -3137,7 +3164,7 @@ class TestEnvironmentErrorAbortsSweep:
 
         from vera_bench.runner import run_benchmark
 
-        def _side_effect(problem, **kw):
+        def _side_effect(problem: dict, **kw: object) -> list:
             raise RuntimeError("worker blew up")
 
         mock_run.side_effect = _side_effect
