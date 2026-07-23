@@ -5,10 +5,11 @@
 # out to need no separate call.)
 #
 # Run this before committing to a full sweep. A full sweep is ~52
-# target-runs (8 models x 6 LLM targets, plus 4 baselines) with no
-# resume, so a model id that does not exist, a parameter the API
-# rejects, or a toolchain that is not on PATH costs hours and real
-# money to discover late. Every check here is one problem.
+# target-runs: 8 models x 6 LLM targets = 48, plus the 4 baseline
+# runs, which happen once for the whole sweep rather than per model.
+# There is no resume, so a model id that does not exist, a parameter
+# the API rejects, or a toolchain that is not on PATH costs hours and
+# real money to discover late. Every check here is one problem.
 #
 # Needs `curl` and `jq` on PATH for S0 (without jq the provider
 # listings come back empty and every model reports NOT LISTED).
@@ -135,8 +136,11 @@ msh=$(curl -s https://api.moonshot.ai/v1/models \
 # Derived from the same MODELS table as S1, via run_full_benchmark's own
 # _detect_provider, so a model added to the sweep is gated here too.
 # Routing prefixes are stripped: the provider lists bare ids, and both
-# Sol entries collapse to the same one. Anthropic has no equivalent
-# public /v1/models listing, so those ids are checked in S1 instead.
+# Sol entries collapse to the same one. Only OpenAI and Moonshot are
+# queried here; Anthropic ids are left to S1, which exercises them
+# against the real endpoint anyway. (Anthropic does publish
+# GET /v1/models — adding it here would close the gap for the three
+# Claude entries.)
 while IFS='|' read -r provider bare; do
   [ -z "$bare" ] && continue
   case "$provider" in
@@ -272,7 +276,8 @@ note "S3  cache accounting (2nd call on the same ~29k prefix)"
 # only runs the canary. Probing a single model here left Moonshot
 # unmeasured through the whole v0.0.16 gate, and Anthropic measured only
 # by accident (S5 runs vera-full then vera-nl, which share the prefix).
-CACHE_PROBE="${PREFLIGHT_CACHE_PROBE:-$REASON_BASE $CANARY moonshot/kimi-k3}"
+MOONSHOT_PROBE="${PREFLIGHT_MOONSHOT:-moonshot/kimi-k3}"
+CACHE_PROBE="${PREFLIGHT_CACHE_PROBE:-$REASON_BASE $CANARY $MOONSHOT_PROBE}"
 for m in $CACHE_PROBE; do
   slug="${m//\//-}"
   busy "cache probe: $m (2 calls)"
@@ -307,7 +312,13 @@ for slug in sorted(p.name for p in d.iterdir() if p.is_dir()):
               f"{100*c/i if i else 0:>3.0f}%")
         if call == "probe":
             second = (r["model"], i, c)
-    if second and second[1] and second[2] == 0:
+    # An absent probe row is a failure to measure, not a pass. Leaving
+    # `second` unset would drop the model out of `unproven` entirely and
+    # let the all-clear print — the gate reporting success for a check
+    # that never ran.
+    if second is None:
+        unproven.append(f"{slug} (no probe result)")
+    elif second[1] and second[2] == 0:
         unproven.append(second[0])
 print()
 if unproven:
@@ -323,7 +334,7 @@ fi
 # ---------------------------------------------------------------- S5
 # Canary: every target path end-to-end on one cheap model. Proves the
 # vera-HEAD / aver-0.27 / ailang toolchains all work through the
-# harness before 40 target-runs depend on them.
+# harness before the whole sweep depends on them.
 if want s5; then
 note "S5  all six targets, one problem, one model"
 run_target () {  # label, extra args...
