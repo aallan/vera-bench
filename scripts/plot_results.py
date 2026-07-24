@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate benchmark comparison charts from VeraBench results.
 
-Reads JSONL files in `results/` (via `vera_bench.metrics.compute_metrics`)
-and produces a run_correct comparison chart. The canonical committed chart
+Reads JSONL files in `results/` and produces a **% solved** (pass@1)
+comparison chart, where a refusal, a compile failure, a runtime error and
+a wrong answer all count as not-solved. The canonical committed chart
 is `assets/results-graph.png`; variant suffixes (`_v{VERSION}`,
 `_with-{lang}`) are gitignored.
 
@@ -171,6 +172,62 @@ def _load_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+_GRADEABLE_IDS: set[str] | None = None
+
+
+def _gradeable_ids() -> set[str]:
+    """Problem ids that have test cases — the only ones output-gradeable.
+
+    Cached. Read from problems/ so the pass@1 denominator is the real
+    number of gradeable problems (currently 36 of 60), not a hardcoded
+    constant that would silently rot if the set changed.
+    """
+    global _GRADEABLE_IDS
+    if _GRADEABLE_IDS is None:
+        ids: set[str] = set()
+        root = Path(__file__).resolve().parent.parent / "problems"
+        for pf in root.rglob("VB_*.json"):
+            try:
+                p = json.loads(pf.read_text())
+            except (OSError, ValueError):
+                continue
+            if p.get("test_cases"):
+                ids.add(p.get("id"))
+        _GRADEABLE_IDS = ids
+    return _GRADEABLE_IDS
+
+
+def _pass_at_1_pct(rows: list[dict]) -> int | None:
+    """pass@1 as an integer percent: solved / gradeable-problems-present.
+
+    A refusal, a compile failure, a runtime error and a wrong answer all
+    count as NOT solved — the model was asked to produce correct code and
+    did not. This is the honest headline: unlike run_correct-over-eligible
+    it does not shrink the denominator when the model refuses or fails to
+    compile, so refusing hard problems cannot inflate the bar.
+
+    Best attempt per problem (an attempt-2 fix that compiles supersedes
+    attempt-1), matching compute_metrics. Returns None when no gradeable
+    problem is present, so the caller can treat that as absent data rather
+    than a genuine 0%.
+    """
+    gradeable = _gradeable_ids()
+    attempts: dict[str, dict[int | None, dict]] = {}
+    for r in rows:
+        pid = r.get("problem_id")
+        if pid in gradeable:
+            attempts.setdefault(pid, {})[r.get("attempt")] = r
+    if not attempts:
+        return None
+    solved = 0
+    for a in attempts.values():
+        a2, a1 = a.get(2), a.get(1)
+        best = a2 if (a2 and a2.get("check_pass")) else a1
+        if best and best.get("run_correct") is True:
+            solved += 1
+    return round(100 * solved / len(attempts))
+
+
 def extract_data(
     results_dir: Path, version: str, modes: list[str]
 ) -> tuple[dict[str, dict], list[str], list[Path], set[tuple[str, str]]]:
@@ -222,23 +279,22 @@ def extract_data(
                 missing.add((model.display, mode))
                 continue
             used_paths.append(path)
-            metrics = compute_metrics(_load_jsonl(path))
-            if metrics.run_correct_rate is None:
-                # The file exists but nothing in it was gradeable — every
-                # attempt errored or failed to compile, so `run_eligible`
-                # is 0. `or 0.0` would turn "no measurement" into a
-                # plotted 0%, which is the same conflation this `missing`
-                # set exists to prevent, one layer down: absent *data*
-                # rather than an absent *file*.
+            data = _load_jsonl(path)
+            pass1 = _pass_at_1_pct(data)
+            if pass1 is None:
+                # No gradeable problem produced a verdict — the file has
+                # none, or every attempt infra-failed. Distinguish from a
+                # genuine 0% (the missing set keeps it off the chart as a
+                # gap): absent *data* rather than an absent *file*.
+                errored = compute_metrics(data).errored
                 warnings.append(
-                    f"  {model.display} / {mode}: file exists but 0 of "
-                    f"{metrics.total_problems} problems were gradeable "
-                    f"({metrics.errored} errored) — {path.name}"
+                    f"  {model.display} / {mode}: no gradeable result "
+                    f"({errored} errored) — {path.name}"
                 )
                 row[mode] = 0
                 missing.add((model.display, mode))
                 continue
-            row[mode] = round(metrics.run_correct_rate * 100)
+            row[mode] = pass1
 
         tiers.setdefault(model.tier, {})[model.display] = row
 
@@ -308,7 +364,7 @@ def plot_tier(ax, data: dict, title: str, comparison_modes: list[str]):
                 color=BROWN_700,
             )
 
-    ax.set_ylabel("run_correct (%)", fontsize=10, color=BROWN_500)
+    ax.set_ylabel("% solved", fontsize=10, color=BROWN_500)
     ax.set_title(
         title,
         fontsize=13,
@@ -469,7 +525,7 @@ def plot_all_modes(ax, tiers: dict[str, dict], modes: list[str]):
                 color=BROWN_700,
             )
 
-    ax.set_ylabel("run_correct (%)", fontsize=10, color=BROWN_500)
+    ax.set_ylabel("% solved", fontsize=10, color=BROWN_500)
     ax.set_title(
         "All Models \u00d7 All Modes",
         fontsize=13,
@@ -632,7 +688,7 @@ def main():
     for col, (tier_key, tier_data) in enumerate(tiers.items()):
         ax_t = fig.add_subplot(gs[0, col])
         title = TIER_TITLES.get(tier_key, tier_key.title())
-        plot_tier(ax_t, tier_data, f"{title} \u2014 run_correct", comparison_modes)
+        plot_tier(ax_t, tier_data, f"{title} \u2014 % solved", comparison_modes)
 
     # Row 2: delta chart
     ax3 = fig.add_subplot(gs[1, :])

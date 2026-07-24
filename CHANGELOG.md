@@ -7,8 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/sweep_status.py` / `scripts/rerun_failed.py` — sweep
+  visibility and surgical repair.** `vera-bench run`'s `rich` progress
+  blanks itself off-TTY, so `run_sweep.sh`'s tee'd logs hold only a banner
+  and the JSONL rows are the only live signal. `sweep_status.py` censuses
+  them and separates what a single "dirty" flag conflates: transient infra
+  (re-run), `finish_reason=length` (raise `--max-tokens`), and refusals or
+  compile errors (real results — keep). `rerun_failed.py` re-runs only a
+  target's transiently-failed problems into a scratch `--output-dir` and
+  splices them back by `problem_id`, instead of re-running all 60 to repair
+  one timeout.
+
 ### Changed
 
+- **Charts report "% solved" (pass@1), not `run_correct`.** `run_correct`
+  was measured only over the problems that compiled, so a model that
+  refused or failed to compile shrank its own denominator and scored
+  *higher* for answering less. `% solved` fixes the denominator at the
+  gradeable set (problems with test cases): a refusal, a compile failure,
+  a runtime error and a wrong answer all count as not-solved.
 - **One canonical model matrix; `run_full_benchmark.py` replaced by
   `run_sweep.sh`.** The 8-model lineup was duplicated across three files
   that could drift — `run_full_benchmark.py` (for the gate),

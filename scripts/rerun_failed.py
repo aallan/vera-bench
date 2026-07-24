@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Surgically re-run only the *transiently failed* problems of a sweep
+target, and splice the fresh rows back into the canonical results file —
+instead of re-running all 60 problems to repair one timeout.
+
+Why this is not the obvious one-liner: `vera-bench run` derives its output
+filename from model·language·mode·versions (never the problem id) and
+unlinks that file at startup (there is no resume). So a naive
+`vera-bench run --problem VB-T3-002` would delete the 59 good rows to
+rewrite one. The escape is `--output-dir`: point each re-run at a private
+scratch dir, then merge its rows into the canonical file keyed by
+`problem_id`.
+
+Buckets (shared with sweep_status.py):
+  transient  rate-limit / timeout / connection / empty content. Re-run
+             as-is; the fault does not recur deterministically.
+  length     finish_reason=length — output-budget wall. Re-running at the
+             SAME budget hits the same wall, so length problems are only
+             included with --include-length, and you should pass a bigger
+             --max-tokens (forwarded to vera-bench run) alongside it.
+
+Refusals and compile/runtime-error rows are real results and are never
+re-run.
+
+Examples:
+    # Show what a target needs, cost-free (default is a dry run):
+    python scripts/rerun_failed.py --model moonshot/kimi-k3 --mode full-spec
+
+    # Actually repair the transient failures:
+    python scripts/rerun_failed.py --model moonshot/kimi-k3 --mode full-spec --apply
+
+    # Repair length walls too, with a bigger budget:
+    python scripts/rerun_failed.py --model moonshot/kimi-k2.6 --mode spec-from-nl \
+        --include-length --max-tokens 32000 --apply
+
+Run this only on targets the sweep has finished (>=60 rows); it refuses an
+in-flight file unless --force, to avoid racing the sweep's own writer.
+"""
+
+from __future__ import annotations
+
+import argparse
+import glob
+import json
+import os
+import subprocess
+import sys
+import tempfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sweep_status import classify, load_rows  # noqa: E402
+
+
+def canonical_basename_prefix(model: str, language: str, mode: str) -> str:
+    """Reconstruct the leading part of the filename cli.py builds, up to
+    (not including) the version tags — enough to glob for the one file."""
+    parts = [model.replace("/", "-")]
+    if language != "vera":
+        parts.append(language)
+    if language == "vera" and mode != "full-spec":
+        parts.append(mode)
+    return "-".join(parts) + "-bench-"
+
+
+def find_canonical(results_dir: str, model: str, language: str, mode: str) -> str:
+    prefix = canonical_basename_prefix(model, language, mode)
+    hits = sorted(glob.glob(os.path.join(results_dir, prefix + "*.jsonl")))
+    if not hits:
+        sys.exit(f"no results file matching {prefix}* in {results_dir}/")
+    if len(hits) > 1:
+        joined = "\n  ".join(os.path.basename(h) for h in hits)
+        sys.exit(f"ambiguous — {len(hits)} files match {prefix}*:\n  {joined}")
+    return hits[0]
+
+
+def failed_pids(rows: list[dict], include_length: bool) -> list[str]:
+    wanted = {"transient", "length"} if include_length else {"transient"}
+    seen: dict[str, None] = {}  # ordered set
+    for r in rows:
+        msg = r.get("error_message")
+        if msg and classify(msg) in wanted:
+            seen.setdefault(r["problem_id"], None)
+    return list(seen)
+
+
+def rerun_one(model, language, mode, pid, extra, scratch) -> list[dict]:
+    cmd = [
+        "vera-bench",
+        "run",
+        "--model",
+        model,
+        "--problem",
+        pid,
+        "--output-dir",
+        scratch,
+    ]
+    if language != "vera":
+        cmd += ["--language", language]
+    if language == "vera" and mode != "full-spec":
+        cmd += ["--mode", mode]
+    cmd += extra
+    print(f"  $ {' '.join(cmd)}")
+    subprocess.run(cmd, check=True)
+    produced = glob.glob(os.path.join(scratch, "*.jsonl"))
+    if not produced:
+        sys.exit(f"re-run of {pid} produced no output file in {scratch}")
+    return load_rows(produced[0])
+
+
+def splice(canonical: str, fresh_by_pid: dict[str, list[dict]]) -> None:
+    """Replace each re-run problem's row group in-place, preserving the
+    original first-seen order, and write atomically."""
+    order: list[str] = []
+    groups: dict[str, list[dict]] = {}
+    for r in load_rows(canonical):
+        pid = r["problem_id"]
+        if pid not in groups:
+            groups[pid] = []
+            order.append(pid)
+        groups[pid].append(r)
+    for pid, rows in fresh_by_pid.items():
+        if pid not in groups:
+            order.append(pid)
+        groups[pid] = rows
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(canonical), suffix=".tmp")
+    with os.fdopen(fd, "w") as fh:
+        for pid in order:
+            for r in groups[pid]:
+                fh.write(json.dumps(r) + "\n")
+    os.replace(tmp, canonical)
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument(
+        "--model", required=True, help="CLI model string, e.g. moonshot/kimi-k3"
+    )
+    ap.add_argument("--language", default="vera")
+    ap.add_argument(
+        "--mode", default="full-spec", help="full-spec | spec-from-nl (vera only)"
+    )
+    ap.add_argument("--results-dir", default="results")
+    ap.add_argument(
+        "--include-length",
+        action="store_true",
+        help="also re-run finish_reason=length problems (pair with --max-tokens)",
+    )
+    ap.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,
+        help="forwarded to vera-bench run (needed to clear length walls)",
+    )
+    ap.add_argument(
+        "--force", action="store_true", help="splice even an in-flight (<60 row) file"
+    )
+    ap.add_argument(
+        "--apply", action="store_true", help="execute; without it, dry-run only"
+    )
+    args = ap.parse_args()
+
+    canonical = find_canonical(args.results_dir, args.model, args.language, args.mode)
+    rows = load_rows(canonical)
+    print(f"target: {os.path.basename(canonical)}  ({len(rows)} rows)")
+
+    if len(rows) < 60 and not args.force:
+        sys.exit(
+            "file has <60 rows — looks in-flight; wait for the sweep or pass --force"
+        )
+
+    pids = failed_pids(rows, args.include_length)
+    if not pids:
+        print(
+            "nothing to re-run (no transient"
+            + ("/length" if args.include_length else "")
+            + " failures)"
+        )
+        return
+    print(f"would re-run {len(pids)} problem(s): {', '.join(pids)}")
+
+    extra: list[str] = []
+    if args.max_tokens is not None:
+        extra += ["--max-tokens", str(args.max_tokens)]
+    if args.include_length and args.max_tokens is None:
+        print("  ! --include-length without --max-tokens will likely hit the same wall")
+
+    if not args.apply:
+        print("\ndry run — re-run with --apply to execute and splice")
+        return
+
+    fresh_by_pid: dict[str, list[dict]] = {}
+    with tempfile.TemporaryDirectory(prefix="vb-rerun-") as base:
+        for pid in pids:
+            scratch = os.path.join(base, pid)
+            os.makedirs(scratch)
+            fresh_by_pid[pid] = rerun_one(
+                args.model, args.language, args.mode, pid, extra, scratch
+            )
+    splice(canonical, fresh_by_pid)
+    print(
+        f"\nspliced {len(fresh_by_pid)} problem(s) into {os.path.basename(canonical)}"
+    )
+    print("re-run scripts/sweep_status.py to confirm it now reads clean")
+
+
+if __name__ == "__main__":
+    main()

@@ -57,6 +57,13 @@ class TestPlotResultsDerivesFromMatrix:
     hand-kept copy — the drift this consolidation removed."""
 
     def test_derived_lineup_matches_matrix(self):
+        # Put the repo root on the path so `scripts` imports under any
+        # pytest invocation (CI's `pytest` console script doesn't add cwd
+        # the way `python -m pytest` does). Mirrors plot_slide.py.
+        import pathlib
+        import sys
+
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
         from scripts.plot_results import MODELS as PR_MODELS
 
         assert len(PR_MODELS) == len(MODELS)
@@ -64,3 +71,77 @@ class TestPlotResultsDerivesFromMatrix:
             assert spec.display == m.display
             assert spec.file_prefix == m.file_prefix
             assert spec.tier == m.tier
+
+
+class TestPassAtOne:
+    """The honest headline metric: solved / gradeable, where a refusal,
+    a compile failure, a runtime error and a wrong answer all count as
+    not-solved. It must NOT shrink the denominator the way
+    run_correct-over-eligible did (which let refusals inflate the bar)."""
+
+    def _pass1(self, rows, gradeable):
+        import pathlib
+        import sys
+
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+        import scripts.plot_results as pr
+
+        pr._GRADEABLE_IDS = set(gradeable)  # fixed, not read from disk
+        return pr._pass_at_1_pct(rows)
+
+    def _row(self, pid, *, check, run, err=None, attempt=1):
+        return {
+            "problem_id": pid,
+            "attempt": attempt,
+            "check_pass": check,
+            "run_correct": run,
+            "error_message": err,
+        }
+
+    def test_refusal_counts_as_not_solved(self):
+        gradeable = {f"P{i}" for i in range(10)}
+        rows = [self._row(f"P{i}", check=True, run=True) for i in range(9)]
+        rows.append(
+            self._row("P9", check=False, run=None, err="... stop_reason=refusal ...")
+        )
+        # 9 of 10 solved — the refusal is a miss, not dropped from the base.
+        assert self._pass1(rows, gradeable) == 90
+
+    def test_compile_failure_and_wrong_answer_are_misses(self):
+        gradeable = {f"P{i}" for i in range(10)}
+        rows = [self._row(f"P{i}", check=True, run=True) for i in range(8)]
+        rows.append(self._row("P8", check=False, run=None, err="check: syntax"))
+        rows.append(self._row("P9", check=True, run=False))  # compiled, wrong
+        assert self._pass1(rows, gradeable) == 80
+
+    def test_denominator_is_gradeable_not_eligible(self):
+        # The old bug: a model that refuses 5 and aces 5 scored 100%.
+        gradeable = {f"P{i}" for i in range(10)}
+        rows = [self._row(f"P{i}", check=True, run=True) for i in range(5)]
+        rows += [
+            self._row(f"P{i}", check=False, run=None, err="refusal")
+            for i in range(5, 10)
+        ]
+        assert self._pass1(rows, gradeable) == 50  # not 100
+
+    def test_non_gradeable_problems_excluded(self):
+        # Problems without test cases can't be output-graded — not in denom.
+        gradeable = {"P0", "P1"}
+        rows = [
+            self._row("P0", check=True, run=True),
+            self._row("P1", check=True, run=True),
+            self._row("P2", check=True, run=None),  # no test cases
+        ]
+        assert self._pass1(rows, gradeable) == 100
+
+    def test_fix_attempt_counts(self):
+        # attempt-2 that compiles and runs correctly supersedes a failed a1.
+        gradeable = {"P0"}
+        rows = [
+            self._row("P0", check=False, run=None, err="check", attempt=1),
+            self._row("P0", check=True, run=True, attempt=2),
+        ]
+        assert self._pass1(rows, gradeable) == 100
+
+    def test_none_when_no_gradeable_present(self):
+        assert self._pass1([self._row("X", check=True, run=None)], {"P0"}) is None

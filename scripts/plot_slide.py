@@ -368,9 +368,7 @@ def _draw_tier_panel(
                 color=BROWN_700,
             )
 
-    ax.set_ylabel(
-        "run_correct (%)", fontsize=round(AXIS_LABEL_PT * scale), color=BROWN_500
-    )
+    ax.set_ylabel("% solved", fontsize=round(AXIS_LABEL_PT * scale), color=BROWN_500)
     ax.set_title(
         title,
         fontsize=title_pt,
@@ -410,7 +408,7 @@ def render_tiers(
         _draw_tier_panel(ax, tier_data, title, comparison_modes, n_panels=n)
 
     fig.suptitle(
-        "run_correct by model (Vera vs Python vs TypeScript)",
+        "% solved by model (Vera vs Python vs TypeScript)",
         fontsize=TITLE_PT - 2,
         fontweight="bold",
         y=0.97,
@@ -465,7 +463,7 @@ def render_all_modes(
                 color=BROWN_700,
             )
 
-    ax.set_ylabel("run_correct (%)", fontsize=AXIS_LABEL_PT, color=BROWN_500)
+    ax.set_ylabel("% solved", fontsize=AXIS_LABEL_PT, color=BROWN_500)
     ax.set_title(
         "All Models × All Modes",
         fontsize=TITLE_PT,
@@ -597,7 +595,7 @@ def render_ztd(
                 color=BROWN_700,
             )
 
-    ax.set_ylabel("run_correct (%)", fontsize=AXIS_LABEL_PT, color=BROWN_500)
+    ax.set_ylabel("% solved", fontsize=AXIS_LABEL_PT, color=BROWN_500)
     ax.set_title(
         "Zero-training-data languages — in-context instruction only",
         fontsize=TITLE_PT,
@@ -722,7 +720,7 @@ def render_reasoning(
             color=GREEN if d > 0 else (BROWN_500 if d == 0 else RED),
         )
 
-    ax.set_ylabel("run_correct (%)", fontsize=AXIS_LABEL_PT, color=BROWN_500)
+    ax.set_ylabel("% solved", fontsize=AXIS_LABEL_PT, color=BROWN_500)
     # Punchy title + explanatory subtitle: the long single-line form
     # clips at 16:9 even at TITLE_PT - 2.
     ax.set_title(
