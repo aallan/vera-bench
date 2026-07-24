@@ -22,6 +22,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`errored` counted model runtime-failures as harness errors.** The
+  metric added in [#95](https://github.com/aallan/vera-bench/issues/95)
+  tallied every row carrying an `error_message`. But the Vera evaluator
+  now records the runtime diagnostic for a contract violation, a
+  division by zero, a stack overflow — code that *compiled and ran* and
+  was graded `run_correct=False`. Those are model failures already in
+  the denominator, not the grading gaps `errored` exists to surface. It
+  now counts only rows that produced no run verdict
+  (`run_correct is None`). The v0.1.7 canary showed the bug directly:
+  `errored 1/60` and `3/60` on healthy runs whose only "errors" were the
+  model failing hard problems at runtime — after the fix, both are 0,
+  with `run_correct` unchanged. `errored` is a derived metric, so
+  re-running `vera-bench report` corrects already-swept files.
 - **Moonshot cache hits were always recorded as zero.** `_openai_cached_tokens`
   read only `usage.prompt_tokens_details.cached_tokens` — the OpenAI *nested*
   location — but Moonshot reports it at the **top level**, `usage.cached_tokens`

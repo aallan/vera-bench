@@ -124,10 +124,17 @@ def compute_metrics(
                 if vp:
                     verify_pass_count += 1
 
-        # An error_message on the best attempt means the problem never
-        # reached a verdict — it is absent from run_eligible below, so
-        # without this tally the shrinking denominator is invisible.
-        if best and best.get("error_message"):
+        # `errored` counts the grading GAP — problems that carried an
+        # error and produced no run verdict, so they silently dropped out
+        # of run_eligible (API failure, timeout, compile failure). It must
+        # NOT count a problem that got a verdict: the Vera evaluator now
+        # records the runtime diagnostic for a contract violation, a
+        # division by zero, a stack overflow — but that code compiled and
+        # ran and was graded run_correct=False. That is a model failure,
+        # already in the denominator, not a gap. `run_correct is None`
+        # (never reached a verdict) is the discriminator, not the mere
+        # presence of an error_message.
+        if best and best.get("error_message") and best.get("run_correct") is None:
             errored += 1
 
         # run_correct (on best passing attempt)
