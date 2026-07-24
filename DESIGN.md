@@ -51,6 +51,8 @@ For each problem × model combination:
 - **fix@1** — Given the error message from a failed first attempt, can the model fix it in one turn?
 - **run_correct** — Does the best passing attempt produce the correct output for all test cases?
 
+**The headline chart reports `% solved` (pass@1):** solved over the *gradeable* problem set (those carrying test cases), against a **fixed denominator** — a refusal, a compile failure, a runtime error and a wrong answer all count as not-solved. This is deliberately not `run_correct` measured over only the problems that compiled: that shrinks the denominator when a model refuses or fails to compile, so it scores a model *higher* for answering less. `% solved` doesn't.
+
 Aggregate rates are computed per tier and overall. Cross-language baselines (Python, TypeScript, Aver, AILANG) measure the same problems for comparison. Python and TypeScript are heavily represented in LLM training data; Aver and AILANG (like Vera) have zero training data, giving two further data points for the zero-training-data thesis.
 
 ---
