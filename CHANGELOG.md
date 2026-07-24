@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **One canonical model matrix; `run_full_benchmark.py` replaced by
+  `run_sweep.sh`.** The 8-model lineup was duplicated across three files
+  that could drift — `run_full_benchmark.py` (for the gate),
+  `plot_results.py` (for the charts), and the sweep runner. It now lives
+  once in `vera_bench/matrix.py`; `plot_results.MODELS` derives from it and
+  `preflight.sh` reads it. `run_full_benchmark.py` — interactive menu, no
+  `--parallel`, a 3600s per-target timeout that killed slow Moonshot runs,
+  no resume — is deleted. The new `scripts/run_sweep.sh` is idempotent:
+  it skips any target already on disk and clean (≥60 rows, zero
+  *infrastructure*-failure rows) and re-runs the rest, so a killed or
+  rate-limited sweep is recovered by re-running it. Per-provider
+  parallelism, `--max-tokens 16000` for reasoning models, and an opt-in
+  pro tier.
 - **`preflight.sh` s3 probes prompt caching for every provider**, not just
   `$REASON_BASE`. Moonshot was never measured and Anthropic was covered only
   incidentally. 1 call becomes 6; override with `PREFLIGHT_CACHE_PROBE`.

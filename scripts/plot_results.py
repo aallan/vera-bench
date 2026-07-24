@@ -38,6 +38,7 @@ import numpy as np  # noqa: E402
 
 # Allow importing vera_bench without installing the package.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from vera_bench.matrix import MODELS as _MATRIX  # noqa: E402
 from vera_bench.metrics import compute_metrics  # noqa: E402
 
 # --- Site palette (from veralang.dev) ---
@@ -106,23 +107,12 @@ TIER_TITLES: dict[str, str] = {
     "sonnet": "Sonnet Tier (workhorse)",
 }
 
+# The lineup is the canonical matrix (vera_bench/matrix.py) projected onto
+# the fields the chart needs. file_prefix comes from Model.file_prefix
+# (CLI string, '/'->'-'), so it byte-matches what cli.py writes by
+# construction rather than by a hand-kept copy.
 MODELS: list[ModelSpec] = [
-    # v0.0.16 matrix — three tiers mapped onto Anthropic's naming.
-    # The fable row is intentionally incomplete: Moonshot ships no
-    # ceiling-above-flagship model. openai-pro-gpt-5.6-sol is Sol at
-    # reasoning.mode=pro — same model as the opus-tier entry, different
-    # reasoning budget (the controlled comparison: if Vera's contracts
-    # make default ~= pro, the language is doing the work).
-    # ⚠ file_prefix must byte-match what cli.py writes (CLI string,
-    # '/'->'-'): verify against a real results filename before a sweep.
-    ModelSpec("Claude Fable 5", "claude-fable-5", "fable"),
-    ModelSpec("GPT-5.6 Sol (pro)", "openai-pro-gpt-5.6-sol", "fable"),
-    ModelSpec("Claude Opus 4.8", "claude-opus-4-8", "opus"),
-    ModelSpec("GPT-5.6 Sol", "gpt-5.6-sol", "opus"),
-    ModelSpec("Kimi K3", "moonshot-kimi-k3", "opus"),
-    ModelSpec("Claude Sonnet 5", "claude-sonnet-5", "sonnet"),
-    ModelSpec("GPT-5.6 Terra", "gpt-5.6-terra", "sonnet"),
-    ModelSpec("Kimi K2.6", "moonshot-kimi-k2.6", "sonnet"),
+    ModelSpec(m.display, m.file_prefix, m.tier) for m in _MATRIX
 ]
 
 # Mode label -> glob pattern fragment inserted between prefix and bench-VER.

@@ -155,8 +155,8 @@ vera-bench baselines --language ailang
 # Generate a combined report
 vera-bench report results/
 
-# Or run the full benchmark suite (all 10 targets) with one command
-python scripts/run_full_benchmark.py
+# Or sweep the full matrix — every model, resumable, one terminal
+bash scripts/run_sweep.sh
 ```
 
 Before committing to a large sweep, run the preflight gate. It checks every
