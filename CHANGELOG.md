@@ -7,8 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`scripts/sweep_status.py` / `scripts/rerun_failed.py` — sweep
+  visibility and surgical repair.** `vera-bench run`'s `rich` progress
+  blanks itself off-TTY, so `run_sweep.sh`'s tee'd logs hold only a banner
+  and the JSONL rows are the only live signal. `sweep_status.py` censuses
+  them and separates what a single "dirty" flag conflates: transient infra
+  (re-run), `finish_reason=length` (raise `--max-tokens`), and refusals or
+  compile errors (real results — keep). `rerun_failed.py` re-runs only a
+  target's transiently-failed problems into a scratch `--output-dir` and
+  splices them back by `problem_id`, instead of re-running all 60 to repair
+  one timeout.
+
 ### Changed
 
+- **Charts report "% solved" (pass@1), not `run_correct`.** `run_correct`
+  was measured only over the problems that compiled, so a model that
+  refused or failed to compile shrank its own denominator and scored
+  *higher* for answering less. `% solved` fixes the denominator at the
+  gradeable set (problems with test cases): a refusal, a compile failure,
+  a runtime error and a wrong answer all count as not-solved.
+- **One canonical model matrix; `run_full_benchmark.py` replaced by
+  `run_sweep.sh`.** The 8-model lineup was duplicated across three files
+  that could drift — `run_full_benchmark.py` (for the gate),
+  `plot_results.py` (for the charts), and the sweep runner. It now lives
+  once in `vera_bench/matrix.py`; `plot_results.MODELS` derives from it, and
+  `preflight.sh` and `run_sweep.sh` enumerate from it.
+  `run_full_benchmark.py` — interactive menu, no `--parallel`, a 3600s
+  per-target timeout that killed slow Moonshot runs, no resume — is deleted.
+  The new `scripts/run_sweep.sh` runs the provider streams concurrently and
+  is idempotent: it skips any target already on disk and clean and re-runs
+  the rest, so a killed or rate-limited sweep is recovered by re-running it.
+  "Clean" reuses `sweep_status.py`'s classifier — a file is dirty only for a
+  genuine *transient* fault (rate-limit, timeout, empty content); a refusal
+  or a `finish_reason=length` truncation is a real result and is left alone.
+  The reasoning models get a bigger `--max-tokens` (16000 fable, 32000 kimi)
+  so they stop truncating, and the pro tier is opt-in (`SWEEP_INCLUDE_PRO=1`).
 - **`preflight.sh` s3 probes prompt caching for every provider**, not just
   `$REASON_BASE`. Moonshot was never measured and Anthropic was covered only
   incidentally. 1 call becomes 6; override with `PREFLIGHT_CACHE_PROBE`.

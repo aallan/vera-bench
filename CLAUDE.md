@@ -144,7 +144,7 @@ bash scripts/preflight.sh s2 s5        # re-run only these stages (calls cost mo
 ```
 
 Run `preflight.sh` before any large sweep. It gates every model in
-`run_full_benchmark.py` — reading that list rather than duplicating it — plus
+`vera_bench/matrix.py` — the canonical registry the sweep also reads — plus
 provider auth, the request parameters each model accepts, and the Vera / Aver /
 AILANG toolchains, at one problem per check. It judges **result rows, not exit
 codes**: `vera-bench run` records an API error as a JSONL row and still exits 0,

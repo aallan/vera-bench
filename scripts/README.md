@@ -6,7 +6,7 @@ the installed package, but kept in-repo for reproducibility.
 | Script | Purpose |
 |--------|---------|
 | [`preflight.sh`](#preflightsh--pre-sweep-gate) | Pre-sweep gate: model ids, auth, API parameters and every toolchain, one problem each |
-| [`run_full_benchmark.py`](#run_full_benchmarkpy--full-matrix-benchmark-runner) | Runs every target (Vera, spec-from-NL, Python, TypeScript, Aver, AILANG + baselines) for one model |
+| [`run_sweep.sh`](#run_sweepsh--idempotent-full-matrix-sweep-runner) | Idempotent full-matrix sweep — skips clean targets, re-runs infra failures |
 | [`plot_results.py`](#plot_resultspy--benchmark-comparison-chart) | Generates the headline benchmark comparison chart |
 | [`plot_slide.py`](#plot_slidepy--talk-slide-renderer) | Renders result panels as 16:9 slides for talk presentation |
 | [`validate_problems.py`](#validate_problemspy--problem-set-validation) | Validates every problem JSON + canonical Vera solution |
@@ -41,7 +41,7 @@ fix.
 | `s5` | All six target variants end-to-end (five languages — Vera runs in both full-spec and spec-from-NL), proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
 
 The model list is **not** duplicated in the script — `s0` and `s1` read it from
-`run_full_benchmark.py` (including its `_detect_provider`), so a model added to
+`vera_bench/matrix.py`, so a model added to
 the sweep is gated automatically rather than silently skipped. The `s2` pair and
 the `s5` canary are roles rather than the whole matrix, so they are named at the
 top of the script and overridable via `PREFLIGHT_REASON_BASE`,
@@ -64,118 +64,89 @@ paste. Targets bash 3.2 (macOS system bash).
 
 ---
 
-## `run_full_benchmark.py` — full matrix benchmark runner
+## `run_sweep.sh` — idempotent full-matrix sweep runner
 
-Runs all ten benchmark targets for a single model, writing result JSONLs to
-`results/` and a timing summary to `results/timing.json`. Running it once per
-model sweeps the full matrix used by `plot_results.py`.
+Runs the whole matrix — every model × its targets — in one terminal,
+unattended and **recoverable at the target level**, with the provider
+streams running concurrently. Its defining property: it **skips any target
+whose result file already exists and is clean**, and (re)runs everything
+else through fresh `vera-bench run` invocations. Safe to run repeatedly;
+re-run it until it reports 0 dirty.
 
-### The ten targets
+The model list, providers, and which models run the zero-training-data
+targets all come from `vera_bench/matrix.py` — the same registry
+`preflight.sh` and `plot_results.py` read, and that this runner enumerates
+from, so nothing drifts.
 
-| # | Target | Uses |
-|---|--------|------|
-| 1 | Vera full-spec | model + Vera compiler + SKILL.md |
-| 2 | Vera spec-from-NL | model + Vera compiler + SKILL.md |
-| 3 | Python LLM | model |
-| 4 | TypeScript LLM | model (via `npx tsx`) |
-| 5 | Aver LLM | model + Aver compiler + llms.txt |
-| 6 | AILANG LLM | model + AILANG compiler + embedded teaching prompt |
-| 7 | Python baselines | canonical `solutions/python/*.py` |
-| 8 | TypeScript baselines | canonical `solutions/typescript/*.ts` |
-| 9 | Aver baselines | canonical `solutions/aver/*.av` |
-| 10 | AILANG baselines | canonical `solutions/ailang/*.ail` |
+### Why a wrapper, and what "clean" means
 
-Targets 7–10 don't call an LLM — they just run the canonical solutions against
-each problem's test cases to confirm the problem JSONs are self-consistent.
-Skip them with `--skip-baselines` when running multiple models back-to-back
-(they produce the same numbers every time).
+`vera-bench run` has no resume: it unlinks the output file at startup, so a
+target that dies mid-run is lost. The wrapper adds recovery at the *target*
+level — not a process resume, but a fresh re-run of only the targets that
+aren't already clean, so a killed or partial sweep is recovered simply by
+running the script again.
+
+"Clean" reuses `sweep_status.py`'s classifier, so the runner and the status
+tool always agree. It distinguishes a **transient fault** (rate-limit,
+timeout, empty content) — which is re-run — from a **real result**, which is
+not. A refusal, a compile or runtime error, and a `finish_reason=length`
+truncation are all real results: the model *was* measured, so the file is
+left alone. Length truncations are prevented up front by a bigger
+`--max-tokens` for the reasoning models; repair a stray one per-problem with
+`rerun_failed.py` rather than re-running all 60. This is the difference
+between "the model lost" and "we couldn't fairly measure it."
 
 ### Usage
 
 ```bash
-# Interactive mode — prompts for provider, model, and API key
-python scripts/run_full_benchmark.py
+export ANTHROPIC_API_KEY=... OPENAI_API_KEY=... MOONSHOT_API_KEY=...
+source .venv/bin/activate
 
-# Autonomous mode (CI-friendly)
-ANTHROPIC_API_KEY=sk-ant-... \
-  python scripts/run_full_benchmark.py --model claude-sonnet-5
+bash scripts/run_sweep.sh                # everything except the pro tier
+SWEEP_INCLUDE_PRO=1 bash scripts/run_sweep.sh   # opt in to pro (~$10/target)
 
-# Pass the key as a flag (avoid in shell history / CI logs — prefer env var)
-python scripts/run_full_benchmark.py \
-  --model gpt-5.6-terra --api-key sk-...
-
-# Skip baselines when sweeping multiple models
-python scripts/run_full_benchmark.py \
-  --model claude-opus-4-8 --skip-baselines
+# Overnight:
+nohup caffeinate -is bash scripts/run_sweep.sh > ~/sweep.out 2>&1 &
+tail -f ~/sweep.out
 ```
 
-### Environment variables by provider
-
-The script auto-detects the provider from the model string and looks up the
-right env var:
-
-| Provider | Model-string prefix | Env var |
-|----------|---------------------|---------|
-| Anthropic | `claude-*` or `anthropic/*` | `ANTHROPIC_API_KEY` |
-| OpenAI | `gpt-*`, `o1-*`, `o3-*`, `openai/*`, `openai-pro/*` | `OPENAI_API_KEY` |
-| Moonshot | `moonshot/*` | `MOONSHOT_API_KEY` |
-
-Missing env var + no `--api-key` + no TTY → the script exits with an error.
-Missing env var + TTY → it prompts via `getpass`.
-
-### Sweeping the full matrix
-
-There's no built-in "run all models" mode — run the script once per model:
+Baselines are separate and run once (they don't depend on the model):
 
 ```bash
-set -euo pipefail
-export ANTHROPIC_API_KEY=...
-export OPENAI_API_KEY=...
-export MOONSHOT_API_KEY=...
-
-# Run baselines once (they don't depend on the model)
-# — or pass --skip-baselines on every call if they're already fresh.
-for model in \
-  claude-fable-5 \
-  claude-opus-4-8 \
-  claude-sonnet-5 \
-  openai-pro/gpt-5.6-sol \
-  gpt-5.6-sol \
-  gpt-5.6-terra \
-  moonshot/kimi-k3 \
-  moonshot/kimi-k2.6; do
-  python scripts/run_full_benchmark.py --model "$model" --skip-baselines
-done
-
-# Baselines once
-vera-bench baselines
+vera-bench baselines                       # python (default)
 vera-bench baselines --language typescript
 vera-bench baselines --language aver
 vera-bench baselines --language ailang
-
-# Headline chart
-python scripts/plot_results.py
 ```
+
+### Tunables (env)
+
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `PAR_ANTHROPIC` / `PAR_OPENAI` / `PAR_MOONSHOT` | 4 / 3 / 3 | per-provider `--parallel`. Lowered from the first-attempt 6/10 that made OpenAI rate-limit and Moonshot return empty content. Drop a provider's further if it still errors. |
+| `SWEEP_RETRIES` | 2 | attempts per target per pass, to clear transient empties |
+| `SWEEP_INCLUDE_PRO` | 0 | opt IN to the pro tier — it is the expensive one (~$10/target) |
+| `MAX_TOKENS_MOONSHOT` | 32000 | output budget for the reasoning kimi models, so they stop truncating (`finish_reason=length`) |
+
+The reasoning models run at a bigger `--max-tokens` automatically — 16000 for
+fable, `MAX_TOKENS_MOONSHOT` (32000) for the kimi models — so their thinking
+doesn't exhaust the 4096 default and return no answer.
+
+### The targets
+
+Per model: Vera full-spec, Vera spec-from-NL, Python, TypeScript. The
+zero-training-data models (`matrix.py` `ztd=True`) additionally run Aver and
+AILANG. Baselines (canonical solutions, no LLM) are run separately, once.
 
 ### Timing expectations
 
-Rough per-model totals observed on v0.0.9 (60 problems, 2026-04) with the
-*then-current* lineup — kept as an order-of-magnitude guide; the v0.0.16
-matrix is a different set of models and has not been swept yet:
-
-| Provider / model (v0.0.9 era) | Full suite (10 targets) |
-|------------------|-----------------------|
-| Claude Opus 4 | ~17 min |
-| Claude Sonnet 4 | ~15 min |
-| GPT-4.1 / GPT-4o | ~10–12 min |
-| Moonshot K2.5 | ~3.5 h (slow provider; Aver especially) |
-
-Moonshot dominated the wall-clock; expect 5–8 hours end-to-end for a
-full multi-model sweep. Two v0.0.16-specific expectations: reasoning-mode
-entries (`openai-pro/*`) are latency-dominated and can run several times
-longer per problem than their default-mode sibling, and per-provider
-rate limits mean the practical speed-up comes from running providers
-concurrently rather than raising `--parallel` on one.
+Moonshot dominates the wall-clock (slow provider, and lower parallelism for
+reliability makes it slower still); a full multi-model sweep is an evening
+plus overnight. Two v0.0.16-specific notes: reasoning-mode entries
+(`openai-pro/*`) are latency-dominated and can run several times longer per
+problem than their default-mode sibling, and per-provider rate limits mean
+the practical speed-up comes from the per-provider parallelism above, not
+from raising any single number.
 
 ### Output files
 
@@ -190,7 +161,7 @@ For model `M` at bench version `V` and compiler versions `VV` (Vera) / `AV` (Ave
 | `results/{M}-aver-bench-{V}-aver-{AV}.jsonl` | Aver generation attempts |
 | `results/{M}-ailang-bench-{V}-ailang-{LV}.jsonl` | AILANG generation attempts |
 | `results/{python,typescript,aver,ailang}-baseline.jsonl` | Canonical solution runs |
-| `results/timing.json` | Per-target wall-clock + status for the most recent run |
+| `results/logs/sweep-{M}-{target}.log` | Console output (banner + progress) captured for each target run |
 
 Each JSONL line is **one attempt on one problem** — failed `vera check`/`aver
 check` runs produce multiple lines per problem (the model is asked to fix
@@ -204,21 +175,23 @@ model x target.
 
 | Code | Meaning |
 |------|---------|
-| `0` | All targets passed |
-| `1` | One or more targets failed, or missing API key / unknown model |
+| `0` | All targets clean |
+| `1` | One or more targets still dirty (or missing API key / unknown model) |
 
-A failed target does **not** abort the rest — the script always runs all
-ten, writes `timing.json` with each target's status, then exits non-zero
-at the end if any failed. This makes partial-run recovery straightforward.
+A failed target does **not** abort the rest — the script runs every
+configured target, tees each run's output to `results/logs/`, prints a
+skip/ok/dirty summary, then exits non-zero if any target is still dirty.
+This makes partial-run recovery straightforward.
 
 ---
 
 ## `plot_results.py` — benchmark comparison chart
 
 Produces `assets/results-graph.png`: a multi-panel chart showing
-`run_correct` rates across every model in the registry × four modes (Vera full-spec, Vera
-spec-from-NL, Python, TypeScript). This is the canonical chart shown in
-the top-level README.
+**% solved** (pass@1) across every model in the registry × four modes (Vera full-spec, Vera
+spec-from-NL, Python, TypeScript) — solved over the gradeable set, so a refusal,
+a compile failure, a runtime error and a wrong answer all count as not-solved.
+This is the canonical chart shown in the top-level README.
 
 > **Heads up:** the committed `assets/results-graph.png` is pinned to the
 > **v0.0.7** data (to match the v0.0.7 narrative in the top-level

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Generate benchmark comparison charts from VeraBench results.
 
-Reads JSONL files in `results/` (via `vera_bench.metrics.compute_metrics`)
-and produces a run_correct comparison chart. The canonical committed chart
+Reads JSONL files in `results/` and produces a **% solved** (pass@1)
+comparison chart, where a refusal, a compile failure, a runtime error and
+a wrong answer all count as not-solved. The canonical committed chart
 is `assets/results-graph.png`; variant suffixes (`_v{VERSION}`,
 `_with-{lang}`) are gitignored.
 
@@ -16,7 +17,8 @@ Usage:
     python scripts/plot_results.py --output my.png
         # -> my.png (explicit path)
 
-To add a new model, append it to MODELS below. File naming follows the
+To add a new model, edit the canonical matrix in vera_bench/matrix.py;
+the MODELS list below is a projection of it. File naming follows the
 convention described in scripts/README.md.
 """
 
@@ -29,15 +31,22 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-import matplotlib
+# Rendering needs matplotlib/numpy, but importing this module for its data
+# helpers (MODELS, extract_data, _pass_at_1_pct) must not — so the test job
+# that only imports those need not install a plotting backend. main() calls
+# _require_mpl() before drawing anything.
+try:
+    import matplotlib
+    import numpy as np
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - only where matplotlib absent
+    matplotlib = plt = np = None
 
 # Allow importing vera_bench without installing the package.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from vera_bench.matrix import MODELS as _MATRIX  # noqa: E402
 from vera_bench.metrics import compute_metrics  # noqa: E402
 
 # --- Site palette (from veralang.dev) ---
@@ -68,17 +77,18 @@ _DELTA_ALPHAS = [0.85, 0.55, 0.40]
 FONT_BODY = "Inter UI"
 FONT_HEADING = "Georgia"  # fallback for DM Serif Display
 
-matplotlib.rcParams.update(
-    {
-        "font.family": "sans-serif",
-        "font.sans-serif": [FONT_BODY, "Inter", "Helvetica", "Arial"],
-        "font.size": 11,
-        "text.color": BROWN_700,
-        "axes.labelcolor": BROWN_500,
-        "xtick.color": BROWN_500,
-        "ytick.color": BROWN_500,
-    }
-)
+if matplotlib is not None:
+    matplotlib.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.sans-serif": [FONT_BODY, "Inter", "Helvetica", "Arial"],
+            "font.size": 11,
+            "text.color": BROWN_700,
+            "axes.labelcolor": BROWN_500,
+            "xtick.color": BROWN_500,
+            "ytick.color": BROWN_500,
+        }
+    )
 
 # --- Model registry ------------------------------------------------------
 # file_prefix is the model-id portion of the result-file name. To find the
@@ -106,24 +116,11 @@ TIER_TITLES: dict[str, str] = {
     "sonnet": "Sonnet Tier (workhorse)",
 }
 
-MODELS: list[ModelSpec] = [
-    # v0.0.16 matrix — three tiers mapped onto Anthropic's naming.
-    # The fable row is intentionally incomplete: Moonshot ships no
-    # ceiling-above-flagship model. openai-pro-gpt-5.6-sol is Sol at
-    # reasoning.mode=pro — same model as the opus-tier entry, different
-    # reasoning budget (the controlled comparison: if Vera's contracts
-    # make default ~= pro, the language is doing the work).
-    # ⚠ file_prefix must byte-match what cli.py writes (CLI string,
-    # '/'->'-'): verify against a real results filename before a sweep.
-    ModelSpec("Claude Fable 5", "claude-fable-5", "fable"),
-    ModelSpec("GPT-5.6 Sol (pro)", "openai-pro-gpt-5.6-sol", "fable"),
-    ModelSpec("Claude Opus 4.8", "claude-opus-4-8", "opus"),
-    ModelSpec("GPT-5.6 Sol", "gpt-5.6-sol", "opus"),
-    ModelSpec("Kimi K3", "moonshot-kimi-k3", "opus"),
-    ModelSpec("Claude Sonnet 5", "claude-sonnet-5", "sonnet"),
-    ModelSpec("GPT-5.6 Terra", "gpt-5.6-terra", "sonnet"),
-    ModelSpec("Kimi K2.6", "moonshot-kimi-k2.6", "sonnet"),
-]
+# The lineup is the canonical matrix (vera_bench/matrix.py) projected onto
+# the fields the chart needs. file_prefix comes from Model.file_prefix
+# (CLI string, '/'->'-'), so it byte-matches what cli.py writes by
+# construction rather than by a hand-kept copy.
+MODELS: list[ModelSpec] = [ModelSpec(m.display, m.file_prefix, m.tier) for m in _MATRIX]
 
 # Mode label -> glob pattern fragment inserted between prefix and bench-VER.
 # An empty fragment means the mode is the Vera full-spec "default" file.
@@ -182,10 +179,66 @@ def _load_jsonl(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+_GRADEABLE_IDS: set[str] | None = None
+
+
+def _gradeable_ids() -> set[str]:
+    """Problem ids that have test cases — the only ones output-gradeable.
+
+    Cached. Read from problems/ so the pass@1 denominator is the real
+    number of gradeable problems (currently 36 of 60), not a hardcoded
+    constant that would silently rot if the set changed.
+    """
+    global _GRADEABLE_IDS
+    if _GRADEABLE_IDS is None:
+        ids: set[str] = set()
+        root = Path(__file__).resolve().parent.parent / "problems"
+        for pf in root.rglob("VB_*.json"):
+            try:
+                p = json.loads(pf.read_text())
+            except (OSError, ValueError):
+                continue
+            if p.get("test_cases"):
+                ids.add(p.get("id"))
+        _GRADEABLE_IDS = ids
+    return _GRADEABLE_IDS
+
+
+def _pass_at_1_pct(rows: list[dict]) -> int | None:
+    """pass@1 as an integer percent: solved / gradeable-problems-present.
+
+    A refusal, a compile failure, a runtime error and a wrong answer all
+    count as NOT solved — the model was asked to produce correct code and
+    did not. This is the honest headline: unlike run_correct-over-eligible
+    it does not shrink the denominator when the model refuses or fails to
+    compile, so refusing hard problems cannot inflate the bar.
+
+    Best attempt per problem (an attempt-2 fix that compiles supersedes
+    attempt-1), matching compute_metrics. Returns None when no gradeable
+    problem is present, so the caller can treat that as absent data rather
+    than a genuine 0%.
+    """
+    gradeable = _gradeable_ids()
+    attempts: dict[str, dict[int | None, dict]] = {}
+    for r in rows:
+        pid = r.get("problem_id")
+        if pid in gradeable:
+            attempts.setdefault(pid, {})[r.get("attempt")] = r
+    if not attempts:
+        return None
+    solved = 0
+    for a in attempts.values():
+        a2, a1 = a.get(2), a.get(1)
+        best = a2 if (a2 and a2.get("check_pass")) else a1
+        if best and best.get("run_correct") is True:
+            solved += 1
+    return round(100 * solved / len(attempts))
+
+
 def extract_data(
     results_dir: Path, version: str, modes: list[str]
 ) -> tuple[dict[str, dict], list[str], list[Path], set[tuple[str, str]]]:
-    """Extract run_correct percentages for every MODEL × MODE.
+    """Extract pass@1 (% solved) percentages for every MODEL × MODE.
 
     Args:
         results_dir: Directory containing JSONL result files.
@@ -233,23 +286,22 @@ def extract_data(
                 missing.add((model.display, mode))
                 continue
             used_paths.append(path)
-            metrics = compute_metrics(_load_jsonl(path))
-            if metrics.run_correct_rate is None:
-                # The file exists but nothing in it was gradeable — every
-                # attempt errored or failed to compile, so `run_eligible`
-                # is 0. `or 0.0` would turn "no measurement" into a
-                # plotted 0%, which is the same conflation this `missing`
-                # set exists to prevent, one layer down: absent *data*
-                # rather than an absent *file*.
+            data = _load_jsonl(path)
+            pass1 = _pass_at_1_pct(data)
+            if pass1 is None:
+                # No gradeable problem produced a verdict — the file has
+                # none, or every attempt infra-failed. Distinguish from a
+                # genuine 0% (the missing set keeps it off the chart as a
+                # gap): absent *data* rather than an absent *file*.
+                errored = compute_metrics(data).errored
                 warnings.append(
-                    f"  {model.display} / {mode}: file exists but 0 of "
-                    f"{metrics.total_problems} problems were gradeable "
-                    f"({metrics.errored} errored) — {path.name}"
+                    f"  {model.display} / {mode}: no gradeable result "
+                    f"({errored} errored) — {path.name}"
                 )
                 row[mode] = 0
                 missing.add((model.display, mode))
                 continue
-            row[mode] = round(metrics.run_correct_rate * 100)
+            row[mode] = pass1
 
         tiers.setdefault(model.tier, {})[model.display] = row
 
@@ -319,7 +371,7 @@ def plot_tier(ax, data: dict, title: str, comparison_modes: list[str]):
                 color=BROWN_700,
             )
 
-    ax.set_ylabel("run_correct (%)", fontsize=10, color=BROWN_500)
+    ax.set_ylabel("% solved", fontsize=10, color=BROWN_500)
     ax.set_title(
         title,
         fontsize=13,
@@ -343,7 +395,7 @@ def plot_vera_vs_comparison(
     comparison_modes: list[str],
     missing: set[tuple[str, str]] | None = None,
 ):
-    """Horizontal bars: Vera run_correct minus each comparison language, per model."""
+    """Horizontal bars: Vera % solved minus each comparison language, per model."""
     from matplotlib.patches import Patch  # noqa: E402
 
     all_data: dict = {}
@@ -400,7 +452,7 @@ def plot_vera_vs_comparison(
     ax.set_yticks(y)
     ax.set_yticklabels(models, fontsize=10)
     ax.set_xlabel(
-        "Vera run_correct minus comparison language (pp)",
+        "Vera % solved minus comparison language (pp)",
         fontsize=10,
         color=BROWN_500,
     )
@@ -480,7 +532,7 @@ def plot_all_modes(ax, tiers: dict[str, dict], modes: list[str]):
                 color=BROWN_700,
             )
 
-    ax.set_ylabel("run_correct (%)", fontsize=10, color=BROWN_500)
+    ax.set_ylabel("% solved", fontsize=10, color=BROWN_500)
     ax.set_title(
         "All Models \u00d7 All Modes",
         fontsize=13,
@@ -547,7 +599,17 @@ def _default_version() -> str:
     return version or "0.0.0"
 
 
+def _require_mpl() -> None:
+    """Fail clearly if a rendering entrypoint runs without a plotting backend."""
+    if plt is None:
+        raise SystemExit(
+            "plot_results needs matplotlib + numpy to render — "
+            "install them: pip install matplotlib numpy"
+        )
+
+
 def main():
+    _require_mpl()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",
@@ -643,7 +705,7 @@ def main():
     for col, (tier_key, tier_data) in enumerate(tiers.items()):
         ax_t = fig.add_subplot(gs[0, col])
         title = TIER_TITLES.get(tier_key, tier_key.title())
-        plot_tier(ax_t, tier_data, f"{title} \u2014 run_correct", comparison_modes)
+        plot_tier(ax_t, tier_data, f"{title} \u2014 % solved", comparison_modes)
 
     # Row 2: delta chart
     ax3 = fig.add_subplot(gs[1, :])

@@ -150,17 +150,14 @@ while IFS='|' read -r provider bare; do
                 || bad "moonshot: $bare NOT LISTED" ;;
   esac
 done < <($PY -c "
-import sys; sys.path.insert(0, 'scripts')
-from run_full_benchmark import MODELS, _detect_provider
+from vera_bench.matrix import MODELS
 seen = set()
-for group in MODELS.values():
-    for _label, model_id in group:
-        provider = _detect_provider(model_id)
-        bare = model_id.split('/')[-1]
-        if (provider, bare) in seen:
-            continue
-        seen.add((provider, bare))
-        print(f'{provider}|{bare}')
+for m in MODELS:
+    bare = m.id.split('/')[-1]
+    if (m.provider, bare) in seen:
+        continue
+    seen.add((m.provider, bare))
+    print(f'{m.provider}|{bare}')
 ")
 echo "  --- OpenAI ids matching 5.6 (substitution candidates) ---"
 grep -i "5\.6" <<<"$oai" | sed 's/^/      /'
@@ -174,21 +171,19 @@ fi
 # real calls that still exercise the whole client path.
 if want s1; then
 note "S1  one problem per model (python target)"
-# Single source of truth: whatever the sweep is configured to run is
-# what gets gated. A hardcoded copy here would drift and quietly stop
-# checking a model that the sweep still uses.
+# Single source of truth: the canonical matrix that the sweep also reads
+# (vera_bench/matrix.py). A hardcoded copy here would drift and quietly
+# stop checking a model that the sweep still uses.
 MODELS=()
 while IFS= read -r m; do
   [ -n "$m" ] && MODELS+=("$m")
 done < <($PY -c "
-import sys; sys.path.insert(0, 'scripts')
-from run_full_benchmark import MODELS
-for group in MODELS.values():
-    for _label, model_id in group:
-        print(model_id)
+from vera_bench.matrix import MODELS
+for m in MODELS:
+    print(m.id)
 ")
 if [ "${#MODELS[@]}" -eq 0 ]; then
-  bad "could not read MODELS from scripts/run_full_benchmark.py"
+  bad "could not read MODELS from vera_bench/matrix.py"
 else
   echo "  (${#MODELS[@]} models from run_full_benchmark.py)"
 fi

@@ -42,6 +42,13 @@ dev = [
     "ruff>=0.9",
     "pre-commit>=3.0",
 ]
+# Chart/slide rendering (scripts/plot_results.py, scripts/plot_slide.py).
+# plot_results imports these lazily so the module's data helpers import
+# without a plotting backend; install this extra to actually render.
+viz = [
+    "matplotlib>=3.7",
+    "numpy>=1.24",
+]
 
 [tool.setuptools.packages.find]
 include = ["vera_bench*"]

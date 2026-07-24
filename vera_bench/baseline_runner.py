@@ -145,7 +145,7 @@ def run_python_baseline(
     problem: dict,
     solutions_dir: Path,
     work_dir: Path,
-    timeout: int = 30,
+    timeout: int = 90,
 ) -> ProblemResult:
     """Run a Python baseline solution against test cases."""
     problem_id = problem["id"]
@@ -208,7 +208,7 @@ def run_typescript_baseline(
     problem: dict,
     solutions_dir: Path,
     work_dir: Path,
-    timeout: int = 30,
+    timeout: int = 90,
 ) -> ProblemResult:
     """Run a TypeScript baseline solution against test cases."""
     problem_id = problem["id"]
@@ -369,7 +369,7 @@ def run_aver_baseline(
     problem: dict,
     solutions_dir: Path,
     work_dir: Path,
-    timeout: int = 30,
+    timeout: int = 90,
 ) -> ProblemResult:
     """Run an Aver baseline solution against test cases."""
     problem_id = problem["id"]
@@ -556,7 +556,7 @@ def run_ailang_baseline(
     problem: dict,
     solutions_dir: Path,
     work_dir: Path,
-    timeout: int = 30,
+    timeout: int = 90,
 ) -> ProblemResult:
     """Run an AILANG baseline solution against test cases.
 
