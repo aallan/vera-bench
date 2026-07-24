@@ -83,7 +83,15 @@ def failed_pids(rows: list[dict], include_length: bool) -> list[str]:
     return list(seen)
 
 
-def rerun_one(model, language, mode, pid, extra, scratch, timeout) -> list[dict]:
+def rerun_one(
+    model: str,
+    language: str,
+    mode: str,
+    pid: str,
+    extra: list[str],
+    scratch: str,
+    timeout: int,
+) -> list[dict]:
     cmd = [
         "vera-bench",
         "run",

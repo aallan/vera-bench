@@ -30,6 +30,7 @@ import argparse
 import glob
 import json
 import os
+import pathlib
 import re
 
 # Ordered: first match wins, so length (which also says "empty content")
@@ -41,6 +42,13 @@ TRANSIENT = re.compile(
     r"overloaded|empty content|503|529|API error",
     re.I,
 )
+
+
+def _expected_problems() -> int:
+    """Full problem count — the coverage a complete target must reach. Unique
+    problem ids, not rows, because one problem can emit two rows (fix attempt)."""
+    root = pathlib.Path(__file__).resolve().parent.parent
+    return len(list(root.glob("problems/**/VB_*.json"))) or 60
 
 
 def classify(msg: str) -> str:
@@ -68,16 +76,19 @@ def load_rows(path: str) -> list[dict]:
     return rows
 
 
-def verdict(n_rows: int, buckets: dict[str, int]) -> tuple[str, str]:
+def verdict(n_solved: int, expected: int, buckets: dict[str, int]) -> tuple[str, str]:
     """Return (category, human-readable detail).
 
-    Only two buckets mean the sweep lacks a trustworthy answer and should
-    act: `transient` (blind retry fixes) and `length` (retry needs a bigger
-    budget). A refusal or a compile/runtime-error row is a *real result* —
-    the file is complete and must not be re-run. Refusals are still counted
-    in the detail because they are the talk's "model declined" story."""
-    if n_rows < 60:
-        return "in-flight", f"in-flight ({n_rows}/60)"
+    Completeness is measured in unique problems solved, not rows: one problem
+    can emit two rows (attempt 1 + a fix), so a partial run can reach 60 rows
+    while still missing problems. Only two buckets mean the sweep lacks a
+    trustworthy answer and should act: `transient` (blind retry fixes) and
+    `length` (retry needs a bigger budget). A refusal or a compile/runtime
+    error is a *real result* — complete, must not be re-run. Refusals are
+    still counted in the detail because they are the talk's "model declined"
+    story."""
+    if n_solved < expected:
+        return "in-flight", f"in-flight ({n_solved}/{expected})"
     # A file can need BOTH a plain re-run and a bigger budget; show both so
     # a "RE-RUN" verdict never hides that --max-tokens is also required.
     actions = []
@@ -101,6 +112,7 @@ def main() -> None:
     args = ap.parse_args()
 
     files = sorted(glob.glob(os.path.join(args.dir, args.glob)))
+    expected = _expected_problems()
     # oth = error rows classify() left unclassified. These are overwhelmingly
     # real compile/runtime failures (the harness prefixes genuine infra with
     # "API error", which classify routes to transient), so they do not force a
@@ -116,7 +128,8 @@ def main() -> None:
             msg = r.get("error_message")
             if msg:
                 buckets[classify(msg)] += 1
-        cat, detail = verdict(len(rows), buckets)
+        n_solved = len({r.get("problem_id") for r in rows})
+        cat, detail = verdict(n_solved, expected, buckets)
         tally[cat] = tally.get(cat, 0) + 1
         print(
             f"{os.path.basename(f):<58} {len(rows):>4} "

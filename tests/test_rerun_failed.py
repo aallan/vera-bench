@@ -26,10 +26,13 @@ def _write(scratch: pathlib.Path, rows: list[dict]) -> None:
     )
 
 
-def _call(monkeypatch, scratch, *, produce, run=None):
+def _call(monkeypatch, scratch: pathlib.Path, *, produce, run=None) -> list[dict]:
     """Run rerun_one with subprocess.run stubbed to `produce` the given rows."""
 
-    def fake_run(cmd, **kwargs):
+    def fake_run(cmd: list[str], **kwargs) -> None:
+        # Pin that rerun_one actually forwards the timeout to the subprocess —
+        # without this the timeout tests pass even if timeout= is dropped.
+        assert kwargs.get("timeout") == 900
         if run is not None:
             run(cmd, **kwargs)  # let a test raise TimeoutExpired / CalledProcessError
         if produce is not None:

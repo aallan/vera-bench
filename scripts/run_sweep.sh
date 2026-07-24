@@ -83,16 +83,21 @@ is_clean () {
   f=$(ls -t $1 2>/dev/null | head -1)
   [ -z "$f" ] && return 1
   python - "$f" <<'PY'
-import json, sys
+import glob, json, sys
 sys.path.insert(0, "scripts")
 from sweep_status import classify
 
 rows = [json.loads(line) for line in open(sys.argv[1]) if line.strip()]
+# Coverage is measured in unique problem ids, not rows: one problem can emit
+# two rows (attempt 1 + a fix), so a partial run can reach 60 rows while
+# missing problems. Require every problem present.
+solved = {r.get("problem_id") for r in rows}
+expected = len(glob.glob("problems/**/VB_*.json", recursive=True)) or 60
 transient = sum(
     1 for r in rows
     if r.get("error_message") and classify(r["error_message"]) == "transient"
 )
-sys.exit(0 if len(rows) >= 60 and transient == 0 else 1)
+sys.exit(0 if len(solved) >= expected and transient == 0 else 1)
 PY
 }
 
