@@ -128,7 +128,7 @@ def main() -> None:
             msg = r.get("error_message")
             if msg:
                 buckets[classify(msg)] += 1
-        n_solved = len({r.get("problem_id") for r in rows})
+        n_solved = len({r["problem_id"] for r in rows if r.get("problem_id")})
         cat, detail = verdict(n_solved, expected, buckets)
         tally[cat] = tally.get(cat, 0) + 1
         print(

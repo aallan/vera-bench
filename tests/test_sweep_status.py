@@ -17,7 +17,7 @@ import sweep_status as ss  # noqa: E402
 NO_ERR = {"refusal": 0, "length": 0, "transient": 0, "other": 0}
 
 
-def _b(**kw) -> dict[str, int]:
+def _b(**kw: int) -> dict[str, int]:
     return {**NO_ERR, **kw}
 
 

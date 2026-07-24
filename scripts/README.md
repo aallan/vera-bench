@@ -67,10 +67,11 @@ paste. Targets bash 3.2 (macOS system bash).
 ## `run_sweep.sh` — idempotent full-matrix sweep runner
 
 Runs the whole matrix — every model × its targets — in one terminal,
-unattended and **resumable**, with the provider streams running
-concurrently. Its defining property: it **skips any target whose result
-file already exists and is clean**, and (re)runs everything else. Safe to
-run repeatedly; re-run it until it reports 0 dirty.
+unattended and **recoverable at the target level**, with the provider
+streams running concurrently. Its defining property: it **skips any target
+whose result file already exists and is clean**, and (re)runs everything
+else through fresh `vera-bench run` invocations. Safe to run repeatedly;
+re-run it until it reports 0 dirty.
 
 The model list, providers, and which models run the zero-training-data
 targets all come from `vera_bench/matrix.py` — the same registry
@@ -80,9 +81,10 @@ from, so nothing drifts.
 ### Why a wrapper, and what "clean" means
 
 `vera-bench run` has no resume: it unlinks the output file at startup, so a
-target that dies mid-run is lost. The wrapper adds resume at the *target*
-level — a target already on disk and clean is skipped, so a killed or
-partial sweep is recovered simply by running the script again.
+target that dies mid-run is lost. The wrapper adds recovery at the *target*
+level — not a process resume, but a fresh re-run of only the targets that
+aren't already clean, so a killed or partial sweep is recovered simply by
+running the script again.
 
 "Clean" reuses `sweep_status.py`'s classifier, so the runner and the status
 tool always agree. It distinguishes a **transient fault** (rate-limit,
@@ -185,9 +187,10 @@ at the end if any failed. This makes partial-run recovery straightforward.
 ## `plot_results.py` — benchmark comparison chart
 
 Produces `assets/results-graph.png`: a multi-panel chart showing
-`run_correct` rates across every model in the registry × four modes (Vera full-spec, Vera
-spec-from-NL, Python, TypeScript). This is the canonical chart shown in
-the top-level README.
+**% solved** (pass@1) across every model in the registry × four modes (Vera full-spec, Vera
+spec-from-NL, Python, TypeScript) — solved over the gradeable set, so a refusal,
+a compile failure, a runtime error and a wrong answer all count as not-solved.
+This is the canonical chart shown in the top-level README.
 
 > **Heads up:** the committed `assets/results-graph.png` is pinned to the
 > **v0.0.7** data (to match the v0.0.7 narrative in the top-level

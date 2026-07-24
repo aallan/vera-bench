@@ -91,7 +91,7 @@ rows = [json.loads(line) for line in open(sys.argv[1]) if line.strip()]
 # Coverage is measured in unique problem ids, not rows: one problem can emit
 # two rows (attempt 1 + a fix), so a partial run can reach 60 rows while
 # missing problems. Require every problem present.
-solved = {r.get("problem_id") for r in rows}
+solved = {r["problem_id"] for r in rows if r.get("problem_id")}
 expected = len(glob.glob("problems/**/VB_*.json", recursive=True)) or 60
 transient = sum(
     1 for r in rows
