@@ -50,19 +50,31 @@ class LLMResponse:
 
 
 def _openai_cached_tokens(usage: object) -> int:
-    """Extract usage.prompt_tokens_details.cached_tokens defensively.
+    """Extract the cached-token count across OpenAI-compatible providers.
 
-    OpenAI-compatible providers (OpenAI, Moonshot, OpenRouter) report
-    cache hits under prompt_tokens_details, but the field is absent on
-    older SDKs / non-caching providers and may be None. The isinstance
-    guard also keeps MagicMock-based tests honest — an auto-created
-    mock attribute is not an int and must not leak into accounting.
+    The field's *location* differs by provider, despite all three using
+    the OpenAI SDK:
+
+    - OpenAI and OpenRouter nest it:
+      ``usage.prompt_tokens_details.cached_tokens``.
+    - Moonshot reports it at the top level: ``usage.cached_tokens``
+      (verified against their API reference, 2026-07-24). The SDK's
+      ``CompletionUsage`` model is ``extra="allow"``, so this non-standard
+      field survives parsing and is readable as an attribute — but only if
+      we look there. Reading only the nested path recorded 0 for every
+      Moonshot row despite Moonshot caching at ~99% on the shared prefix.
+
+    Nested wins when present (that is the standard shape); the top-level
+    read is the Moonshot fallback. type() not isinstance throughout: bool
+    is an int subclass, and a provider quirk returning True must not count
+    as one cached token.
     """
     details = getattr(usage, "prompt_tokens_details", None)
-    cached = getattr(details, "cached_tokens", 0) if details is not None else 0
-    # type() check, not isinstance: bool is an int subclass, and a
-    # provider quirk returning True must not count as 1 cached token.
-    return cached if type(cached) is int else 0
+    nested = getattr(details, "cached_tokens", None) if details is not None else None
+    if type(nested) is int:
+        return nested
+    top = getattr(usage, "cached_tokens", 0)
+    return top if type(top) is int else 0
 
 
 def _prompt_cache_key(system: str) -> str:
