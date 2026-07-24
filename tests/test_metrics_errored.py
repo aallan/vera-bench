@@ -69,6 +69,37 @@ class TestErroredAccounting:
         assert m.run_eligible == 60
         assert m.run_correct_rate == 0.0
 
+    def test_runtime_exception_is_a_model_failure_not_an_error(self):
+        """The canary case (2026-07-24). The Vera evaluator records the
+        runtime diagnostic for a contract violation / div-by-zero / stack
+        overflow, so these rows carry an error_message — but the code
+        compiled (check=True), ran, and was graded run_correct=False. That
+        is a model failure counted in run_correct, not a grading gap.
+        Counting it as `errored` conflated a legitimate failure with a
+        harness problem and put an alarming non-zero on a healthy run."""
+        rows = [
+            _row(
+                "VB-T5-009",
+                check=True,
+                run=False,
+                err="test 0: Precondition violation in state_max$where$loop ...",
+            ),
+            _row(
+                "VB-T3-011",
+                check=True,
+                run=False,
+                err="test 2: Integer division by zero in safe_divide ...",
+            ),
+        ]
+        # ...alongside genuine grading gaps, which MUST still count.
+        rows += [
+            _row("VB-T1-001", check=False, run=None, err="API error: 401"),
+        ]
+        m = compute_metrics(rows)
+        assert m.errored == 1  # only the API failure, not the two runtime fails
+        assert m.run_eligible == 2  # the two that compiled and ran
+        assert m.run_correct_rate == 0.0  # both ran and failed
+
 
 class TestVeraRunDiagnostics:
     """`vera run` failures must be attributable (#72 reached Aver and
