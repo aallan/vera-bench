@@ -151,9 +151,38 @@ codes**: `vera-bench run` records an API error as a JSONL row and still exits 0,
 so a check reading `$?` reports success for a model that never answered. Details
 in [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate).
 
-**There is no resume.** `vera-bench run` unlinks the output file for that
-model × language × mode at startup, and filenames carry no timestamp — an
-interrupted target must be re-run in full, and its partial results are gone.
-Never plan to "top up" a sweep.
+## The sweep workflow
+
+A full run is driven by three scripts layered on `vera-bench run`, all reading
+the `vera_bench/matrix.py` registry:
+
+```bash
+SWEEP_INCLUDE_PRO=1 bash scripts/run_sweep.sh      # idempotent full-matrix sweep, provider streams concurrent
+SWEEP_INCLUDE_PRO=1 python scripts/sweep_status.py # live scoreboard read from the JSONL rows
+python scripts/rerun_failed.py --model M --mode full-spec --apply  # surgical per-problem repair
+```
+
+- **`run_sweep.sh`** skips any target already on disk and **clean** (full
+  unique-`problem_id` coverage AND zero *transient* rows) and re-runs the rest,
+  so it is re-runnable until it reports 0 dirty. The pro tier is opt-in
+  (`SWEEP_INCLUDE_PRO=1`); reasoning models (fable, kimi) get a larger
+  `--max-tokens` automatically so they don't truncate (`finish_reason=length`).
+- **`sweep_status.py`** is the monitor — `vera-bench run`'s `rich` progress
+  blanks off-TTY, so the JSONL rows are the only live signal. It splits each
+  error into transient (re-run), `finish_reason=length` (raise `--max-tokens`),
+  or a real result (refusal / compile / runtime error — keep). The
+  target-count denominator derives from the matrix + `SWEEP_INCLUDE_PRO`.
+- **`rerun_failed.py`** re-runs only a target's failed problems into a scratch
+  `--output-dir` and splices them back by `problem_id`, instead of re-running
+  all 60. **Never point it at a target the sweep is currently processing** —
+  both unlink/write the same file. Folding per-problem retry into the sweep is
+  tracked in [#101](https://github.com/aallan/vera-bench/issues/101).
+
+**There is no resume at the `vera-bench run` level.** It unlinks the output file
+for that model × language × mode at startup, and filenames carry no timestamp —
+an interrupted single target is re-run in full, its partial results gone.
+`run_sweep.sh` adds recovery one level up: it re-runs only the targets that
+aren't already clean, so a killed sweep is recovered by running it again — but
+never plan to "top up" an individual `vera-bench run`.
 
 `--parallel N` dispatches problems to a `ThreadPoolExecutor` with N workers. Default `parallel=1` preserves the sequential path. Workers are I/O-bound on LLM calls + subprocess `check`/`run`, so the GIL is not a bottleneck. Use this when sweeping slow models (e.g. Kimi K2.5 at ~50s/problem sequentially drops to ~5s/problem at `--parallel 10`). JSONL output ordering is by completion order in parallel mode; each line is self-contained (carries `problem_id`) so downstream consumers can sort if needed.

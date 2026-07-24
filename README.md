@@ -116,72 +116,88 @@ vera version
 this should return v0.1.6 or later. Vera 0.1.x changed several semantics the
 benchmark depends on, so older compilers will fail validation.
 
-## Quick start
+## Running the benchmark
 
-Once Vera is installed you can run the benchmark from the terminal,
+`vera-bench validate` checks all 60 problems and every canonical solution — run it first:
 
 ```bash
-# Validate all 60 problems and canonical solutions
 vera-bench validate
-
-# Run benchmark against a model
-export ANTHROPIC_API_KEY=sk-ant-...
-vera-bench run --model claude-sonnet-5
-
-# Run a single tier
-vera-bench run --model claude-sonnet-5 --tier 1
-
-# Run a single problem
-vera-bench run --model claude-sonnet-5 --problem VB-T1-001
-
-# Spec-from-NL mode (agent writes its own contracts)
-vera-bench run --model claude-sonnet-5 --mode spec-from-nl
-
-# Ask the same model to write Python, TypeScript, Aver, or AILANG for comparison
-vera-bench run --model claude-sonnet-5 --language python
-vera-bench run --model claude-sonnet-5 --language typescript
-vera-bench run --model claude-sonnet-5 --language aver
-vera-bench run --model claude-sonnet-5 --language ailang
-
-# Slow model? Dispatch problems concurrently (default is sequential)
-vera-bench run --model moonshot/kimi-k2.6 --parallel 10
-
-# Run canonical baselines as a reference
-vera-bench baselines
-vera-bench baselines --language typescript
-vera-bench baselines --language aver
-vera-bench baselines --language ailang
-
-# Generate a combined report
-vera-bench report results/
-
-# Or sweep the full matrix — every model, resumable, one terminal
-bash scripts/run_sweep.sh
 ```
 
-Before committing to a large sweep, run the preflight gate. It checks every
-configured model id, provider auth, the request parameters each model accepts,
-and the Vera, Aver and AILANG toolchains — one problem per check, so it is a couple
-of dollars against a sweep that is hours and no resume:
+A single model against the Vera problems (full-spec mode) is one command:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+vera-bench run --model claude-sonnet-5
+```
+
+`vera-bench run` writes one JSONL row per problem attempt to `results/`, and has **no resume** — it unlinks its output file at startup. It's the primitive; you don't drive a full multi-model run with it directly.
+
+### The full sweep
+
+A real run evaluates the whole model matrix — defined once in [`vera_bench/matrix.py`](vera_bench/matrix.py) and read by everything below — across every language target, and the workflow is shaped by the fact that LLM APIs are slow and flaky. Four scripts, used in order:
+
+**1. Gate before you spend.** [`preflight.sh`](scripts/preflight.sh) checks every model id, provider auth, the request parameters each model accepts, and the Vera / Aver / AILANG toolchains — one problem per check. A couple of dollars against a sweep that is hours:
 
 ```bash
 bash scripts/preflight.sh
 ```
 
-See [`scripts/README.md`](scripts/README.md#preflightsh--pre-sweep-gate) for the
-stage breakdown and how to re-run individual stages while fixing something.
-
-Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/). Set the appropriate API key environment variable (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
-
-The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched automatically from veralang.dev when running Vera benchmarks. To use a local copy instead (e.g., for testing unreleased language features):
+**2. Run the sweep.** [`run_sweep.sh`](scripts/run_sweep.sh) runs the whole matrix (every model × its targets) in one terminal, provider streams concurrent. It is **idempotent**: it skips any target already on disk and clean and re-runs the rest, so a killed or rate-limited sweep is recovered simply by running it again. The expensive pro tier is opt-in:
 
 ```bash
-vera-bench run --model claude-sonnet-5 --skill-md /path/to/SKILL.md
+export ANTHROPIC_API_KEY=... OPENAI_API_KEY=... MOONSHOT_API_KEY=...
+SWEEP_INCLUDE_PRO=1 bash scripts/run_sweep.sh
 ```
+
+Its terminal goes quiet mid-target — it pipes each run through `tee`, and the progress bar blanks when it's not on a real terminal. That's expected, not a hang; watch it with the next tool instead.
+
+**3. Watch the scoreboard.** [`sweep_status.py`](scripts/sweep_status.py) reads the JSONL rows directly — the only reliable live signal — and separates a **transient** failure that should be re-run (rate-limit, timeout, empty content) from a **real result** that should be kept (a refusal, a compile error, a wrong answer):
+
+```bash
+SWEEP_INCLUDE_PRO=1 python scripts/sweep_status.py
+```
+
+**4. Repair transient failures surgically.** When a target is complete except for a few blips, [`rerun_failed.py`](scripts/rerun_failed.py) re-runs *only those problems* and splices them back, instead of re-running all 60 (drop `--apply` to preview):
+
+```bash
+python scripts/rerun_failed.py --model moonshot/kimi-k2.6 --mode full-spec --apply
+```
+
+Loop steps 3–4 until the scoreboard reads all-clean. See [`scripts/README.md`](scripts/README.md) for the full stage breakdown, env tunables, and the infrastructure-vs-model definition of "clean".
+
+### Baselines
+
+Canonical-solution reference runs — no model, no API key, one per comparison language:
+
+```bash
+vera-bench baselines                        # python (default)
+vera-bench baselines --language typescript
+vera-bench baselines --language aver
+vera-bench baselines --language ailang
+```
+
+### Targeted runs
+
+For iterating on one problem or mode rather than a full sweep:
+
+```bash
+vera-bench run --model claude-sonnet-5 --tier 1            # one tier
+vera-bench run --model claude-sonnet-5 --problem VB-T1-001 # one problem
+vera-bench run --model claude-sonnet-5 --mode spec-from-nl # agent writes its own contracts
+vera-bench run --model claude-sonnet-5 --language python   # Python (or typescript/aver/ailang)
+vera-bench run --model moonshot/kimi-k2.6 --parallel 10    # concurrent dispatch for slow models
+```
+
+Supported providers: [Anthropic](https://anthropic.com) (Claude), [OpenAI](https://openai.com) (GPT), [Kimi](https://platform.kimi.ai) (Moonshot), and [OpenRouter](https://openrouter.ai/). Set the matching key (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `MOONSHOT_API_KEY`, or `OPENROUTER_API_KEY`).
+
+The Vera language reference ([SKILL.md](https://veralang.dev/SKILL.md)) is fetched from veralang.dev at run time. Use a local copy — e.g. for testing unreleased language features — with `--skill-md /path/to/SKILL.md`.
 
 ## Report generation
 
 Running `vera-bench report results/` generates `results/summary.md` with a summary table, per-tier breakdowns, and per-problem detail. Each `vera-bench run` writes incremental JSONL results (one line per problem attempt), so a run that stops early is still reportable up to the problem it reached.
+
+The headline chart comes from [`scripts/plot_results.py`](scripts/plot_results.py) — **% solved** (pass@1) per model × mode over the gradeable problem set. [`scripts/README.md`](scripts/README.md) documents it plus the 16:9 talk-slide renderer.
 
 > **There is no resume.** `vera-bench run` deletes any existing output file for that model × language × mode before it starts, so re-running an interrupted target repeats it from problem 1 rather than topping it up. Filenames carry no timestamp, so the old results are gone. Budget a full re-run for any target that does not finish.
 

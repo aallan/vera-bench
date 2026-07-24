@@ -1,14 +1,74 @@
-# Known issues and workarounds
+# Known issues, limitations, and workarounds
 
-This file collects active workarounds, dev-environment gotchas, and
-analytical caveats that don't have a more natural home in the codebase.
-Entries are deliberately written to include their *exit condition* — the
-specific event that lets us remove the workaround or close the caveat —
-so they don't quietly outlive their reason.
+This file collects the benchmark's known **bugs**, **limitations** (things it
+cannot do yet, as distinct from defects in what it claims to do), and active
+**workarounds** — dev-environment gotchas and analytical caveats that don't have
+a more natural home in the codebase. Each entry includes its *exit condition* —
+the specific event that lets us remove the workaround or close the item — so they
+don't quietly outlive their reason.
 
-For tracked feature work and roadmap items, see [ROADMAP.md](ROADMAP.md).
-For language gotchas (Vera and Aver syntax rules), see
-[CLAUDE.md](CLAUDE.md).
+For forward-looking work and priorities, see [ROADMAP.md](ROADMAP.md). For
+language gotchas (Vera and Aver syntax rules), see [CLAUDE.md](CLAUDE.md). The
+GitHub issue tracker is the source of truth for open work.
+
+---
+
+## Bugs
+
+No known defects that produce a wrong benchmark result — a model graded as
+passing when it failed, or the reverse. Such correctness issues are tracked as
+`bug`-labelled issues; none are open. Everything below is a limitation or a
+workaround, not a wrong answer.
+
+---
+
+## Limitations
+
+Things the harness cannot do yet — distinct from bugs in what it claims to do.
+Each maps to a tracked issue.
+
+### The sweep re-runs whole targets to clear a few transient failures
+
+`scripts/run_sweep.sh` marks a target dirty on *any* transient row and re-runs
+all 60 problems, even when 57 were already fine — wasteful on slow models, and
+under a flaky provider it can re-roll previously-good problems into fresh
+failures. The surgical tool `scripts/rerun_failed.py` does per-problem repair but
+cannot run concurrently with the sweep (both unlink/write the same file).
+
+**Exit condition:** [#101](https://github.com/aallan/vera-bench/issues/101) —
+fold per-problem retry into the sweep's dirty path.
+
+### The test suite isn't tiered — flaky toolchain tests gate the merge
+
+CI runs the whole suite (`pytest -v`) on every push, mixing fast hermetic unit
+tests with slow integration tests that shell out to `npx`/`tsx`, `vera`, `aver`,
+and `ailang`. The cold-start non-hermeticity was fixed in place (PR
+[#100](https://github.com/aallan/vera-bench/pull/100): a warm-up fixture, a
+bigger timeout, and declared plotting deps), so it no longer flakes — but the
+integration tests are still on the merge-gating path and the gate is ~6 minutes.
+
+**Exit condition:** [#102](https://github.com/aallan/vera-bench/issues/102) —
+mark the integration tests and run them off the gate.
+
+### Tier 5 cannot be compared across languages naïvely
+
+Tier 5 tests Vera's algebraic effect handlers (State, Exn, IO). Other languages
+solve these with fundamentally different native idioms (`try/except`,
+`try/catch`), so a Tier-5 cross-language number is apples-to-oranges. Use the
+T1–T4 aggregate for any cross-language headline.
+
+**Exit condition:** [#50](https://github.com/aallan/vera-bench/issues/50) — a
+defensible cross-language Tier-5 methodology.
+
+### `vera run --fn` accepts only integer arguments
+
+Some Tier 2–3 problems whose test inputs are strings or arrays carry empty
+`test_cases`, because `vera run --fn` cannot pass non-integer arguments (and
+string/array *returns* print WASM pointers, not values). Those problems are
+gradeable on `check`/`verify` but not on `run_correct`.
+
+**Exit condition:** none tracked yet — depends on vera's `run --fn` gaining
+typed argument support.
 
 ---
 
@@ -86,19 +146,20 @@ instrumentation, via `scripts/preflight.sh`; full table in
 | OpenAI (`gpt-5.6-sol`) | ~29k Vera prefix, 2nd call | **99%** |
 | OpenAI (`#pro`) | ~119k (pro re-reads across passes) | **73%** |
 | Anthropic (`claude-sonnet-5`) | ~45k Vera prefix, 2nd call | **100%** |
-| Moonshot | — | **not yet measured** |
+| Moonshot (Kimi) | ~29k Vera prefix, 2nd call | **100%** (after the [#97](https://github.com/aallan/vera-bench/pull/97) reader fix) |
 
 Two things worth carrying into any cost estimate:
 
 - **Small targets cannot cache.** The Python and TypeScript prompts are
   70–105 tokens, below OpenAI's 1024-token minimum. A `0%` there is
   correct, not a fault.
-- **Moonshot's `cached_tokens` has never been observed non-zero.** Both
-  Kimi entries have only ever run against the small Python target, so
-  their `0%` is uninformative. Their Context Caching is automatic
-  longest-prefix with no routing key, so there is no parameter to
-  misconfigure — but the read is unproven. The next full sweep is the
-  first real test.
+- **Moonshot's `cached_tokens` was a *reader* bug, now fixed.** Moonshot
+  reports the cache read at the top level of `usage` (`cached_tokens`), not
+  in the nested `prompt_tokens_details.cached_tokens` where OpenAI puts it,
+  so the harness read `0` regardless of the true value. Fixed in
+  [PR #97](https://github.com/aallan/vera-bench/pull/97); a two-call probe
+  then showed **0 → 100%** on the second call, confirming Moonshot's
+  automatic longest-prefix Context Caching works and is now instrumented.
 
 **Removal trigger:** none — this is a permanent provenance note about a
 metric semantic change in historical data. It stops being load-bearing
