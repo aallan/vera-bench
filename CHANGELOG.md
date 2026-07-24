@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Moonshot cache hits were always recorded as zero.** `_openai_cached_tokens`
+  read only `usage.prompt_tokens_details.cached_tokens` — the OpenAI *nested*
+  location — but Moonshot reports it at the **top level**, `usage.cached_tokens`
+  (per their API reference). The field survives SDK parsing
+  (`CompletionUsage` is `extra="allow"`) but we never looked there, so every
+  Moonshot row logged `cached_tokens=0` despite Moonshot caching at ~99% on the
+  shared Vera prefix — understating cache savings for both Kimi entries. The
+  reader now checks both, nested first. Surfaced by the new per-provider s3
+  probe above, which is exactly what it was built to catch.
 - **Documentation consistency pass** over `README.md`, `CLAUDE.md`,
   `CONTRIBUTING.md`, `KNOWN_ISSUES.md`, `scripts/README.md` and
   `preflight.sh`: stale counts, inaccurate claims and a missing

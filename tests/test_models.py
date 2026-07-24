@@ -537,6 +537,45 @@ class TestCachedTokensHelpers:
         usage.prompt_tokens_details = None
         assert _openai_cached_tokens(usage) == 0
 
+    def test_moonshot_reports_cached_tokens_at_top_level(self):
+        """Moonshot puts cached_tokens directly on usage, not nested under
+        prompt_tokens_details (verified against their API reference).
+        Reading only the nested path recorded 0 for every Moonshot row
+        despite it caching at ~99%. Uses the real SDK model, which is
+        extra="allow", so the non-standard field survives parsing."""
+        from openai.types.completion_usage import CompletionUsage
+
+        from vera_bench.models import _openai_cached_tokens
+
+        usage = CompletionUsage.model_validate(
+            {
+                "prompt_tokens": 29534,
+                "completion_tokens": 50,
+                "total_tokens": 29584,
+                "cached_tokens": 28800,  # top-level, Moonshot-style
+            }
+        )
+        assert usage.prompt_tokens_details is None  # the nested path is empty
+        assert _openai_cached_tokens(usage) == 28800
+
+    def test_nested_wins_when_both_present(self):
+        """If a provider ever populated both, the standard nested location
+        is authoritative — the top-level read is only a fallback."""
+        from vera_bench.models import _openai_cached_tokens
+
+        usage = MagicMock()
+        usage.prompt_tokens_details.cached_tokens = 100
+        usage.cached_tokens = 999
+        assert _openai_cached_tokens(usage) == 100
+
+    def test_top_level_bool_quirk_rejected(self):
+        from vera_bench.models import _openai_cached_tokens
+
+        usage = MagicMock()
+        usage.prompt_tokens_details = None
+        usage.cached_tokens = True  # bool is an int subclass; must not count
+        assert _openai_cached_tokens(usage) == 0
+
     def test_openai_cached_tokens_magicmock_leak_guard(self):
         from vera_bench.models import _openai_cached_tokens
 
