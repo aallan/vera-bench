@@ -16,7 +16,8 @@ Usage:
     python scripts/plot_results.py --output my.png
         # -> my.png (explicit path)
 
-To add a new model, append it to MODELS below. File naming follows the
+To add a new model, edit the canonical matrix in vera_bench/matrix.py;
+the MODELS list below is a projection of it. File naming follows the
 convention described in scripts/README.md.
 """
 
@@ -111,9 +112,7 @@ TIER_TITLES: dict[str, str] = {
 # the fields the chart needs. file_prefix comes from Model.file_prefix
 # (CLI string, '/'->'-'), so it byte-matches what cli.py writes by
 # construction rather than by a hand-kept copy.
-MODELS: list[ModelSpec] = [
-    ModelSpec(m.display, m.file_prefix, m.tier) for m in _MATRIX
-]
+MODELS: list[ModelSpec] = [ModelSpec(m.display, m.file_prefix, m.tier) for m in _MATRIX]
 
 # Mode label -> glob pattern fragment inserted between prefix and bench-VER.
 # An empty fragment means the mode is the Vera full-spec "default" file.
