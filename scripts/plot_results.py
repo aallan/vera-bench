@@ -31,12 +31,18 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
-import matplotlib
+# Rendering needs matplotlib/numpy, but importing this module for its data
+# helpers (MODELS, extract_data, _pass_at_1_pct) must not — so the test job
+# that only imports those need not install a plotting backend. main() calls
+# _require_mpl() before drawing anything.
+try:
+    import matplotlib
+    import numpy as np
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - only where matplotlib absent
+    matplotlib = plt = np = None
 
 # Allow importing vera_bench without installing the package.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -71,17 +77,18 @@ _DELTA_ALPHAS = [0.85, 0.55, 0.40]
 FONT_BODY = "Inter UI"
 FONT_HEADING = "Georgia"  # fallback for DM Serif Display
 
-matplotlib.rcParams.update(
-    {
-        "font.family": "sans-serif",
-        "font.sans-serif": [FONT_BODY, "Inter", "Helvetica", "Arial"],
-        "font.size": 11,
-        "text.color": BROWN_700,
-        "axes.labelcolor": BROWN_500,
-        "xtick.color": BROWN_500,
-        "ytick.color": BROWN_500,
-    }
-)
+if matplotlib is not None:
+    matplotlib.rcParams.update(
+        {
+            "font.family": "sans-serif",
+            "font.sans-serif": [FONT_BODY, "Inter", "Helvetica", "Arial"],
+            "font.size": 11,
+            "text.color": BROWN_700,
+            "axes.labelcolor": BROWN_500,
+            "xtick.color": BROWN_500,
+            "ytick.color": BROWN_500,
+        }
+    )
 
 # --- Model registry ------------------------------------------------------
 # file_prefix is the model-id portion of the result-file name. To find the
@@ -231,7 +238,7 @@ def _pass_at_1_pct(rows: list[dict]) -> int | None:
 def extract_data(
     results_dir: Path, version: str, modes: list[str]
 ) -> tuple[dict[str, dict], list[str], list[Path], set[tuple[str, str]]]:
-    """Extract run_correct percentages for every MODEL × MODE.
+    """Extract pass@1 (% solved) percentages for every MODEL × MODE.
 
     Args:
         results_dir: Directory containing JSONL result files.
@@ -388,7 +395,7 @@ def plot_vera_vs_comparison(
     comparison_modes: list[str],
     missing: set[tuple[str, str]] | None = None,
 ):
-    """Horizontal bars: Vera run_correct minus each comparison language, per model."""
+    """Horizontal bars: Vera % solved minus each comparison language, per model."""
     from matplotlib.patches import Patch  # noqa: E402
 
     all_data: dict = {}
@@ -445,7 +452,7 @@ def plot_vera_vs_comparison(
     ax.set_yticks(y)
     ax.set_yticklabels(models, fontsize=10)
     ax.set_xlabel(
-        "Vera run_correct minus comparison language (pp)",
+        "Vera % solved minus comparison language (pp)",
         fontsize=10,
         color=BROWN_500,
     )
@@ -592,7 +599,17 @@ def _default_version() -> str:
     return version or "0.0.0"
 
 
+def _require_mpl() -> None:
+    """Fail clearly if a rendering entrypoint runs without a plotting backend."""
+    if plt is None:
+        raise SystemExit(
+            "plot_results needs matplotlib + numpy to render — "
+            "install them: pip install matplotlib numpy"
+        )
+
+
 def main():
+    _require_mpl()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--version",

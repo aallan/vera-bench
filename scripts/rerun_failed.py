@@ -83,7 +83,7 @@ def failed_pids(rows: list[dict], include_length: bool) -> list[str]:
     return list(seen)
 
 
-def rerun_one(model, language, mode, pid, extra, scratch) -> list[dict]:
+def rerun_one(model, language, mode, pid, extra, scratch, timeout) -> list[dict]:
     cmd = [
         "vera-bench",
         "run",
@@ -100,11 +100,25 @@ def rerun_one(model, language, mode, pid, extra, scratch) -> list[dict]:
         cmd += ["--mode", mode]
     cmd += extra
     print(f"  $ {' '.join(cmd)}")
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        sys.exit(f"re-run of {pid} exceeded {timeout}s — not splicing")
+    except subprocess.CalledProcessError as e:
+        sys.exit(f"re-run of {pid} exited {e.returncode} — not splicing")
     produced = glob.glob(os.path.join(scratch, "*.jsonl"))
     if not produced:
         sys.exit(f"re-run of {pid} produced no output file in {scratch}")
-    return load_rows(produced[0])
+    rows = load_rows(produced[0])
+    # Guard the splice: only rows that are non-empty AND all belong to this
+    # problem may replace the canonical group. Empty or mismatched output must
+    # abort before splice() overwrites good data.
+    if not rows:
+        sys.exit(f"re-run of {pid} produced an empty file — not splicing")
+    stray = {r.get("problem_id") for r in rows} - {pid}
+    if stray:
+        sys.exit(f"re-run of {pid} returned rows for {sorted(stray)} — not splicing")
+    return rows
 
 
 def splice(canonical: str, fresh_by_pid: dict[str, list[dict]]) -> None:
@@ -152,6 +166,12 @@ def main() -> None:
         help="forwarded to vera-bench run (needed to clear length walls)",
     )
     ap.add_argument(
+        "--timeout",
+        type=int,
+        default=900,
+        help="per-problem re-run timeout (s); a stall aborts before splice",
+    )
+    ap.add_argument(
         "--force", action="store_true", help="splice even an in-flight (<60 row) file"
     )
     ap.add_argument(
@@ -194,7 +214,7 @@ def main() -> None:
             scratch = os.path.join(base, pid)
             os.makedirs(scratch)
             fresh_by_pid[pid] = rerun_one(
-                args.model, args.language, args.mode, pid, extra, scratch
+                args.model, args.language, args.mode, pid, extra, scratch, args.timeout
             )
     splice(canonical, fresh_by_pid)
     print(

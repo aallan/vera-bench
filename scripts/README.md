@@ -67,14 +67,15 @@ paste. Targets bash 3.2 (macOS system bash).
 ## `run_sweep.sh` — idempotent full-matrix sweep runner
 
 Runs the whole matrix — every model × its targets — in one terminal,
-unattended and **resumable**. Its defining property: it **skips any target
-whose result file already exists and is clean** (≥60 rows, zero
-infrastructure-failure rows), and (re)runs everything else. Safe to run
-repeatedly; re-run it until it reports 0 dirty.
+unattended and **resumable**, with the provider streams running
+concurrently. Its defining property: it **skips any target whose result
+file already exists and is clean**, and (re)runs everything else. Safe to
+run repeatedly; re-run it until it reports 0 dirty.
 
 The model list, providers, and which models run the zero-training-data
 targets all come from `vera_bench/matrix.py` — the same registry
-`preflight.sh` and `plot_results.py` read, so the three never drift.
+`preflight.sh` and `plot_results.py` read, and that this runner enumerates
+from, so nothing drifts.
 
 ### Why a wrapper, and what "clean" means
 
@@ -83,11 +84,14 @@ target that dies mid-run is lost. The wrapper adds resume at the *target*
 level — a target already on disk and clean is skipped, so a killed or
 partial sweep is recovered simply by running the script again.
 
-"Clean" deliberately distinguishes **infrastructure failure** from **model
-failure**. A model whose code compiles then fails at runtime (a contract
-violation, a wrong answer) is a real result and leaves the file clean. A
-rate-limit, an empty-content response, a timeout, or a compiler crash is an
-infrastructure failure — that file is re-run. This is the difference
+"Clean" reuses `sweep_status.py`'s classifier, so the runner and the status
+tool always agree. It distinguishes a **transient fault** (rate-limit,
+timeout, empty content) — which is re-run — from a **real result**, which is
+not. A refusal, a compile or runtime error, and a `finish_reason=length`
+truncation are all real results: the model *was* measured, so the file is
+left alone. Length truncations are prevented up front by a bigger
+`--max-tokens` for the reasoning models; repair a stray one per-problem with
+`rerun_failed.py` rather than re-running all 60. This is the difference
 between "the model lost" and "we couldn't fairly measure it."
 
 ### Usage
@@ -120,9 +124,11 @@ vera-bench baselines --language ailang
 | `PAR_ANTHROPIC` / `PAR_OPENAI` / `PAR_MOONSHOT` | 4 / 3 / 3 | per-provider `--parallel`. Lowered from the first-attempt 6/10 that made OpenAI rate-limit and Moonshot return empty content. Drop a provider's further if it still errors. |
 | `SWEEP_RETRIES` | 2 | attempts per target per pass, to clear transient empties |
 | `SWEEP_INCLUDE_PRO` | 0 | opt IN to the pro tier — it is the expensive one (~$10/target) |
+| `MAX_TOKENS_MOONSHOT` | 32000 | output budget for the reasoning kimi models, so they stop truncating (`finish_reason=length`) |
 
-Fable, a reasoning model, is run at `--max-tokens 16000` automatically, so its
-thinking doesn't exhaust the 4096 default and return no answer.
+The reasoning models run at a bigger `--max-tokens` automatically — 16000 for
+fable, `MAX_TOKENS_MOONSHOT` (32000) for the kimi models — so their thinking
+doesn't exhaust the 4096 default and return no answer.
 
 ### The targets
 

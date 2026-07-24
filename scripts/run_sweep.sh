@@ -1,24 +1,32 @@
 #!/usr/bin/env bash
 # Idempotent v0.0.16 sweep runner — one terminal, unattended, resumable.
 #
-# Runs every matrix target that is MISSING or INFRASTRUCTURE-CORRUPTED, and
-# SKIPS any that already exist and are clean (>=60 rows, zero infra-failure
-# rows). Safe to re-run: it only does what is not yet done. Re-run it until
-# it reports 0 dirty.
+# Runs every matrix target that is MISSING or hit a TRANSIENT infrastructure
+# fault, and SKIPS any already on disk and clean. "Clean" reuses the SAME
+# classifier as scripts/sweep_status.py: a file is dirty only if it has <60
+# rows or carries a genuine transient fault (rate-limit, timeout, connection,
+# empty content). A refusal, a compile/runtime error, or a finish_reason=length
+# truncation is a REAL result and leaves the file clean — so the sweep never
+# futilely re-runs a deterministic failure. Length walls are prevented up front
+# by giving the reasoning models a bigger --max-tokens; repair a stray dirty
+# target per-problem with scripts/rerun_failed.py instead of re-running all 60.
 #
 #   export ANTHROPIC_API_KEY=... OPENAI_API_KEY=... MOONSHOT_API_KEY=...
-#   bash scripts/run_sweep.sh
+#   bash scripts/run_sweep.sh                     # everything except pro
+#   SWEEP_INCLUDE_PRO=1 bash scripts/run_sweep.sh # opt in to the pro tier
 #
 # Overnight:  nohup caffeinate -is bash scripts/run_sweep.sh > ~/sweep.out 2>&1 &
+#
+# The model lineup, providers, and ztd (aver/ailang) subset all come from
+# vera_bench/matrix.py — the same registry preflight.sh and plot_results.py
+# read, so nothing drifts. Provider streams run concurrently; models within a
+# provider run serially (per-provider rate limits).
 #
 # Tunables (env):
 #   PAR_ANTHROPIC=4  PAR_OPENAI=3  PAR_MOONSHOT=3   per-provider concurrency
 #   SWEEP_RETRIES=2                                 attempts per target per pass
-#   SWEEP_INCLUDE_PRO=1                             opt IN to the pro tier (~$10/target)
-#
-# Parallelism is lowered from the first attempt's 6/10: OpenAI rate-limited
-# and Moonshot returned empty content under that load. Fable (a reasoning
-# model) runs at --max-tokens 16000 to avoid thinking-budget exhaustion.
+#   SWEEP_INCLUDE_PRO=0                             opt IN to the pro tier (~$10/target)
+#   MAX_TOKENS_MOONSHOT=32000                       budget for the reasoning kimi models
 
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
@@ -36,44 +44,65 @@ PAR_ANTHROPIC=${PAR_ANTHROPIC:-4}
 PAR_OPENAI=${PAR_OPENAI:-3}
 PAR_MOONSHOT=${PAR_MOONSHOT:-3}
 RETRIES=${SWEEP_RETRIES:-2}
-INCLUDE_PRO=${SWEEP_INCLUDE_PRO:-1}
+INCLUDE_PRO=${SWEEP_INCLUDE_PRO:-0}
+MAX_TOKENS_MOONSHOT=${MAX_TOKENS_MOONSHOT:-32000}
+
+# One status line per finished target ("skip|ok|dirty <model>/<label>"), so the
+# end-of-run tally survives the concurrent provider subshells (which cannot
+# write the parent's variables).
+STATUS_FILE=$(mktemp "${TMPDIR:-/tmp}/vb-sweep.XXXXXX")
+trap 'rm -f "$STATUS_FILE"' EXIT
 
 par () {
   case "$1" in
-    claude-*)               echo "$PAR_ANTHROPIC" ;;
-    gpt-*|openai-pro/*)      echo "$PAR_OPENAI" ;;
-    moonshot/*)             echo "$PAR_MOONSHOT" ;;
-    *)                      echo 3 ;;
+    claude-*)            echo "$PAR_ANTHROPIC" ;;
+    gpt-*|openai-pro/*)  echo "$PAR_OPENAI" ;;
+    moonshot/*)          echo "$PAR_MOONSHOT" ;;
+    *)                   echo 3 ;;
   esac
 }
 
-# clean := file exists, >=60 rows, and no row carries an INFRASTRUCTURE
-# error. A model that compiled-then-failed at runtime is a real result and
-# does NOT make a file dirty; a rate-limit / empty-content / timeout does.
+# Reasoning models spend output budget "thinking" and truncate
+# (finish_reason=length) before emitting code if the budget is the 4096
+# default. fable and the kimi models are the reasoning ones; pro gets its own
+# 16000 floor inside the client, so it needs nothing here.
+extra_args () {
+  case "$1" in
+    claude-fable-5) echo "--max-tokens 16000" ;;
+    moonshot/*)     echo "--max-tokens $MAX_TOKENS_MOONSHOT" ;;
+    *)              echo "" ;;
+  esac
+}
+
+# clean := newest file for the glob exists, has >=60 rows, and carries no
+# TRANSIENT fault. classify() (shared with sweep_status.py) is the single
+# source of truth for what "transient" means — refusals, length walls and
+# compile/runtime errors are real results and do NOT make a file dirty.
 is_clean () {
   local f
   f=$(ls -t $1 2>/dev/null | head -1)
   [ -z "$f" ] && return 1
   python - "$f" <<'PY'
-import json, sys, re
-infra = re.compile(
-    r"API error|rate.?limit|429|timed out|timeout|killed by signal|auth|"
-    r"connection|overloaded|empty content|no text block|503|529", re.I)
-rows = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
-bad = sum(1 for r in rows if r.get("error_message") and infra.search(r["error_message"]))
-sys.exit(0 if len(rows) >= 60 and bad == 0 else 1)
+import json, sys
+sys.path.insert(0, "scripts")
+from sweep_status import classify
+
+rows = [json.loads(line) for line in open(sys.argv[1]) if line.strip()]
+transient = sum(
+    1 for r in rows
+    if r.get("error_message") and classify(r["error_message"]) == "transient"
+)
+sys.exit(0 if len(rows) >= 60 and transient == 0 else 1)
 PY
 }
-
-skip_n=0; ran_n=0; dirty=()
 
 do_target () {  # MODEL LABEL GLOB [run args...]
   local M=$1 LBL=$2 GLOB=$3; shift 3
   if is_clean "$GLOB"; then
-    printf '  skip   %-26s %-8s (clean)\n' "$M" "$LBL"; skip_n=$((skip_n+1)); return
+    printf '  skip   %-26s %-8s (clean)\n' "$M" "$LBL"
+    echo "skip $M/$LBL" >> "$STATUS_FILE"; return
   fi
-  local P S EXTRA a; P=$(par "$M"); S=${M//\//-}; EXTRA=""
-  [ "$M" = claude-fable-5 ] && EXTRA="--max-tokens 16000"
+  local P S EXTRA a; P=$(par "$M"); S=${M//\//-}; EXTRA=$(extra_args "$M")
   for a in $(seq 1 "$RETRIES"); do
     printf '>>>>   %-26s %-8s attempt %s (parallel %s%s)\n' \
       "$M" "$LBL" "$a" "$P" "${EXTRA:+, $EXTRA}"
@@ -81,14 +110,15 @@ do_target () {  # MODEL LABEL GLOB [run args...]
     vera-bench run --model "$M" --parallel "$P" $EXTRA "$@" \
       2>&1 | tee "results/logs/sweep-${S}-${LBL}.log" | tail -2
     if is_clean "$GLOB"; then
-      printf '  ok     %-26s %-8s\n' "$M" "$LBL"; ran_n=$((ran_n+1)); return
+      printf '  ok     %-26s %-8s\n' "$M" "$LBL"
+      echo "ok $M/$LBL" >> "$STATUS_FILE"; return
     fi
     printf '  dirty  %-26s %-8s (attempt %s) — retrying\n' "$M" "$LBL" "$a"
     sleep 5
   done
   printf '  STILL DIRTY after %s attempts: %s %s — see results/logs/sweep-%s-%s.log\n' \
     "$RETRIES" "$M" "$LBL" "$S" "$LBL"
-  dirty+=("$M/$LBL")
+  echo "dirty $M/$LBL" >> "$STATUS_FILE"
 }
 
 core () {  # MODEL
@@ -104,23 +134,51 @@ ztd () {  # MODEL
   do_target "$M" ailang "results/${S}-ailang-bench-0-0-16-ailang-*.jsonl"  --language ailang
 }
 
-echo "== sweep vs vera $VV (bench 0-0-16) — anthropic/$PAR_ANTHROPIC openai/$PAR_OPENAI moonshot/$PAR_MOONSHOT, $RETRIES attempts/target =="
+# Canonical lineup, straight from the registry: "provider<TAB>id<TAB>ztd", with
+# the pro tier filtered out unless opted in.
+models_tsv () {
+  python - "$INCLUDE_PRO" <<'PY'
+import sys
+from vera_bench.matrix import MODELS
 
-# sonnet-5 ran as the canary; kept for idempotence (skips if clean).
-core claude-sonnet-5
-core claude-opus-4-8;    ztd claude-opus-4-8
-core claude-fable-5;     ztd claude-fable-5
-core gpt-5.6-terra
-core gpt-5.6-sol;        ztd gpt-5.6-sol
-core moonshot/kimi-k2.6
-core moonshot/kimi-k3;   ztd moonshot/kimi-k3
-[ "$INCLUDE_PRO" = 1 ] && core openai-pro/gpt-5.6-sol   # pro last; checkpoint passed
+include_pro = sys.argv[1] == "1"
+for m in MODELS:
+    if m.id.startswith("openai-pro/") and not include_pro:
+        continue
+    print(f"{m.provider}\t{m.id}\t{1 if m.ztd else 0}")
+PY
+}
+
+# One provider's models, serially (respects that provider's rate limit).
+run_provider () {  # PROVIDER
+  trap - EXIT  # a stream's own exit must not wipe the shared status file
+  local want=$1 prov id ztd_flag
+  while IFS=$'\t' read -r prov id ztd_flag; do
+    [ "$prov" = "$want" ] || continue
+    core "$id"
+    [ "$ztd_flag" = 1 ] && ztd "$id"
+  done <<< "$MODELS_TSV"
+}
+
+MODELS_TSV=$(models_tsv)
+[ -z "$MODELS_TSV" ] && { echo "matrix produced no models"; exit 1; }
+
+echo "== sweep vs vera $VV (bench 0-0-16) — anthropic/$PAR_ANTHROPIC openai/$PAR_OPENAI moonshot/$PAR_MOONSHOT, ${RETRIES} attempts/target, pro=$INCLUDE_PRO =="
+
+# Provider streams concurrent; models within a provider serial.
+for prov in $(printf '%s\n' "$MODELS_TSV" | cut -f1 | sort -u); do
+  run_provider "$prov" &
+done
+wait
 
 echo
-echo "== pass complete: $skip_n already-clean, $ran_n newly-run, ${#dirty[@]} still dirty =="
-if [ "${#dirty[@]}" -gt 0 ]; then
-  printf '   dirty: %s\n' "${dirty[*]}"
-  echo "   Re-run the script to retry them; if one is stubborn, drop its provider's PAR_* and re-run."
+skip_n=$(grep -c '^skip '  "$STATUS_FILE" || true)
+ran_n=$(grep -c  '^ok '    "$STATUS_FILE" || true)
+dirty_n=$(grep -c '^dirty ' "$STATUS_FILE" || true)
+echo "== pass complete: $skip_n already-clean, $ran_n newly-run, $dirty_n still dirty =="
+if [ "$dirty_n" -gt 0 ]; then
+  grep '^dirty ' "$STATUS_FILE" | sed 's/^dirty /   dirty: /'
+  echo "   Transient? re-run the script. Length/other? scripts/rerun_failed.py --apply."
   exit 1
 fi
 echo "   All matrix targets clean."

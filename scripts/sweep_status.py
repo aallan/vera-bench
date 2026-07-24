@@ -101,8 +101,13 @@ def main() -> None:
     args = ap.parse_args()
 
     files = sorted(glob.glob(os.path.join(args.dir, args.glob)))
-    print(f"{'file':<58} {'rows':>4} {'ref':>3} {'len':>3} {'trn':>3}  verdict")
-    print("-" * 104)
+    # oth = error rows classify() left unclassified. These are overwhelmingly
+    # real compile/runtime failures (the harness prefixes genuine infra with
+    # "API error", which classify routes to transient), so they do not force a
+    # re-run — but the count is shown so a missed pattern is never invisible.
+    hdr = f"{'file':<58} {'rows':>4} {'ref':>3} {'len':>3} {'trn':>3} {'oth':>3}"
+    print(f"{hdr}  verdict")
+    print("-" * 108)
     tally: dict[str, int] = {}
     for f in files:
         rows = load_rows(f)
@@ -116,7 +121,7 @@ def main() -> None:
         print(
             f"{os.path.basename(f):<58} {len(rows):>4} "
             f"{buckets['refusal']:>3} {buckets['length']:>3} "
-            f"{buckets['transient']:>3}  {detail}"
+            f"{buckets['transient']:>3} {buckets['other']:>3}  {detail}"
         )
 
     print()
