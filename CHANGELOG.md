@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Claude Opus 5 in the model matrix.** Added alongside `claude-opus-4-8`
+  (same `opus` tier, same zero-training-data targets) for a same-day
+  head-to-head — Opus 5 shipped 2026-07-24. `vera_bench/matrix.py` grows to
+  nine models; the sweep, the preflight gate and the charts pick it up from
+  the registry with no other change.
 - **`scripts/sweep_status.py` / `scripts/rerun_failed.py` — sweep
   visibility and surgical repair.** `vera-bench run`'s `rich` progress
   blanks itself off-TTY, so `run_sweep.sh`'s tee'd logs hold only a banner
