@@ -6,8 +6,8 @@ from vera_bench.matrix import MODELS, PROVIDER_ENV_KEYS, detect_provider
 
 
 class TestMatrix:
-    def test_eight_models_three_providers(self):
-        assert len(MODELS) == 8
+    def test_nine_models_three_providers(self):
+        assert len(MODELS) == 9
         assert {m.provider for m in MODELS} == {"anthropic", "openai", "moonshot"}
 
     def test_display_names_unique(self):
@@ -33,6 +33,7 @@ class TestMatrix:
         assert ztd == {
             "claude-fable-5",
             "claude-opus-4-8",
+            "claude-opus-5",
             "gpt-5.6-sol",
             "moonshot/kimi-k3",
         }

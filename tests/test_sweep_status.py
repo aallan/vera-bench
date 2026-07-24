@@ -83,14 +83,18 @@ def test_expected_problems_matches_repo():
 
 
 class TestExpectedTargets:
-    """The sweep-file denominator must match the default sweep, not a hardcoded
-    40: with pro opt-out (the default) run_sweep produces 36 targets, so a
-    complete pro-off sweep should read as 36/36, not 36/40."""
+    """The sweep-file denominator is derived from the matrix, not hardcoded: it
+    tracks 4 core targets per model plus 2 (aver, ailang) per ztd model, with
+    the pro tier honoured via SWEEP_INCLUDE_PRO. As the matrix grows this count
+    moves with it — the point is that it is derived, so a complete sweep reads
+    as N/N rather than N/<stale-constant>."""
 
-    def test_pro_off_default_is_36(self, monkeypatch):
+    def test_pro_off_default(self, monkeypatch):
+        # 8 models pro-off (5 of them ztd): 8*4 core + 5*2 ztd = 42.
         monkeypatch.delenv("SWEEP_INCLUDE_PRO", raising=False)
-        assert ss._expected_targets() == 36
+        assert ss._expected_targets() == 42
 
-    def test_pro_on_is_40(self, monkeypatch):
+    def test_pro_on_adds_the_pro_tier(self, monkeypatch):
+        # 9 models pro-on: 9*4 + 5*2 = 46.
         monkeypatch.setenv("SWEEP_INCLUDE_PRO", "1")
-        assert ss._expected_targets() == 40
+        assert ss._expected_targets() == 46

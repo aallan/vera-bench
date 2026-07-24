@@ -41,6 +41,7 @@ MODELS: list[Model] = [
     Model("claude-fable-5", "anthropic", "fable", "Claude Fable 5", ztd=True),
     Model("openai-pro/gpt-5.6-sol", "openai", "fable", "GPT-5.6 Sol (pro)"),
     Model("claude-opus-4-8", "anthropic", "opus", "Claude Opus 4.8", ztd=True),
+    Model("claude-opus-5", "anthropic", "opus", "Claude Opus 5", ztd=True),
     Model("gpt-5.6-sol", "openai", "opus", "GPT-5.6 Sol", ztd=True),
     Model("moonshot/kimi-k3", "moonshot", "opus", "Kimi K3", ztd=True),
     Model("claude-sonnet-5", "anthropic", "sonnet", "Claude Sonnet 5"),
