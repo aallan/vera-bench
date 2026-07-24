@@ -80,3 +80,17 @@ def test_expected_problems_matches_repo():
     # The repo's real problem set — the denominator run_sweep and this tool
     # both use for coverage. Must be a plausible, non-zero count.
     assert ss._expected_problems() >= 60
+
+
+class TestExpectedTargets:
+    """The sweep-file denominator must match the default sweep, not a hardcoded
+    40: with pro opt-out (the default) run_sweep produces 36 targets, so a
+    complete pro-off sweep should read as 36/36, not 36/40."""
+
+    def test_pro_off_default_is_36(self, monkeypatch):
+        monkeypatch.delenv("SWEEP_INCLUDE_PRO", raising=False)
+        assert ss._expected_targets() == 36
+
+    def test_pro_on_is_40(self, monkeypatch):
+        monkeypatch.setenv("SWEEP_INCLUDE_PRO", "1")
+        assert ss._expected_targets() == 40

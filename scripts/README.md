@@ -161,7 +161,7 @@ For model `M` at bench version `V` and compiler versions `VV` (Vera) / `AV` (Ave
 | `results/{M}-aver-bench-{V}-aver-{AV}.jsonl` | Aver generation attempts |
 | `results/{M}-ailang-bench-{V}-ailang-{LV}.jsonl` | AILANG generation attempts |
 | `results/{python,typescript,aver,ailang}-baseline.jsonl` | Canonical solution runs |
-| `results/timing.json` | Per-target wall-clock + status for the most recent run |
+| `results/logs/sweep-{M}-{target}.log` | Console output (banner + progress) captured for each target run |
 
 Each JSONL line is **one attempt on one problem** — failed `vera check`/`aver
 check` runs produce multiple lines per problem (the model is asked to fix
@@ -175,12 +175,13 @@ model x target.
 
 | Code | Meaning |
 |------|---------|
-| `0` | All targets passed |
-| `1` | One or more targets failed, or missing API key / unknown model |
+| `0` | All targets clean |
+| `1` | One or more targets still dirty (or missing API key / unknown model) |
 
-A failed target does **not** abort the rest — the script always runs all
-ten, writes `timing.json` with each target's status, then exits non-zero
-at the end if any failed. This makes partial-run recovery straightforward.
+A failed target does **not** abort the rest — the script runs every
+configured target, tees each run's output to `results/logs/`, prints a
+skip/ok/dirty summary, then exits non-zero if any target is still dirty.
+This makes partial-run recovery straightforward.
 
 ---
 

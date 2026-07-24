@@ -51,6 +51,27 @@ def _expected_problems() -> int:
     return len(list(root.glob("problems/**/VB_*.json"))) or 60
 
 
+def _expected_targets() -> int:
+    """How many result files a full sweep produces: 4 core targets per model
+    plus 2 (aver, ailang) for each ztd model — the same lineup run_sweep.sh
+    runs, with the pro tier honoured via the same SWEEP_INCLUDE_PRO opt-in
+    (default off → 36; on → 40). Falls back to 40 if the matrix can't load."""
+    import sys
+
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+    try:
+        from vera_bench.matrix import MODELS
+    except ModuleNotFoundError:
+        return 40
+    include_pro = os.environ.get("SWEEP_INCLUDE_PRO", "0") == "1"
+    total = 0
+    for m in MODELS:
+        if m.id.startswith("openai-pro/") and not include_pro:
+            continue
+        total += 4 + (2 if m.ztd else 0)
+    return total
+
+
 def classify(msg: str) -> str:
     if REFUSAL.search(msg):
         return "refusal"
@@ -108,8 +129,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dir", default="results")
     ap.add_argument("--glob", default="*bench-0-0-16*.jsonl")
-    ap.add_argument("--expect", type=int, default=40, help="target file count")
+    ap.add_argument(
+        "--expect",
+        type=int,
+        default=None,
+        help="target file count (default: derived from the matrix + SWEEP_INCLUDE_PRO)",
+    )
     args = ap.parse_args()
+    expect = args.expect if args.expect is not None else _expected_targets()
 
     files = sorted(glob.glob(os.path.join(args.dir, args.glob)))
     expected = _expected_problems()
@@ -141,13 +168,13 @@ def main() -> None:
     n = len(files)
     summary = "  ".join(f"{v} {k}" for k, v in sorted(tally.items()))
     print(summary)
-    print(f"{n}/{args.expect} target files present", end="")
-    if n < args.expect:
+    print(f"{n}/{expect} target files present", end="")
+    if n < expect:
         # A target is absent either because it hasn't started OR because the
         # sweep is re-running it right now: vera-bench run unlinks the file at
         # startup (no resume), so it vanishes until the first row lands. The
         # count is therefore not monotonic across polls.
-        print(f"  ({args.expect - n} absent — not-started or mid-re-run)", end="")
+        print(f"  ({expect - n} absent — not-started or mid-re-run)", end="")
     print()
 
 
