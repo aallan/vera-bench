@@ -110,6 +110,21 @@ measured on the part of the benchmark where the two languages are most alike.
 Vera does check and verify the other 24, and the models pass almost all of
 them, but Python has no equivalent step to compare that against.
 
+### The benchmark is saturating
+
+![Every model against every language, one dot each, on a zoomed axis](assets/fig-saturation.png)
+
+Every model against every language, one dot each. The whole field sits between
+92% and 100% on the core languages, and all nine models reach 100% in at least
+one of them. With 36 graded problems a single problem moves a score by 2.8
+percentage points, so most of the gaps discussed above are one or two problems
+wide.
+
+This is the most serious limitation in this release. The benchmark can still
+tell you that an unfamiliar language costs a model nothing, which is the
+question it was built to answer, but it can no longer rank the field at the
+top. The next version needs harder problems.
+
 ### Full results
 
 | Model | Vera | Vera spec-from-NL | Python | TypeScript |
@@ -134,11 +149,19 @@ Every chart in this section, and several that did not make it, are described in
 > per model, no pass@k. LLM output is non-deterministic and individual problems
 > flip between runs. With 36 gradeable problems one problem is worth 2.8
 > percentage points, so most of the gaps above are one or two problems wide.
-> Seven of the nine models score 100% in at least one language, which is the
-> more serious limitation: the benchmark can no longer separate the field at
-> the top, and the next version needs harder problems.
 
 ### Zero training data
+
+![Vera, Aver and AILANG across the five models that ran all three](assets/fig-ztd.png)
+
+Three languages absent from every training set, on the five models that ran all
+three. Vera averages 98.8% and AILANG 99.4%, against 97.0% for Python on those
+same five models. Aver trails at 93.2%.
+
+Two of the three unfamiliar languages therefore match or beat the most familiar
+one. That is the benchmark's central claim in its most direct form, and Aver is
+the reminder that being absent from the training data is not on its own worth
+anything: the design has to earn it.
 
 No LLM has been trained on Vera. There are no Vera examples on GitHub, no Stack
 Overflow answers, no tutorials; the language was created after these models'

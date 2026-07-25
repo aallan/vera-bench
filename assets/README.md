@@ -11,7 +11,7 @@ counts problems rather than scoring them. Only 36 of the 60 problems can be
 graded that way, so one problem is worth 2.8 percentage points. Keep that
 number in mind when reading any gap.
 
-## The six README figures
+## The eight README figures
 
 Rendered `--bare` and transparent: no title, no subtitle, no footnote, cropped
 to the plot, so the prose around them carries what the slide versions bake in.
@@ -77,6 +77,21 @@ Those 24 are the ADT, match and effect problems, the ones that exercise what
 makes Vera different, so the score is measured on the part of the set where
 the languages are most alike.
 
+### `fig-saturation.png`: the benchmark is saturating
+
+Every model against every language, one dot each, on a zoomed axis. The field
+sits between 92% and 100% on the core languages and all nine models reach 100%
+in at least one of them, so with 36 graded problems most gaps are one or two
+problems wide. The benchmark can still answer whether an unfamiliar language
+costs a model anything; it can no longer rank the field at the top.
+
+### `fig-ztd.png`: zero training data
+
+Vera, Aver and AILANG across the five models that ran all three. None of the
+three appears in any training set, so every point came from a document in the
+prompt. Vera averages 98.8% and AILANG 99.4%, against 97.0% for Python on the
+same five models, while Aver trails at 93.2%.
+
 ### Regenerating them
 
 ```bash
@@ -93,6 +108,10 @@ python scripts/plot_narrative.py --version $V --type refusal --bare \
   --background transparent --output assets/fig-refusal.png
 python scripts/plot_narrative.py --version $V --type coverage --bare \
   --background transparent --output assets/fig-coverage.png
+python scripts/plot_narrative.py --version $V --type saturation --bare \
+  --background transparent --output assets/fig-saturation.png
+python scripts/plot_slide.py --version $V --type ztd --bare \
+  --background transparent --output assets/fig-ztd.png
 ```
 
 ⚠ These carry dark brown text, which suits a light page and the cream section
@@ -123,12 +142,9 @@ python scripts/plot_slide.py --version 0.0.16 --type tiers \
 python scripts/plot_narrative.py --version 0.0.16
 ```
 
-Four have no committed counterpart, because the README tells their story in
-prose instead: **tiers** and **all-modes** are per-capability-tier and
-per-mode reference views; **ztd** is the three-language zero-training-data
-slide that `fig-vera-vs-aver.png` is the two-language cut of; and
-**saturation** plots every model against every language as one dot on a zoomed
-axis, showing the field bunched against the ceiling.
+Two have no committed counterpart, because the README tells their story in
+prose instead: **tiers** and **all-modes**, which are per-capability-tier and
+per-mode reference views of numbers the other charts already carry.
 
 **Historical charts.** Earlier sweeps render against the lineup that actually
 ran them, which `plot_results.py` keeps in `HISTORICAL_LINEUPS`. If a version
