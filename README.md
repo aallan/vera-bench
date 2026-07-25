@@ -58,10 +58,10 @@ satisfies them.
 | GPT-5.6 Terra | **100%** | 94% | 100% | 100% |
 | Kimi K2.6 | **100%** | 94% | 100% | 100% |
 
-The charts below, and several that did not make it, are described in
-[assets/README.md](assets/README.md) with the command that regenerates them.
+The charts below are described in [assets/README.md](assets/README.md) along
+with the command to regenerate them.
 
-> **On reading these numbers.** The charts report **% solved**: the model wrote
+> **On reading the numbers.** The charts report **% solved**: the model wrote
 > code, it compiled, it ran, and the output matched. A refusal, a compile
 > failure, a crash and a wrong answer all count the same way, as not solved;
 > the coverage chart is the exception, and counts problems instead. Single run
