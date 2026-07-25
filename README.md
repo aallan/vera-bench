@@ -27,24 +27,39 @@ belong to Claude Opus 4.8 and Claude Sonnet 5. Everything interesting here is
 happening inside one vendor's lineup, which is a caution against reading it as
 a general property of frontier models.
 
-### The one controlled comparison
+### Full results
 
-![Vera against Aver, both zero-training-data languages, five models](assets/fig-vera-vs-aver.png)
+The benchmark asks for Vera in two ways. **Vera** hands the model the type
+signature and the contracts and asks it to write the body. **Vera NL** gives it
+a description in English and nothing else, so the model has to work out the
+types, write the contracts, and then satisfy them. The second is the harder
+test, and the one that shows whether a model understands the language rather
+than pattern-matching a template. On the command line they are the default and
+`--mode spec-from-nl`.
 
-Comparing Vera to Python confounds two variables: the languages differ in
-design, and they differ enormously in how much of each a model has read.
-[Aver](https://github.com/jasisz/aver) removes the second. It is statically
-typed, absent from every training set, and learned from a single document in
-the prompt, exactly as Vera is.
+| Model | Vera | Vera NL | Python | TypeScript |
+|---|---|---|---|---|
+| Claude Fable 5 | **100%** | 97% | 94% | 92% |
+| GPT-5.6 Sol (pro) | **100%** | 92% | 97% | 100% |
+| Claude Opus 5 | **100%** | **100%** | 94% | 94% |
+| Claude Opus 4.8 | 94% | 94% | 100% | 100% |
+| GPT-5.6 Sol | **100%** | 94% | 97% | 100% |
+| Kimi K3 | **100%** | 97% | 100% | 100% |
+| Claude Sonnet 5 | 97% | 89% | 100% | 100% |
+| GPT-5.6 Terra | **100%** | 94% | 100% | 100% |
+| Kimi K2.6 | **100%** | 94% | 100% | 100% |
 
-Vera scores higher on all five models that ran both. The design difference
-under test is that Vera has no variable names, using typed slot references
-where Aver uses ordinary bindings.
+Every chart below, and several that did not make it, are described in
+[assets/README.md](assets/README.md) with the command that regenerates them.
 
-Five models is not many, and the two languages differ in more than one respect,
-so this isolates the variable better than the Python comparison without
-isolating it completely. It is the strongest evidence here that the design
-choices are doing the work, and it remains weak evidence in absolute terms.
+> **On reading these numbers.** The charts report **% solved**: the model wrote
+> code, it compiled, it ran, and the output matched. A refusal, a compile
+> failure, a crash and a wrong answer all count the same way, as not solved;
+> the coverage chart is the exception, and counts problems instead. Single run
+> per model, no pass@k. LLM output is non-deterministic and individual problems
+> flip between runs. With 36 gradeable problems one problem is worth 2.8
+> percentage points, so most of the gaps in this section are one or two
+> problems wide.
 
 ### Across model generations
 
@@ -52,10 +67,10 @@ choices are doing the work, and it remains weak evidence in absolute terms.
 
 Three consecutive Claude flagships on the same 36 graded problems. Claude
 Opus 4 solved fewer problems in Vera than in Python, which was the usual
-finding when this benchmark started. Claude Opus 5 reverses it. Both Vera
-modes rise at every step, including the harder one where the model writes its
-own contracts before writing any code, while Python and TypeScript end where
-they started or below.
+finding when this benchmark started. Claude Opus 5 reverses it.
+
+Both Vera modes rise at every step, while Python and TypeScript end where they
+started or below.
 
 Only the second step is controlled. The first spans a compiler, a standard
 library and a revision of the teaching document, so it measures the Vera
@@ -125,31 +140,6 @@ tell you that an unfamiliar language costs a model nothing, which is the
 question it was built to answer, but it can no longer rank the field at the
 top. The next version needs harder problems.
 
-### Full results
-
-| Model | Vera | Vera spec-from-NL | Python | TypeScript |
-|---|---|---|---|---|
-| Claude Fable 5 | **100%** | 97% | 94% | 92% |
-| GPT-5.6 Sol (pro) | **100%** | 92% | 97% | 100% |
-| Claude Opus 5 | **100%** | **100%** | 94% | 94% |
-| Claude Opus 4.8 | 94% | 94% | 100% | 100% |
-| GPT-5.6 Sol | **100%** | 94% | 97% | 100% |
-| Kimi K3 | **100%** | 97% | 100% | 100% |
-| Claude Sonnet 5 | 97% | 89% | 100% | 100% |
-| GPT-5.6 Terra | **100%** | 94% | 100% | 100% |
-| Kimi K2.6 | **100%** | 94% | 100% | 100% |
-
-Every chart in this section, and several that did not make it, are described in
-[assets/README.md](assets/README.md) with the command that regenerates them.
-
-> **On reading these numbers.** The charts report **% solved**: the model wrote
-> code, it compiled, it ran, and the output matched. A refusal, a compile
-> failure, a crash and a wrong answer all count the same way, as not solved;
-> the coverage chart is the exception, and counts problems instead. Single run
-> per model, no pass@k. LLM output is non-deterministic and individual problems
-> flip between runs. With 36 gradeable problems one problem is worth 2.8
-> percentage points, so most of the gaps above are one or two problems wide.
-
 ### Zero training data
 
 ![Vera, Aver and AILANG across the five models that ran all three](assets/fig-ztd.png)
@@ -177,6 +167,24 @@ as they write either. That asymmetry in exposure, set against the absence of a
 matching asymmetry in the results, is the argument the benchmark exists to
 test, and one release of it is not enough to settle the question.
 
+### The one controlled comparison
+
+![Vera against Aver, both zero-training-data languages, five models](assets/fig-vera-vs-aver.png)
+
+Comparing Vera to Python confounds two variables: the languages differ in
+design, and they differ enormously in how much of each a model has read.
+[Aver](https://github.com/jasisz/aver) removes the second. It is statically
+typed, absent from every training set, and learned from a single document in
+the prompt, exactly as Vera is.
+
+Vera scores higher on all five models that ran both. The design difference
+under test is that Vera has no variable names, using typed slot references
+where Aver uses ordinary bindings.
+
+Five models is not many, and the two languages differ in more than one respect,
+so this isolates the variable better than the Python comparison without
+isolating it completely. It is the strongest evidence here that the design
+choices are doing the work, and it remains weak evidence in absolute terms.
 
 ## Overview
 
