@@ -127,7 +127,7 @@ those problems anyway, and the models get essentially all of them right.
 | Kimi K2.6 | **100%** | 94% | 100% | 100% |
 
 Every chart in this section, and several that did not make it, are described
-in [assets/GRAPHS.md](assets/GRAPHS.md) with the command that regenerates
+in [assets/README.md](assets/README.md) with the command that regenerates
 them.
 
 > **On reading these numbers.** Single run per model, no pass@k. LLM output is
