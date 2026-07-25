@@ -18,31 +18,33 @@ against [Vera v0.1.7](https://github.com/aallan/vera/releases/tag/v0.1.7).
 ![Vera minus Python and TypeScript, percentage points, per model](assets/fig-delta.png)
 
 Vera wins outright for four of the nine models, draws with three and loses two.
-Where it wins the margin is six to eight percentage points, which on 36 graded
+Where it wins, the margin is six to eight percentage points, which on 36 graded
 problems is two or three problems.
 
 The distribution matters more than the average. The wins are not spread across
-the field; they belong to Claude Fable 5 and Claude Opus 5, and both losses
-belong to Claude Opus 4.8 and Claude Sonnet 5. Everything interesting here is
+the field; they belong to Claude Fable 5 and Claude Opus 5, and both losses to
+Claude Opus 4.8 and Claude Sonnet 5. Everything interesting here is
 happening inside one vendor's lineup, which is a caution against reading it as
 a general property of frontier models.
 
 ### Full results
 
-Every model is asked for Vera twice, because there are two different questions
-to ask. In the first the model is handed the full specification, the type
-signature and the contracts, and writes only the body: can it write Vera. In
-the second it is given a description of the problem in English and nothing
-else, so it has to infer the types, author the contracts itself, and then write
-code that satisfies them: does it understand Vera well enough to specify a
-problem in it. The columns below are those two runs, and on the command line
+Each model runs the Vera problems twice, because there are two questions worth
+asking.
+
+The first run hands the model a full specification, meaning the type signature
+and its contracts, and asks only for the body. That tests whether it can write
+Vera. The second gives it the problem described in English and nothing more, so
+it has to infer the types, author the contracts, and then write code that
+satisfies them. That tests whether it understands Vera well enough to specify a
+problem in it. The two columns below are those runs, and on the command line
 they are the default and `--mode spec-from-nl`.
 
-The distance between them is where the interesting part sits. It is the cost of
-asking a model to design a specification rather than fill one in, and for most
-of the field it runs to six or eight points. Two models close it completely,
-and Claude Opus 5 is the only one that closes it at 100%: it writes the
-contracts as reliably as it satisfies them.
+The distance between them is where the interesting part sits. It measures what
+it costs a model to design a specification rather than fill one in, and for
+most of the field that runs to six or eight points. Two models close the gap
+completely, and Claude Opus 5 is the only one that closes it at 100%. It writes
+the contracts as reliably as it satisfies them.
 
 | Model | Vera | Vera NL | Python | TypeScript |
 |---|---|---|---|---|
@@ -56,7 +58,7 @@ contracts as reliably as it satisfies them.
 | GPT-5.6 Terra | **100%** | 94% | 100% | 100% |
 | Kimi K2.6 | **100%** | 94% | 100% | 100% |
 
-Every chart below, and several that did not make it, are described in
+The charts below, and several that did not make it, are described in
 [assets/README.md](assets/README.md) with the command that regenerates them.
 
 > **On reading these numbers.** The charts report **% solved**: the model wrote
@@ -65,8 +67,8 @@ Every chart below, and several that did not make it, are described in
 > the coverage chart is the exception, and counts problems instead. Single run
 > per model, no pass@k. LLM output is non-deterministic and individual problems
 > flip between runs. With 36 gradeable problems one problem is worth 2.8
-> percentage points, so most of the gaps in this section are one or two
-> problems wide.
+> percentage points, so most of the gaps reported here are one or two problems
+> wide.
 
 ### Across model generations
 
@@ -91,7 +93,7 @@ way, which is suggestive rather than conclusive on a sample of one transition.
 One model, two reasoning budgets, the same problems. Deliberation is the only
 variable.
 
-Nothing moves, in any of the four languages. Whatever stops these models on the
+Nothing moves in any of the four languages. Whatever stops these models on the
 last two or three problems does not yield to more thinking time, which also
 means Vera's position does not depend on models spending longer to reconstruct
 the structure the language supplies. It is a null result, and null results on a
@@ -110,7 +112,8 @@ dividing two numbers and guarding against a zero divisor.
 All five came from the two models that ship cybersecurity classifiers. The two
 models from the same vendor without them refused nothing. One reading is that
 the strictest safety tuning is also the most prone to false positives, and that
-in this sweep those fired only in languages the models had read.
+in this sweep those false positives fired only in languages the models had
+read.
 
 Five refusals from two models will not support that conclusion. An unfamiliar
 language may simply never have produced output resembling the thing a
@@ -121,8 +124,8 @@ result.
 
 ![Which problems pass@1 can and cannot grade, by tier](assets/fig-coverage.png)
 
-Every chart above scores 36 of the 60 problems. The other 24 cannot be scored
-at all. They take a list, a tree or a custom data type as input, and the
+Every score reported here is computed over 36 of the 60 problems. The other 24
+cannot be scored at all. They take a list, a tree or a custom data type as input, and the
 harness passes arguments on a command line, so there is no way to call them
 with a test case in the first place.
 
