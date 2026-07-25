@@ -160,19 +160,20 @@ top. The next version needs harder problems.
 ![Vera against Aver, both zero-training-data languages, five models](assets/fig-vera-vs-aver.png)
 
 Comparing Vera to Python confounds two variables: the languages differ in
-design, and they differ enormously in how much of each a model has read.
-[Aver](https://github.com/jasisz/aver) removes the second. It is statically
-typed, absent from every training set, and learned from a single document in
-the prompt, exactly as Vera is.
+design, and they differ enormously when it comes to training data. Python is
+common in the training data of all the models, and Vera is entirely absent.
 
-Vera scores higher on all five models that ran both. The design difference
-under test is that Vera has no variable names, using typed slot references
-where Aver uses ordinary bindings.
+[Aver](https://github.com/jasisz/aver) is another language designed for models
+to write, and it removes the second. It is statically typed, absent from every
+training set, and learned from a single document in the prompt, exactly the
+same as Vera.
 
-Five models is not many, and the two languages differ in more than one respect,
-so this isolates the variable better than the Python comparison without
-isolating it completely. It is the strongest evidence here that the design
-choices are doing the work, and it remains weak evidence in absolute terms.
+The biggest design difference between the two languages is that Vera has no
+variable names, using typed slot references. Vera scores higher on all five
+models that ran both.
+
+This is the strongest evidence so far that the biggest design gamble in Vera,
+the use of typed De Bruijn indexing, is doing real work.
 
 ## Overview
 
