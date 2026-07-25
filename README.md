@@ -9,105 +9,107 @@ A benchmark for evaluating LLM code generation in [Vera](https://github.com/aall
 
 ## Results
 
-The ideas behind Vera appear to work. Models with no training data in the
-language now write it about as well as they write Python, the design choice
-that looks most hostile to human authors is the one they reward, and every new
-model does better than the last.
+Models that have never seen Vera now write it about as well as they write
+Python. Nine models, three providers, 60 problems across five difficulty tiers,
+against [Vera v0.1.7](https://github.com/aallan/vera/releases/tag/v0.1.7).
 
-Nine models, three providers, 60 problems across five difficulty tiers, against
-[Vera v0.1.7](https://github.com/aallan/vera/releases/tag/v0.1.7).
-
-### Vera holds its own
+### Vera against Python and TypeScript
 
 ![Vera minus Python and TypeScript, percentage points, per model](assets/fig-delta.png)
 
-Green is a win for Vera. It wins outright for four of the nine models and
-draws level with three more, and the wins sit with the newest models on the
-board.
+Vera wins outright for four of the nine models, draws with three and loses two.
+Where it wins the margin is six to eight percentage points, which on 36 graded
+problems is two or three problems.
 
-The margin is about one problem, so the lead is narrow. The deficit is what
-has gone: a language no model has ever seen no longer costs them anything.
-Nine months ago this chart was almost entirely red, and the worst case solved
-seventeen percentage points fewer problems in Vera than in Python.
+The distribution matters more than the average. The wins are not spread across
+the field; they belong to Claude Fable 5 and Claude Opus 5, and both losses
+belong to Claude Opus 4.8 and Claude Sonnet 5. Everything interesting here is
+happening inside one vendor's lineup, which is a caution against reading it as
+a general property of frontier models.
 
-### Removing variable names was the right call
+### The one controlled comparison
 
 ![Vera against Aver, both zero-training-data languages, five models](assets/fig-vera-vs-aver.png)
 
-This is the closest the benchmark gets to a controlled experiment. Vera and
-[Aver](https://github.com/jasisz/aver) are both languages no model was trained
-on, both statically typed, both learned from a single document supplied in the
-prompt. Neither gets the advantage of familiarity, so familiarity cannot
-explain a difference between them.
+Comparing Vera to Python confounds two variables: the languages differ in
+design, and they differ enormously in how much of each a model has read.
+[Aver](https://github.com/jasisz/aver) removes the second. It is statically
+typed, absent from every training set, and learned from a single document in
+the prompt, exactly as Vera is.
 
-What separates them is that Vera has no variable names at all. It uses typed
-slot references, where Aver uses ordinary bindings. Vera wins on every model
-tested, and not one of them does better with names than without them. Of all
-the decisions in the language, dropping identifiers is the one that reads as
-most obviously hostile to a human reader, and it is the one the models reward.
+Vera scores higher on all five models that ran both. The design difference
+under test is that Vera has no variable names, using typed slot references
+where Aver uses ordinary bindings.
 
-### The direction of travel
+Five models is not many, and the two languages differ in more than one respect,
+so this isolates the variable better than the Python comparison without
+isolating it completely. It is the strongest evidence here that the design
+choices are doing the work, and it remains weak evidence in absolute terms.
+
+### Across model generations
 
 ![Three Claude flagships across four languages](assets/fig-generation.png)
 
-Each new flagship writes Vera better than the one before it, in both the
-full-spec mode and the harder spec-from-NL mode where the model has to write
-its own contracts before it writes any code. Over the same period the two
-mainstream languages have stopped moving.
+Three consecutive Claude flagships on the same 36 graded problems. Claude
+Opus 4 solved fewer problems in Vera than in Python, which was the usual
+finding when this benchmark started. Claude Opus 5 reverses it. Both Vera
+modes rise at every step, including the harder one where the model writes its
+own contracts before writing any code, while Python and TypeScript end where
+they started or below.
 
-Only the last step is properly controlled, because the earlier one spans a
-compiler, a standard library and a revision of the teaching document, so it
-measures Vera and the models improving together. The controlled step points
-the same way. The newest model is the first in this benchmark to write Vera
-better than it writes Python.
+Only the second step is controlled. The first spans a compiler, a standard
+library and a revision of the teaching document, so it measures the Vera
+ecosystem improving as much as the models. The controlled step moves the same
+way, which is suggestive rather than conclusive on a sample of one transition.
 
-### It is the structure, not the compute
+### Reasoning budget
 
 ![One model at two reasoning budgets, four languages](assets/fig-reasoning.png)
 
 One model, two reasoning budgets, the same problems. Deliberation is the only
-thing that changes.
+variable.
 
-Nothing changes. Whatever stops these models solving the last two or three
-problems, more thinking time is not the answer to it, and that holds in Python
-as firmly as it does in Vera. Vera's advantage, where it has one, comes from
-the structure in the language rather than from giving the model longer to
-reconstruct that structure for itself.
+Nothing moves, in any of the four languages. Whatever stops these models on the
+last two or three problems does not yield to more thinking time, which also
+means Vera's position does not depend on models spending longer to reconstruct
+the structure the language supplies. It is a null result, and null results on a
+saturated benchmark are weak: there is very little room left for anything to
+move.
 
-### An effect nobody designed for
+### Refusals
 
 ![Refusals by model and language](assets/fig-refusal.png)
 
-Models sometimes decline to answer. Every refusal in this sweep happened in
-Python or TypeScript, and none at all in Vera, and in each case the same model
-went on to solve the same problem in four or five other languages. The
-problems concerned were things like dividing two numbers and guarding against
-a zero divisor.
+Five refusals across the sweep. Every one in Python or TypeScript, none in
+Vera, and in each case the same model went on to solve the same problem in four
+or five other languages. The problems were unremarkable, along the lines of
+dividing two numbers and guarding against a zero divisor.
 
-The refusals came from the two models that ship cybersecurity classifiers, and
-not from the two models by the same vendor that do not. One reading is that the
-strictest safety tuning is also the most prone to false positives, and that in
-this sweep those false positives fired only in the languages the models had
-read. Five refusals from two models is far too small a sample to establish
-that, and a language nobody trained on may simply not have been exercised hard
-enough to trip anything. It is a side effect rather than a design goal, and it
-points somewhere worth measuring properly.
+All five came from the two models that ship cybersecurity classifiers. The two
+models from the same vendor without them refused nothing. One reading is that
+the strictest safety tuning is also the most prone to false positives, and that
+in this sweep those fired only in languages the models had read.
 
-### What the headline number misses
+Five refusals from two models will not support that conclusion. An unfamiliar
+language may simply never have produced output resembling the thing a
+classifier watches for. It is an observation worth measuring properly, not a
+result.
+
+### What the headline metric cannot see
 
 ![Which problems pass@1 can and cannot grade, by tier](assets/fig-coverage.png)
 
-Two fifths of the problem set has no test cases, and the reason is mechanical:
-most of those problems take a list, a tree or an algebraic data type as an
-argument, and the runner passes arguments on a command line. There is no way
-to hand one to them.
+Two fifths of the problem set has no test cases. The reason is mechanical: most
+of those problems take a list, a tree or an algebraic data type as an argument,
+and the runner passes arguments on a command line.
 
-Those problems are concentrated in the tiers built around data types,
-exhaustive matching and effect handlers, which is precisely the machinery
-Vera's contracts and prover exist to check. So the number every chart here
-leads with is blind to the part of the benchmark Vera was designed for, and it
-grades everyone on the subset that suits Python best. Vera checks and verifies
-those problems anyway, and the models get essentially all of them right.
+They concentrate in the tiers built around data types, exhaustive matching and
+effect handlers, which is the machinery Vera's contracts and prover exist to
+check. The headline number is therefore computed over the subset of the
+benchmark that suits Python best, and is blind to the part Vera was designed
+for. Vera checks and verifies those problems, and the models get essentially
+all of them right, but that is a different measurement and not comparable
+across languages.
 
 ### Full results
 
@@ -123,34 +125,33 @@ those problems anyway, and the models get essentially all of them right.
 | GPT-5.6 Terra | **100%** | 94% | 100% | 100% |
 | Kimi K2.6 | **100%** | 94% | 100% | 100% |
 
-Every chart in this section, and several that did not make it, are described
-in [assets/README.md](assets/README.md) with the command that regenerates
-them.
+Every chart in this section, and several that did not make it, are described in
+[assets/README.md](assets/README.md) with the command that regenerates them.
 
-> **On reading these numbers.** The charts report **% solved**: the model
-> wrote code, it compiled, it ran, and the output matched. A refusal, a
-> compile failure, a crash and a wrong answer all count the same way, as not
-> solved; the coverage chart is the exception, and counts problems instead.
-> Single run per model, no pass@k. LLM output is non-deterministic and
-> individual problems flip between runs. With 36 gradeable problems one
-> problem is worth 2.8 percentage points, so most of the gaps above are one or
-> two problems wide and the benchmark is close to the point where it can no
-> longer separate the models at the top. Harder problems are the next piece of
-> work.
+> **On reading these numbers.** The charts report **% solved**: the model wrote
+> code, it compiled, it ran, and the output matched. A refusal, a compile
+> failure, a crash and a wrong answer all count the same way, as not solved;
+> the coverage chart is the exception, and counts problems instead. Single run
+> per model, no pass@k. LLM output is non-deterministic and individual problems
+> flip between runs. With 36 gradeable problems one problem is worth 2.8
+> percentage points, so most of the gaps above are one or two problems wide.
+> Seven of the nine models score 100% in at least one language, which is the
+> more serious limitation: the benchmark can no longer separate the field at
+> the top, and the next version needs harder problems.
 
-### Why this matters: zero training data
+### Zero training data
 
-No LLM has ever been trained on Vera. There are no Vera examples on GitHub, no
-Stack Overflow answers, no tutorials; the language was created after these
-models' training cutoffs. Every token of Vera in these results was written by
-a model that learned the language at evaluation time, from a single document
+No LLM has been trained on Vera. There are no Vera examples on GitHub, no Stack
+Overflow answers, no tutorials; the language was created after these models'
+training cutoffs. Every token of Vera in these results was written by a model
+that learned the language at evaluation time, from a single document
 ([SKILL.md](https://veralang.dev/SKILL.md)) in the prompt.
 
-Python and TypeScript are at the other extreme, among the most heavily
-represented languages in any training corpus. Models still write Vera as well
-as they write either of them. That gap in exposure, and the absence of any
-corresponding gap in the results, is the argument: language design appears to
-matter more than how much of the language a model has read.
+Python and TypeScript sit at the other extreme, among the most heavily
+represented languages in any training corpus. Models write Vera about as well
+as they write either. That asymmetry in exposure, set against the absence of a
+matching asymmetry in the results, is the argument the benchmark exists to
+test, and one release of it is not enough to settle the question.
 
 
 ## Overview
