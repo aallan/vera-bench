@@ -119,10 +119,11 @@ There were five refusals across the whole run, every one of them in Python or
 TypeScript and none in Vera. The problems were unremarkable, along the lines of
 dividing two numbers and guarding against a zero divisor, and in each case the
 same model went on to solve the same problem in four or five other languages.
+
 All five came from Claude Fable 5 and Claude Opus 5, the two models in the
-sweep that ship cybersecurity classifiers, so these are almost certainly false
-positives from those guardrails rather than anything to do with the problems
-themselves.
+benchmark that ship cybersecurity classifiers. It is therefore likely that
+these refusals are false positives from those guardrails rather than anything
+to do with the problems themselves.
 
 ### What the headline metric cannot see
 
