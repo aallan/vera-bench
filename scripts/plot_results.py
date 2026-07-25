@@ -58,6 +58,9 @@ BROWN_300 = "#975526"
 ORANGE_400 = "#E05600"
 GREEN = "#1A7F45"
 RED = "#C0392B"
+# Tie marker on the delta charts. Neutral by design: a tie has no
+# direction, so it must not borrow either polarity colour.
+ZERO_STUB = "#7A7069"
 
 COLORS = {
     "Vera": GREEN,
@@ -497,6 +500,23 @@ def plot_vera_vs_comparison(
     # A model missing any of Vera / the comparison languages would yield a
     # fabricated delta rather than a visible gap — see complete_models.
     models = complete_models(all_data, missing, ["Vera", *comparison_modes])
+    if not models:
+        # Every bar here is a difference, so a partial run leaves nothing
+        # to draw. Say so on the panel rather than leaving a clean empty
+        # box that reads as "no differences found".
+        ax.text(
+            0.5,
+            0.5,
+            "No model ran Vera and every comparison language,\n"
+            "so no difference can be computed.",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+            color=BROWN_300,
+        )
+        ax.set_axis_off()
+        return
 
     # Per-comparison delta arrays and bar objects (one row per mode).
     deltas = {
@@ -550,10 +570,9 @@ def plot_vera_vs_comparison(
                     # Straddle the axis. Drawn from zero rightwards it reads as a
                     # tiny win for Vera, which is exactly what a tie is not.
                     left=-zero_stub / 2,
-                    color=BROWN_900,
-                    alpha=0.55,
+                    color=ZERO_STUB,
                     linewidth=0,
-                    zorder=4,
+                    zorder=5,
                 )
         for bar, val in zip(bars, d):
             # Offset in POINTS, not data units. A fixed ±1-unit offset is a

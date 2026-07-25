@@ -79,6 +79,7 @@ from scripts.plot_results import (  # noqa: E402
     GREEN,
     LANG_HATCH,
     RED,
+    ZERO_STUB,
     ZTD_DISPLAYS,
     ModelSpec,
     complete_models,
@@ -110,6 +111,7 @@ TICK_PT_SMALL = 18  # all-modes — 6 models in one panel
 BAR_LABEL_PT_LARGE = 22
 BAR_LABEL_PT_MEDIUM = 18
 BAR_LABEL_PT_SMALL = 14
+BAR_LABEL_PT_DENSE = 16  # delta chart past six model rows
 LEGEND_PT = 20
 
 # Slide background choices. All are light-theme variants — the text/spine
@@ -246,7 +248,7 @@ def render_delta(
     # The label type was sized for six model rows. At nine the rows are a
     # third shorter, and the two bars of a pair sit close enough that
     # equal deltas ("−6" above "−6") printed on top of one another.
-    label_pt = BAR_LABEL_PT_LARGE if len(models) <= 6 else 16
+    label_pt = BAR_LABEL_PT_LARGE if len(models) <= 6 else BAR_LABEL_PT_DENSE
 
     # Needed before drawing, to size the zero stub. Floor lowered from 22
     # (sized for v0.0.7's ±17 spread) so a frontier lineup whose largest
@@ -284,10 +286,9 @@ def render_delta(
                     # Straddle the axis. Drawn from zero rightwards it reads as a
                     # tiny win for Vera, which is exactly what a tie is not.
                     left=-zero_stub / 2,
-                    color=BROWN_900,
-                    alpha=0.55,
+                    color=ZERO_STUB,
                     linewidth=0,
-                    zorder=4,
+                    zorder=5,
                 )
         for bar, val in zip(bars, d):
             # Offset in POINTS, not data units — a fixed ±1.2-unit gap is a
@@ -521,6 +522,7 @@ def render_all_modes(
             color=COLORS[mode],
             edgecolor=CREAM,
             linewidth=0.8,
+            hatch=LANG_HATCH[mode],
         )
         for bar, val in zip(bars, values):
             # Rotated: 9 models x 4 modes is 36 bars in one panel, and a
@@ -993,9 +995,15 @@ def main() -> None:
         [m.strip() for m in args.ztd_modes.split(",")] if args.ztd_modes else None
     )
     if ztd_modes:
-        unknown = [m for m in ztd_modes if m not in COLORS]
+        # Against the ZTD lineup, not the full palette: COLORS also
+        # holds Python, TypeScript and Vera NL, and putting any of
+        # them on this slide contradicts its own title.
+        unknown = [m for m in ztd_modes if m not in ZTD_MODES]
         if unknown:
-            parser.error(f"--ztd-modes: unknown language(s) {unknown}")
+            parser.error(
+                f"--ztd-modes: {unknown} not zero-training-data; "
+                f"choose from {ZTD_MODES}"
+            )
 
     global BARE
     BARE = args.bare

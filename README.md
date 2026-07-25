@@ -11,9 +11,10 @@ A benchmark for evaluating LLM code generation in [Vera](https://github.com/aall
 
 Nine models, three providers, 60 problems across five difficulty tiers, run
 against [Vera v0.1.7](https://github.com/aallan/vera/releases/tag/v0.1.7).
-Every chart below reports **% solved**: the model wrote code, it compiled, it
-ran, and the output matched. A refusal, a compile failure, a crash and a wrong
-answer all count the same way, as not solved.
+Every score chart below reports **% solved**: the model wrote code, it
+compiled, it ran, and the output matched. A refusal, a compile failure, a crash
+and a wrong answer all count the same way, as not solved. The one exception is
+the coverage chart, which counts problems rather than scoring them.
 
 The short version is that the ideas behind Vera appear to work. Models with no
 training data in the language now write it about as well as they write Python,
@@ -89,12 +90,13 @@ problems concerned were things like dividing two numbers and guarding against
 a zero divisor.
 
 The refusals came from the two models that ship cybersecurity classifiers, and
-not from the two models by the same vendor that do not. So the reading is that
-the strictest safety tuning is also the most prone to false positives, and
-those false positives only fire in languages the model has actually read. A
-language absent from the training data inherits none of them. It is a small
-sample and a side effect rather than a design goal, but it points somewhere
-interesting.
+not from the two models by the same vendor that do not. One reading is that the
+strictest safety tuning is also the most prone to false positives, and that in
+this sweep those false positives fired only in the languages the models had
+read. Five refusals from two models is far too small a sample to establish
+that, and a language nobody trained on may simply not have been exercised hard
+enough to trip anything. It is a side effect rather than a design goal, and it
+points somewhere worth measuring properly.
 
 ### What the headline number misses
 

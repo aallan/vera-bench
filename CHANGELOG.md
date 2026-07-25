@@ -109,7 +109,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   chart with interior whitespace, which a frontier lineup scoring 92–100%
   no longer has — so they printed over the bars. The delta chart's ±22
   floor, sized for v0.0.7's ±17 spread, left two-thirds of the panel empty
-  against deltas of ±8. The
+  against deltas of ±8.
+- **`errored` counted model runtime-failures as harness errors.** The
   metric added in [#95](https://github.com/aallan/vera-bench/issues/95)
   tallied every row carrying an `error_message`. But the Vera evaluator
   now records the runtime diagnostic for a contract violation, a

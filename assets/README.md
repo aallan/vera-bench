@@ -4,9 +4,10 @@ The images this repository renders, and what they mean. Everything else the
 plotting scripts can produce is generated on demand and stays out of the
 history; see [Generated, not committed](#generated-not-committed).
 
-Every chart reports **% solved**: the model wrote code, it compiled, it ran,
-and the output matched. A refusal, a compile failure, a crash and a wrong
-answer all count alike, as not solved. Only 36 of the 60 problems can be
+Every score chart reports **% solved**: the model wrote code, it compiled, it
+ran, and the output matched. A refusal, a compile failure, a crash and a wrong
+answer all count alike, as not solved. `fig-coverage.png` is the exception; it
+counts problems rather than scoring them. Only 36 of the 60 problems can be
 graded that way, so one problem is worth 2.8 percentage points. Keep that
 number in mind when reading any gap.
 
@@ -63,9 +64,9 @@ in Python or TypeScript, none at all in Vera, and in each case the same model
 went on to solve the same problem in four or five other languages. All five
 come from the two models that ship cyber classifiers; two other Anthropic
 models ran the same sweep and neither refused anything. The reading is that
-the strictest safety tuning is also the most prone to false positives, and
-that those only fire in languages the model has actually read. Five is a small
-sample, so this is a pattern rather than a finding.
+the strictest safety tuning is also the most prone to false positives, and that
+in this sweep those fired only in the languages the models had read. Five
+refusals from two models is a pattern rather than a finding.
 
 ### `fig-coverage.png`: what the headline metric misses
 

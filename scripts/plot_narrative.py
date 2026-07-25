@@ -78,6 +78,7 @@ from scripts.plot_results import (  # noqa: E402
     _find_result_file,
     _gradeable_ids,
     extract_data,
+    lineup_for,
 )
 from scripts.plot_slide import (  # noqa: E402
     AXIS_LABEL_PT,
@@ -146,7 +147,9 @@ def load_rows(
     empty list would collapse those two into the same value.
     """
     out: dict[tuple[str, str], list[dict]] = {}
-    for model in MODELS:
+    # Historical versions ran a different lineup; looking up today's
+    # models against their files matches nothing at all.
+    for model in lineup_for(version):
         for mode in modes:
             path = _find_result_file(results_dir, model, mode, version)
             if path is None:
@@ -255,7 +258,7 @@ def render_refusal(
     rows_by_target = load_rows(results_dir, version, ALL_MODES)
     refusals = find_refusals(rows_by_target)
 
-    model_names = [m.display for m in MODELS]
+    model_names = [m.display for m in lineup_for(version)]
     counts: dict[tuple[str, str], int] = defaultdict(int)
     for r in refusals:
         counts[(r["model"], r["mode"])] += 1
@@ -394,11 +397,11 @@ def render_refusal(
             va="top",
             color=RED,
         )
-        solved = ", ".join(r["solved_in"]) if r["solved_in"] else "nowhere"
+        solved_in = ", ".join(r["solved_in"]) if r["solved_in"] else "nowhere"
         ax2.text(
             0,
             y - 0.102,
-            f"solved it in: {solved}",
+            f"solved it in: {solved_in}",
             transform=ax2.transAxes,
             fontsize=15,
             va="top",
@@ -421,8 +424,13 @@ def render_refusal(
         for (mdl, mode), c in counts.items()
         if mode in ("Vera", "Vera NL", "Aver", "AILANG")
     )
+    headline = (
+        "Models refuse in Python and TypeScript — never in Vera"
+        if ztd_total == 0
+        else "Refusals cluster in the training-rich languages"
+    )
     fig.suptitle(
-        "Models refuse in Python and TypeScript — never in Vera",
+        headline,
         fontsize=TITLE_PT - 2,
         fontweight="bold",
         y=0.955,
@@ -432,8 +440,9 @@ def render_refusal(
     fig.text(
         0.5,
         0.878,
-        f"{len(refusals)} refusals across the sweep — all in a "
-        f"training-rich language, {ztd_total} in a zero-training-data one",
+        f"{len(refusals)} refusals across the sweep — "
+        f"{len(refusals) - ztd_total} in a training-rich language, "
+        f"{ztd_total} in a zero-training-data one",
         ha="center",
         fontsize=SUBTITLE_PT,
         color=BROWN_500,
@@ -690,6 +699,7 @@ def render_saturation(
 
     fig, ax = plt.subplots(figsize=(16, 9), dpi=180)
     rows = list(reversed(wanted))  # first mode at the top
+    all_values: list[int] = []
 
     for i, mode in enumerate(rows):
         values = [all_data[m][mode] for m in all_data if (m, mode) not in missing]
@@ -718,6 +728,7 @@ def render_saturation(
             zorder=3,
             alpha=0.95,
         )
+        all_values.extend(values)
         mean = sum(values) / len(values)
         ax.plot(
             [mean, mean],
@@ -750,8 +761,11 @@ def render_saturation(
     ax.set_yticks(range(len(rows)))
     ax.set_yticklabels(rows, fontsize=TICK_PT_MEDIUM)
     ax.set_ylim(-1.35, len(rows) - 0.3)
-    ax.set_xlim(86, 102.6)
-    ax.set_xticks([88, 90, 92, 94, 96, 98, 100])
+    # Derived, not fixed at 86: a lower-scoring lineup would otherwise
+    # be drawn outside the axes and silently vanish.
+    floor = min(88, min(all_values, default=88) - 3)
+    ax.set_xlim(floor, 102.6)
+    ax.set_xticks([t for t in range(88, 101, 2) if t >= floor])
     ax.tick_params(axis="x", labelsize=TICK_PT_SMALL)
     ax.set_xlabel(
         "% solved (one dot per model)",
@@ -844,6 +858,9 @@ def render_coverage(
     """
     structure = _problem_structure()
     tiers_n = sorted(structure)
+    if not tiers_n:
+        print("  coverage slide: no problems found under problems/ — skipping")
+        return
     rows_by_target = load_rows(results_dir, version, ["Vera"])
     gradeable = _gradeable_ids()
 
@@ -857,11 +874,14 @@ def render_coverage(
     for (model, mode), rows in rows_by_target.items():
         if mode != "Vera":
             continue
-        n_models += 1
         best = best_by_problem(rows)
         blind = {p: r for p, r in best.items() if p not in gradeable}
         if not blind:
             continue
+        # Only after the blind check: a target with nothing to measure
+        # contributes no percentage, so it must not enlarge the mean's
+        # reported denominator either.
+        n_models += 1
         check_pcts.append(
             100 * sum(1 for r in blind.values() if r.get("check_pass")) / len(blind)
         )
