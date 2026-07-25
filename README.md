@@ -29,13 +29,20 @@ a general property of frontier models.
 
 ### Full results
 
-The benchmark asks for Vera in two ways. **Vera** hands the model the type
-signature and the contracts and asks it to write the body. **Vera NL** gives it
-a description in English and nothing else, so the model has to work out the
-types, write the contracts, and then satisfy them. The second is the harder
-test, and the one that shows whether a model understands the language rather
-than pattern-matching a template. On the command line they are the default and
-`--mode spec-from-nl`.
+Every model is asked for Vera twice, because there are two different questions
+to ask. In the first the model is handed the full specification, the type
+signature and the contracts, and writes only the body: can it write Vera. In
+the second it is given a description of the problem in English and nothing
+else, so it has to infer the types, author the contracts itself, and then write
+code that satisfies them: does it understand Vera well enough to specify a
+problem in it. The columns below are those two runs, and on the command line
+they are the default and `--mode spec-from-nl`.
+
+The distance between them is where the interesting part sits. It is the cost of
+asking a model to design a specification rather than fill one in, and for most
+of the field it runs to six or eight points. Two models close it completely,
+and Claude Opus 5 is the only one that closes it at 100%: it writes the
+contracts as reliably as it satisfies them.
 
 | Model | Vera | Vera NL | Python | TypeScript |
 |---|---|---|---|---|
