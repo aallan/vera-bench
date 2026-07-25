@@ -75,8 +75,8 @@ with the command to regenerate them.
 ![Three Claude flagships across four languages](assets/fig-generation.png)
 
 Three consecutive Claude flagships on the same 36 graded problems. Claude
-Opus 4 solved fewer problems in Vera than in Python, which was the usual
-finding when this benchmark started. Claude Opus 5 reverses it.
+Opus 4 solved fewer problems in Vera than in Python; Claude Opus 5 reverses
+that.
 
 Both Vera modes rise at every step, while Python and TypeScript end where they
 started or below.
