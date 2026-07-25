@@ -30,6 +30,11 @@ results/timing.json
 assets/results-graph_*.png
 assets/benchmark_*.png
 
+# Personal talk-writing notes covering every chart, including the slides
+# that are not committed. The repository documents its own images in
+# assets/README.md; this one is scratch.
+assets/GRAPHS.md
+
 # Talk-specific slide artefacts — regenerate with scripts/plot_slide.py.
 # Script is committed; rendered PNGs are talk-prep ephemera and go into
 # the speaker's slide deck rather than the repo.

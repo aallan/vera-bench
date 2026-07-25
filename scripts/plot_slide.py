@@ -15,12 +15,12 @@ Five slide types are supported:
                 subset of models that ran the ZTD generation targets. Needs
                 Aver/AILANG result files, so it's opt-in (--type ztd), not
                 part of --type all.
-- `reasoning` — one model at two reasoning budgets (REASONING_PAIR) across
+- `reasoning` — one model at two reasoning modes (REASONING_PAIR) across
                 every core mode, per-language delta annotated. The
                 controlled comparison: both entries are the SAME model, so
                 deliberation is the only variable — if Vera's delta is ~0
                 while comparison languages gain, the language is supplying
-                structure the reasoning budget otherwise reconstructs.
+                structure the pro path would otherwise have to reconstruct.
                 Opt-in; needs both halves of the pair.
 
 Standalone script — not part of the documentation chart-generation flow in
@@ -57,14 +57,22 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-import matplotlib
+# Guarded for the same reason as plot_results: the test job imports this
+# module for its data helpers and constants, and must not need a plotting
+# backend to do it. main() calls _require_mpl() before drawing anything.
+# Annotations are lazy (`from __future__ import annotations`), so `Axes`
+# being None does not break the signatures that mention it.
+try:
+    import matplotlib
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from matplotlib.axes import Axes  # noqa: E402
-from matplotlib.patches import Patch  # noqa: E402
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # noqa: E402
+    import numpy as np  # noqa: E402
+    from matplotlib.axes import Axes  # noqa: E402
+    from matplotlib.patches import Patch  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - only where matplotlib absent
+    matplotlib = plt = np = None
+    Axes = Patch = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.plot_results import (  # noqa: E402
@@ -77,8 +85,12 @@ from scripts.plot_results import (  # noqa: E402
     FONT_BODY,
     FONT_HEADING,
     GREEN,
+    LANG_HATCH,
     RED,
+    ZERO_STUB,
+    ZTD_DISPLAYS,
     ModelSpec,
+    _require_mpl,
     complete_models,
     extract_data,
 )
@@ -108,6 +120,7 @@ TICK_PT_SMALL = 18  # all-modes — 6 models in one panel
 BAR_LABEL_PT_LARGE = 22
 BAR_LABEL_PT_MEDIUM = 18
 BAR_LABEL_PT_SMALL = 14
+BAR_LABEL_PT_DENSE = 16  # delta chart past six model rows
 LEGEND_PT = 20
 
 # Slide background choices. All are light-theme variants — the text/spine
@@ -120,8 +133,16 @@ BACKGROUNDS = {
     "white": "#FFFFFF",  # pure white — high contrast, baseline
     "cream": "#FEEAD1",  # on-brand (veralang.dev palette)
     "light-grey": "#F4F4F2",  # neutral grey
+    # None means no fill at all. Used for figures embedded in a page
+    # that already has its own background (the README, veralang.dev),
+    # where a baked-in panel colour reads as a floating card.
+    "transparent": None,
 }
 DEFAULT_BACKGROUND = "paper"
+
+# When true, renderers draw the plot and nothing else: no title, no
+# subtitle, no footnote. The surrounding prose carries those instead.
+BARE = False
 
 
 def _patch_models_for_slide() -> tuple[ModuleType, list[ModelSpec]]:
@@ -174,6 +195,7 @@ def _merge_tiers(tiers: dict[str, dict]) -> dict:
 
 def _slide_rcparams() -> None:
     """rcParams shared across all slide types."""
+    _require_mpl()
     matplotlib.rcParams.update(
         {
             "font.family": "sans-serif",
@@ -233,6 +255,20 @@ def render_delta(
 
     hatches = [None, "//"]
     alphas = [0.9, 0.6]
+    # The label type was sized for six model rows. At nine the rows are a
+    # third shorter, and the two bars of a pair sit close enough that
+    # equal deltas ("−6" above "−6") printed on top of one another.
+    label_pt = BAR_LABEL_PT_LARGE if len(models) <= 6 else BAR_LABEL_PT_DENSE
+
+    # Needed before drawing, to size the zero stub. Floor lowered from 22
+    # (sized for v0.0.7's ±17 spread) so a frontier lineup whose largest
+    # delta is 8 does not render as stubs in an empty panel.
+    max_abs = max(
+        (abs(v) for mode in comparison_modes for v in deltas[mode]),
+        default=0,
+    )
+    limit = max(12, max_abs + 6)
+    zero_stub = limit * 0.014
 
     for i, mode in enumerate(comparison_modes):
         d = deltas[mode]
@@ -247,17 +283,38 @@ def render_delta(
             alpha=alphas[i],
             hatch=hatches[i],
         )
+        # A tie draws a zero-length bar — nothing at all — leaving its "0"
+        # label floating unattached, and indistinguishable from missing
+        # data. A neutral stub at the axis gives every row a mark. Grey,
+        # not the green/red polarity colours: a tie has no direction.
         for bar, val in zip(bars, d):
-            xpos = val + (1.2 if val >= 0 else -1.2)
-            ha = "left" if val >= 0 else "right"
+            if val == 0:
+                ax.barh(
+                    bar.get_y() + bar.get_height() / 2,
+                    zero_stub,
+                    height,
+                    # Straddle the axis. Drawn from zero rightwards it reads as a
+                    # tiny win for Vera, which is exactly what a tie is not.
+                    left=-zero_stub / 2,
+                    color=ZERO_STUB,
+                    linewidth=0,
+                    zorder=5,
+                )
+        for bar, val in zip(bars, d):
+            # Offset in POINTS, not data units — a fixed ±1.2-unit gap is a
+            # constant fraction of the axis, so once the x-limit tightened
+            # to the data the labels floated out into whitespace rather
+            # than sitting at the ends of their bars.
+            tip = zero_stub / 2 if val == 0 else val
             sign = "+" if val > 0 else ""
-            ax.text(
-                xpos,
-                bar.get_y() + bar.get_height() / 2,
+            ax.annotate(
                 f"{sign}{val}",
-                ha=ha,
+                xy=(tip, bar.get_y() + bar.get_height() / 2),
+                xytext=(7 if val >= 0 else -7, 0),
+                textcoords="offset points",
+                ha="left" if val >= 0 else "right",
                 va="center",
-                fontsize=BAR_LABEL_PT_LARGE,
+                fontsize=label_pt,
                 fontweight="bold",
                 color=BROWN_700,
             )
@@ -266,7 +323,11 @@ def render_delta(
     ax.set_yticks(y)
     ax.set_yticklabels(models, fontsize=TICK_PT_LARGE)
     ax.set_xlabel(
-        "Vera run_correct minus comparison language (percentage points)",
+        # The bars are pass@1 (% solved), not the old run_correct-over-
+        # eligible rate this label was written for — that metric shrank
+        # its denominator when a model refused, which is exactly what
+        # this lineup does.
+        "Vera % solved minus comparison language (percentage points)",
         fontsize=AXIS_LABEL_PT,
         color=BROWN_500,
         labelpad=12,
@@ -280,11 +341,6 @@ def render_delta(
         color=BROWN_900,
     )
 
-    max_abs = max(
-        (abs(v) for mode in comparison_modes for v in deltas[mode]),
-        default=0,
-    )
-    limit = max(22, max_abs + 6)
     ax.set_xlim(-limit, limit)
     ax.invert_yaxis()
     ax.tick_params(axis="x", labelsize=TICK_PT_LARGE)
@@ -336,11 +392,24 @@ def _draw_tier_panel(
     # 2 panels -> 1.0 (unchanged, so the v0.0.7 slides are byte-stable);
     # 3 panels -> 2/3.
     scale = min(1.0, 2 / n_panels)
-    title_pt = round((TITLE_PT - 4) * scale)
-    tick_pt = round(TICK_PT_MEDIUM * scale)
-    bar_pt = round(BAR_LABEL_PT_MEDIUM * scale)
-    legend_pt = round(LEGEND_PT * scale)
     models = list(data.keys())
+    # A fourth model in a tier (opus, once Opus 5 landed) crowds the same
+    # panel width by another third — shrink again so the labels neither
+    # collide nor overrun the panel.
+    # Three models already collide: "Claude Sonnet 5" next to
+    # "GPT-5.6 Terra" runs together in a panel a third of the canvas wide.
+    # Only the two-model fable tier has room for level labels.
+    crowded = len(models) >= 3
+    crowd_scale = 0.8 if len(models) > 3 else 0.9
+    # Drop the per-cent sign from three models up. The y-axis already
+    # reads "% solved", and at frontier scores nearly every label is the
+    # 4-glyph "100%" — wide enough that neighbouring labels ran together
+    # ("100%100%100%") in the sonnet and opus panels alike.
+    fmt = "{}" if len(models) >= 3 else "{}%"
+    title_pt = round((TITLE_PT - 4) * scale)
+    tick_pt = round(TICK_PT_MEDIUM * scale * crowd_scale)
+    bar_pt = round(BAR_LABEL_PT_MEDIUM * scale * crowd_scale)
+    legend_pt = round(LEGEND_PT * scale)
     languages = ["Vera", *comparison_modes]
     x = np.arange(len(models))
     width = 0.8 / len(languages)
@@ -355,12 +424,13 @@ def _draw_tier_panel(
             color=COLORS[lang],
             edgecolor=CREAM,
             linewidth=0.8,
+            hatch=LANG_HATCH[lang],
         )
         for bar, val in zip(bars, values):
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 1.5,
-                f"{val}%",
+                fmt.format(val),
                 ha="center",
                 va="bottom",
                 fontsize=bar_pt,
@@ -378,14 +448,26 @@ def _draw_tier_panel(
         color=BROWN_900,
     )
     ax.set_xticks(x + width * (len(languages) - 1) / 2)
-    ax.set_xticklabels(models, fontsize=tick_pt)
+    ax.set_xticklabels(
+        models,
+        fontsize=tick_pt,
+        rotation=12 if crowded else 0,
+        ha="right" if crowded else "center",
+    )
     ax.set_ylim(0, 118)
     ax.set_yticks([0, 25, 50, 75, 100])
     ax.tick_params(axis="y", labelsize=tick_pt)
     ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.8, alpha=0.4)
     _style_ax(ax)
+    # Under the panel: at frontier scores every bar reaches the ceiling,
+    # so an in-panel legend covers data wherever it is placed.
     ax.legend(
-        loc="lower right", fontsize=legend_pt, framealpha=0.85, edgecolor=BROWN_300
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.16 if crowded else -0.10),
+        ncol=len(languages),
+        fontsize=round(legend_pt * 0.8),
+        framealpha=0.85,
+        edgecolor=BROWN_300,
     )
 
 
@@ -450,15 +532,20 @@ def render_all_modes(
             color=COLORS[mode],
             edgecolor=CREAM,
             linewidth=0.8,
+            hatch=LANG_HATCH[mode],
         )
         for bar, val in zip(bars, values):
+            # Rotated: 9 models x 4 modes is 36 bars in one panel, and a
+            # 3-glyph "100" is wider than the bar it labels. Upright text
+            # costs one glyph of width instead of three.
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 1.5,
+                bar.get_height() + 2,
                 f"{val}",
                 ha="center",
                 va="bottom",
-                fontsize=BAR_LABEL_PT_SMALL,
+                rotation=90,
+                fontsize=BAR_LABEL_PT_SMALL - 2,
                 fontweight="bold",
                 color=BROWN_700,
             )
@@ -474,7 +561,7 @@ def render_all_modes(
     )
     ax.set_xticks(x + width * (len(modes) - 1) / 2)
     ax.set_xticklabels(models, fontsize=TICK_PT_SMALL, rotation=12, ha="right")
-    ax.set_ylim(0, 118)
+    ax.set_ylim(0, 132)  # headroom for the rotated value labels
     ax.set_yticks([0, 25, 50, 75, 100])
     ax.tick_params(axis="y", labelsize=TICK_PT_SMALL)
     ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.8, alpha=0.4)
@@ -496,6 +583,33 @@ def render_all_modes(
 # ----------------------------------------------------------------------
 
 
+def _bare_kw() -> dict:
+    """Crop to the drawn content once the chrome is gone.
+
+    Removing a title leaves the space it occupied, so a bare figure would
+    otherwise carry a band of empty canvas where the heading used to be.
+    """
+    return {"bbox_inches": "tight", "pad_inches": 0.12} if BARE else {}
+
+
+def _strip_chrome(fig) -> None:
+    """Drop every title, subtitle and footnote, keeping the plot itself.
+
+    Chrome is identified by position rather than by tagging each call
+    site: a title or subtitle is drawn in axes coordinates ABOVE the axes
+    box, while every data label sits inside it. Figure-level texts are
+    chrome by construction here, since the renderers only reach for
+    fig.text/suptitle when a caption spans more than one axes.
+    """
+    for text in list(fig.texts):
+        text.remove()
+    for ax in fig.axes:
+        ax.set_title("")
+        for text in list(ax.texts):
+            if text.get_transform() is ax.transAxes and text.get_position()[1] > 1.0:
+                text.remove()
+
+
 def _save(fig, output: Path, background: str = DEFAULT_BACKGROUND) -> None:
     """Tint the figure to the chosen background and write the PNG.
 
@@ -504,12 +618,22 @@ def _save(fig, output: Path, background: str = DEFAULT_BACKGROUND) -> None:
     facecolor kwarg only governs the area *outside* the axes box.
     """
     hex_ = BACKGROUNDS[background]
-    fig.patch.set_facecolor(hex_)
-    for ax in fig.axes:
-        ax.set_facecolor(hex_)
     output.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output, dpi=180, facecolor=hex_)
-    print(f"Saved: {output}  (16×9, bg={background} {hex_})")
+    if BARE:
+        _strip_chrome(fig)
+    if hex_ is None:
+        # Both patches have to go: savefig(transparent=True) clears the
+        # figure patch but leaves each axes patch opaque.
+        fig.patch.set_alpha(0)
+        for ax in fig.axes:
+            ax.patch.set_alpha(0)
+        fig.savefig(output, dpi=180, transparent=True, **_bare_kw())
+    else:
+        fig.patch.set_facecolor(hex_)
+        for ax in fig.axes:
+            ax.set_facecolor(hex_)
+        fig.savefig(output, dpi=180, facecolor=hex_, **_bare_kw())
+    print(f"Saved: {output}  (16×9, bg={background} {hex_ or 'none'})")
     plt.close(fig)
 
 
@@ -517,15 +641,12 @@ def _save(fig, output: Path, background: str = DEFAULT_BACKGROUND) -> None:
 # Zero-training-data slide — Vera vs Aver vs AILANG
 # ----------------------------------------------------------------------
 
-# The Aver/AILANG generation targets run on a subset of the matrix
-# (sweep-scope decision: the opus-tier trio + the Anthropic ceiling).
-# Models listed here render on the ZTD slide when present in the data.
-ZTD_MODELS = [
-    "Claude Fable 5",
-    "Claude Opus 4.8",
-    "GPT-5.6 Sol",
-    "Kimi K3",
-]
+# The Aver/AILANG generation targets run on a subset of the matrix.
+# Read from the matrix's `ztd` flag, not hand-listed here: the previous
+# literal went stale the moment Claude Opus 5 joined the matrix, and the
+# slide simply omitted it — no warning, because a shorter lineup is
+# indistinguishable from a deliberate one.
+ZTD_MODELS = ZTD_DISPLAYS
 ZTD_MODES = ["Vera", "Aver", "AILANG"]
 
 
@@ -534,6 +655,7 @@ def render_ztd(
     output: Path,
     background: str = DEFAULT_BACKGROUND,
     missing: set[tuple[str, str]] | None = None,
+    ztd_modes: list[str] | None = None,
 ) -> None:
     """Zero-training-data languages: Vera vs Aver vs AILANG at 16:9.
 
@@ -543,6 +665,11 @@ def render_ztd(
     """
     all_data = _merge_tiers(tiers)
     absent = missing or set()
+    # Which zero-training-data languages to show. Narrowing the set is a
+    # real comparison, not a crop: Vera and Aver are the two that drop
+    # variable names entirely (Vera via De Bruijn indices, Aver by having
+    # no `let`), so a Vera-vs-Aver cut isolates that design choice.
+    modes = ztd_modes or ZTD_MODES
 
     def ran_all_ztd(model: str) -> bool:
         """Did this model actually produce every ZTD result file?
@@ -554,7 +681,7 @@ def render_ztd(
         the ZTD thesis slide; a fabricated zero is the worst possible
         error on it.
         """
-        return all((model, mode) not in absent for mode in ZTD_MODES)
+        return all((model, mode) not in absent for mode in modes)
 
     models = [m for m in ZTD_MODELS if m in all_data and ran_all_ztd(m)]
     if not models:
@@ -565,14 +692,14 @@ def render_ztd(
         # Both paths empty. Without this the renderer writes a blank but
         # otherwise well-formed 16:9 PNG — which is worse than an error,
         # because you find out it is empty when it is already on screen.
-        print(f"  ztd slide: no model has all of {ZTD_MODES} — skipping")
+        print(f"  ztd slide: no model has all of {modes} — skipping")
         return
 
     fig, ax = plt.subplots(figsize=(16, 9), dpi=180)
     x = np.arange(len(models))
-    width = 0.8 / len(ZTD_MODES)
+    width = 0.8 / len(modes)
 
-    for i, mode in enumerate(ZTD_MODES):
+    for i, mode in enumerate(modes):
         values = [all_data[m].get(mode, 0) for m in models]
         bars = ax.bar(
             x + i * width,
@@ -582,6 +709,11 @@ def render_ztd(
             color=COLORS[mode],
             edgecolor=CREAM,
             linewidth=0.8,
+            # This slide's two headline series, Vera green and AILANG
+            # magenta, sit at ΔE 2.1 under deuteranopia — indistinguishable
+            # for a red-green colourblind viewer, which is roughly 1 in 12
+            # men in the room. Texture carries the identity that hue cannot.
+            hatch=LANG_HATCH[mode],
         )
         for bar, val in zip(bars, values):
             ax.text(
@@ -596,15 +728,28 @@ def render_ztd(
             )
 
     ax.set_ylabel("% solved", fontsize=AXIS_LABEL_PT, color=BROWN_500)
+    # Short title + subtitle: the single-line form ran off the canvas at
+    # 16:9, and matplotlib clips silently rather than shrinking.
     ax.set_title(
-        "Zero-training-data languages — in-context instruction only",
+        "Zero-training-data languages",
         fontsize=TITLE_PT,
         fontweight="bold",
-        pad=20,
+        pad=44,
         fontfamily=FONT_HEADING,
         color=BROWN_900,
     )
-    ax.set_xticks(x + width * (len(ZTD_MODES) - 1) / 2)
+    ax.text(
+        0.5,
+        1.015,
+        "none of these appear in any model's training data — every point "
+        "comes from in-context instruction alone",
+        transform=ax.transAxes,
+        ha="center",
+        va="bottom",
+        fontsize=SUBTITLE_PT,
+        color=BROWN_500,
+    )
+    ax.set_xticks(x + width * (len(modes) - 1) / 2)
     ax.set_xticklabels(models, fontsize=TICK_PT_MEDIUM)
     ax.set_ylim(0, 118)
     ax.set_yticks([0, 25, 50, 75, 100])
@@ -612,7 +757,12 @@ def render_ztd(
     ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.8, alpha=0.4)
     _style_ax(ax)
     ax.legend(
-        loc="lower left",
+        # Under the axes: these bars all reach 92%+, so an in-panel
+        # legend covers the leftmost model's data whatever corner it
+        # takes.
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.09),
+        ncol=len(modes),
         fontsize=LEGEND_PT,
         framealpha=0.85,
         edgecolor=BROWN_300,
@@ -627,7 +777,7 @@ def render_ztd(
 # ----------------------------------------------------------------------
 
 # Display names of a (default, pro) pair from plot_results.MODELS. Both
-# entries are the SAME underlying model at different reasoning budgets,
+# entries are the SAME underlying model at different reasoning modes,
 # so the only variable between them is deliberation.
 REASONING_PAIR = ("GPT-5.6 Sol", "GPT-5.6 Sol (pro)")
 REASONING_MODES = ["Vera", "Vera NL", "Python", "TypeScript"]
@@ -639,12 +789,12 @@ def render_reasoning(
     background: str = DEFAULT_BACKGROUND,
     missing: set[tuple[str, str]] | None = None,
 ) -> None:
-    """Does a bigger reasoning budget help — and does it help less on Vera?
+    """Does the pro reasoning path help — and does it help less on Vera?
 
     The controlled comparison no other provider offers: one model, two
     reasoning modes, every language. If Vera's delta is ~0 while the
     comparison languages gain from extra deliberation, the language is
-    supplying the structure the reasoning budget otherwise has to
+    supplying the structure the pro path would otherwise have to
     reconstruct.
     """
     all_data = _merge_tiers(tiers)
@@ -734,7 +884,7 @@ def render_reasoning(
     ax.text(
         0.5,
         1.015,
-        f"{base_name} — one model, two reasoning budgets",
+        f"{base_name} — reasoning.mode: standard against pro",
         transform=ax.transAxes,
         ha="center",
         va="bottom",
@@ -767,7 +917,11 @@ def render_reasoning(
                 label="reasoning: pro",
             ),
         ],
-        loc="lower left",
+        # Under the axes — every bar here reaches 92%+, so there is no
+        # interior whitespace left for a legend box.
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.09),
+        ncol=2,
         fontsize=LEGEND_PT,
         framealpha=0.85,
         edgecolor=BROWN_300,
@@ -825,11 +979,44 @@ def main() -> None:
             "All choices are light themes — text/spine colours don't invert."
         ),
     )
+    parser.add_argument(
+        "--bare",
+        action="store_true",
+        help=(
+            "Draw the plot only, with no title, subtitle or footnote, for "
+            "embedding in a page whose prose carries them."
+        ),
+    )
+    parser.add_argument(
+        "--ztd-modes",
+        default=None,
+        help=(
+            "Comma-separated zero-training-data languages for --type ztd "
+            "(default: Vera,Aver,AILANG). e.g. 'Vera,Aver' for the two "
+            "languages that drop variable names entirely."
+        ),
+    )
     args = parser.parse_args()
 
     if args.output and args.type == "all":
         parser.error("--output is only valid when --type is a single slide type")
 
+    ztd_modes = (
+        [m.strip() for m in args.ztd_modes.split(",")] if args.ztd_modes else None
+    )
+    if ztd_modes:
+        # Against the ZTD lineup, not the full palette: COLORS also
+        # holds Python, TypeScript and Vera NL, and putting any of
+        # them on this slide contradicts its own title.
+        unknown = [m for m in ztd_modes if m not in ZTD_MODES]
+        if unknown:
+            parser.error(
+                f"--ztd-modes: {unknown} not zero-training-data; "
+                f"choose from {ZTD_MODES}"
+            )
+
+    global BARE
+    BARE = args.bare
     _slide_rcparams()
     types = list(RENDERERS) if args.type == "all" else [args.type]
     # "all" renders the base trio only — the ZTD slide needs Aver/AILANG
@@ -839,14 +1026,19 @@ def main() -> None:
         types = [t for t in types if t not in ("ztd", "reasoning")]
     modes = ["Vera", "Vera NL", "Python", "TypeScript"]
     if "ztd" in types:
-        modes += ["Aver", "AILANG"]
+        # Load whatever the ZTD slide will actually draw, so a narrowed
+        # --ztd-modes still finds its files.
+        modes += [m for m in (ztd_modes or ZTD_MODES) if m not in modes]
     tiers, missing = _load_data(args.version, Path(args.results_dir), modes)
 
     for t in types:
         output = (
             Path(args.output) if args.output else Path(f"/tmp/vera-bench_slide_{t}.png")
         )
-        RENDERERS[t](tiers, output, background=args.background, missing=missing)
+        kwargs = {"ztd_modes": ztd_modes} if t == "ztd" and ztd_modes else {}
+        RENDERERS[t](
+            tiers, output, background=args.background, missing=missing, **kwargs
+        )
 
 
 if __name__ == "__main__":

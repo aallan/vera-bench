@@ -58,6 +58,9 @@ BROWN_300 = "#975526"
 ORANGE_400 = "#E05600"
 GREEN = "#1A7F45"
 RED = "#C0392B"
+# Tie marker on the delta charts. Neutral by design: a tie has no
+# direction, so it must not borrow either polarity colour.
+ZERO_STUB = "#7A7069"
 
 COLORS = {
     "Vera": GREEN,
@@ -66,6 +69,36 @@ COLORS = {
     "TypeScript": BROWN_300,
     "Aver": "#6B4FBB",  # indigo — visually distinct from the Vera greens
     "AILANG": "#C2185B",  # magenta — distinct from Aver's indigo
+}
+
+# Redundant, non-colour identity channels. The palette above is the
+# veralang.dev brand, and it does not survive a colourblind-safety audit
+# on two pairs that matter:
+#
+#   Vera green vs Python orange   ΔE 4.4 (protanopia)
+#   Vera green vs AILANG magenta  ΔE 2.1 (deuteranopia)
+#
+# Neither is fixable by reassignment — green-versus-orange IS the
+# red-green axis, and it is precisely the comparison the benchmark
+# exists to make. So identity never rests on hue alone: bars carry a
+# fixed hatch, dot marks a fixed shape, and every mark a direct value
+# label. Assigned by language and never cycled, so a language keeps its
+# texture in charts that omit the others.
+LANG_HATCH: dict[str, str | None] = {
+    "Vera": None,
+    "Vera NL": "//",
+    "Python": "..",
+    "TypeScript": "\\\\",
+    "Aver": "xx",
+    "AILANG": "--",
+}
+LANG_MARKER: dict[str, str] = {
+    "Vera": "o",
+    "Vera NL": "s",
+    "Python": "^",
+    "TypeScript": "D",
+    "Aver": "v",
+    "AILANG": "P",
 }
 
 # Neutral grey shades for the delta-chart legend (not per-language green/red).
@@ -121,6 +154,39 @@ TIER_TITLES: dict[str, str] = {
 # (CLI string, '/'->'-'), so it byte-matches what cli.py writes by
 # construction rather than by a hand-kept copy.
 MODELS: list[ModelSpec] = [ModelSpec(m.display, m.file_prefix, m.tier) for m in _MATRIX]
+
+# Models that also run the Aver + AILANG generation targets, by display
+# name. Derived from the matrix's own `ztd` flag rather than hand-listed:
+# a hardcoded copy silently dropped Claude Opus 5 from the
+# zero-training-data slide when it was added to the matrix, which is the
+# precise class of drift the matrix consolidation exists to prevent.
+ZTD_DISPLAYS: list[str] = [m.display for m in _MATRIX if m.ztd]
+
+# Lineups for bench versions whose models have since left the matrix.
+# Without this, `--version 0.0.7` looks up today's nine models against
+# result files written for six retired ones, misses every single lookup,
+# and — because extract_data records an absent file as 0 — renders a
+# complete, well-formed, entirely blank chart. Both shipped historical
+# versions ran the same six models. `plot_slide.py` had this lineup
+# frozen for its own renderer; the documentation chart never did.
+_LINEUP_V_0_0_7: list[ModelSpec] = [
+    ModelSpec("Claude Opus 4", "claude-opus-4-20250514", "flagship"),
+    ModelSpec("GPT-4.1", "gpt-4.1-2025-04-14", "flagship"),
+    ModelSpec("Kimi K2.5", "moonshot-kimi-k2.5", "flagship"),
+    ModelSpec("Claude Sonnet 4", "claude-sonnet-4-20250514", "sonnet"),
+    ModelSpec("GPT-4o", "gpt-4o", "sonnet"),
+    ModelSpec("Kimi K2 Turbo", "moonshot-kimi-k2-turbo-preview", "sonnet"),
+]
+HISTORICAL_LINEUPS: dict[str, list[ModelSpec]] = {
+    "0.0.7": _LINEUP_V_0_0_7,
+    "0.0.9": _LINEUP_V_0_0_7,
+}
+
+
+def lineup_for(version: str) -> list[ModelSpec]:
+    """The models a given bench version actually ran."""
+    return HISTORICAL_LINEUPS.get(version, MODELS)
+
 
 # Mode label -> glob pattern fragment inserted between prefix and bench-VER.
 # An empty fragment means the mode is the Vera full-spec "default" file.
@@ -274,7 +340,9 @@ def extract_data(
     used_paths: list[Path] = []
     missing: set[tuple[str, str]] = set()
 
-    for model in MODELS:
+    # Historical versions ran a different lineup; anything else uses the
+    # live matrix (which plot_slide may have patched for its own render).
+    for model in lineup_for(version):
         row: dict[str, int] = {}
         for mode in modes:
             path = _find_result_file(results_dir, model, mode, version)
@@ -347,6 +415,18 @@ def plot_tier(ax, data: dict, title: str, comparison_modes: list[str]):
     languages = ["Vera", *comparison_modes]
     x = np.arange(len(models))
     width = 0.8 / len(languages)
+    # A tier is not a fixed size — opus went from three models to four
+    # when Opus 5 landed, and at four the panel is the same width with
+    # 33% more bars: the x labels ran together ("Claude Opus 4.8Claude
+    # Opus 5") and the value labels overprinted each other. Shrink and
+    # tilt past three rather than hardcoding for the lineup of the day.
+    crowded = len(models) > 3
+    tick_pt = 9 if crowded else 10
+    bar_pt = 7 if crowded else 9
+    # Drop the per-cent sign once a panel is crowded: the axis is already
+    # labelled "% solved", and at four models "100%" beside "100%" is
+    # about 20% too wide to clear its neighbour.
+    fmt = "{}" if crowded else "{}%"
 
     for i, lang in enumerate(languages):
         values = [data[m][lang] for m in models]
@@ -358,15 +438,16 @@ def plot_tier(ax, data: dict, title: str, comparison_modes: list[str]):
             color=COLORS[lang],
             edgecolor=CREAM,
             linewidth=0.5,
+            hatch=LANG_HATCH[lang],
         )
         for bar, val in zip(bars, values):
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 bar.get_height() + 1,
-                f"{val}%",
+                fmt.format(val),
                 ha="center",
                 va="bottom",
-                fontsize=9,
+                fontsize=bar_pt,
                 fontweight="bold",
                 color=BROWN_700,
             )
@@ -381,12 +462,27 @@ def plot_tier(ax, data: dict, title: str, comparison_modes: list[str]):
         color=BROWN_900,
     )
     ax.set_xticks(x + width * (len(languages) - 1) / 2)
-    ax.set_xticklabels(models, fontsize=10)
+    ax.set_xticklabels(
+        models,
+        fontsize=tick_pt,
+        rotation=10 if crowded else 0,
+        ha="right" if crowded else "center",
+    )
     ax.set_ylim(0, 115)
     ax.set_yticks([0, 25, 50, 75, 100])
     ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.5, alpha=0.3)
     _style_ax(ax)
-    ax.legend(loc="lower left", fontsize=9, framealpha=0.8, edgecolor=BROWN_300)
+    # Below the panel, not inside it. Every bar in this chart now lands
+    # near 100%, so there is no longer any interior whitespace for a
+    # legend to occupy — "lower left" printed it straight over the bars.
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.13),
+        ncol=len(languages),
+        fontsize=8.5,
+        framealpha=0.8,
+        edgecolor=BROWN_300,
+    )
 
 
 def plot_vera_vs_comparison(
@@ -404,6 +500,23 @@ def plot_vera_vs_comparison(
     # A model missing any of Vera / the comparison languages would yield a
     # fabricated delta rather than a visible gap — see complete_models.
     models = complete_models(all_data, missing, ["Vera", *comparison_modes])
+    if not models:
+        # Every bar here is a difference, so a partial run leaves nothing
+        # to draw. Say so on the panel rather than leaving a clean empty
+        # box that reads as "no differences found".
+        ax.text(
+            0.5,
+            0.5,
+            "No model ran Vera and every comparison language,\n"
+            "so no difference can be computed.",
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=11,
+            color=BROWN_300,
+        )
+        ax.set_axis_off()
+        return
 
     # Per-comparison delta arrays and bar objects (one row per mode).
     deltas = {
@@ -417,6 +530,16 @@ def plot_vera_vs_comparison(
 
     # Center the stack of bars on each model's tick.
     offsets = [(i - (n - 1) / 2) * height for i in range(n)]
+
+    # Axis limit is needed before drawing, to size the zero stub below.
+    # Floor lowered from ±22 (sized for v0.0.7's ±17 spread) so a frontier
+    # lineup whose largest delta is 8 does not sit squeezed into the
+    # middle third of an empty panel.
+    max_abs = max(
+        (abs(v) for mode in comparison_modes for v in deltas[mode]), default=0
+    )
+    limit = max(12, max_abs + 4)
+    zero_stub = limit * 0.018
 
     for i, mode in enumerate(comparison_modes):
         d = deltas[mode]
@@ -433,15 +556,37 @@ def plot_vera_vs_comparison(
             alpha=alpha,
             hatch=hatch,
         )
+        # A zero delta draws a zero-length bar — i.e. nothing — leaving its
+        # "0" label floating in white space with no mark to belong to, and
+        # no way to tell "tied" from "no data". A neutral stub at the axis
+        # gives every row a mark. Deliberately grey, not the green/red
+        # polarity colours: a tie has no direction.
         for bar, val in zip(bars, d):
-            xpos = val + (1 if val >= 0 else -1)
-            ha = "left" if val >= 0 else "right"
+            if val == 0:
+                ax.barh(
+                    bar.get_y() + bar.get_height() / 2,
+                    zero_stub,
+                    height,
+                    # Straddle the axis. Drawn from zero rightwards it reads as a
+                    # tiny win for Vera, which is exactly what a tie is not.
+                    left=-zero_stub / 2,
+                    color=ZERO_STUB,
+                    linewidth=0,
+                    zorder=5,
+                )
+        for bar, val in zip(bars, d):
+            # Offset in POINTS, not data units. A fixed ±1-unit offset is a
+            # constant fraction of the axis, so as the x-limit shrank with
+            # the data the labels drifted off into whitespace instead of
+            # sitting at the ends of their bars.
+            tip = zero_stub / 2 if val == 0 else val
             sign = "+" if val > 0 else ""
-            ax.text(
-                xpos,
-                bar.get_y() + bar.get_height() / 2,
+            ax.annotate(
                 f"{sign}{val}",
-                ha=ha,
+                xy=(tip, bar.get_y() + bar.get_height() / 2),
+                xytext=(4 if val >= 0 else -4, 0),
+                textcoords="offset points",
+                ha="left" if val >= 0 else "right",
                 va="center",
                 fontsize=9,
                 fontweight="bold",
@@ -466,12 +611,6 @@ def plot_vera_vs_comparison(
         color=BROWN_900,
     )
     _style_ax(ax)
-    # Dynamic x-axis: leave at least ±22 points of headroom; expand for
-    # larger deltas.
-    max_abs = max(
-        (abs(v) for mode in comparison_modes for v in deltas[mode]), default=0
-    )
-    limit = max(22, max_abs + 4)
     ax.set_xlim(-limit, limit)
     ax.invert_yaxis()
 
@@ -521,12 +660,18 @@ def plot_all_modes(ax, tiers: dict[str, dict], modes: list[str]):
             linewidth=0.5,
         )
         for bar, val in zip(bars, values):
+            # Rotated, because 9 models x 4 modes puts 36 bars in one
+            # panel: at frontier scores nearly every label is the 3-glyph
+            # "100", which is wider than its own bar, so horizontal labels
+            # collide no matter how small the type gets. Upright text
+            # costs one glyph of width instead of three.
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
-                bar.get_height() + 1,
+                bar.get_height() + 1.5,
                 f"{val}",
                 ha="center",
                 va="bottom",
+                rotation=90,
                 fontsize=7,
                 fontweight="bold",
                 color=BROWN_700,
@@ -543,11 +688,20 @@ def plot_all_modes(ax, tiers: dict[str, dict], modes: list[str]):
     )
     ax.set_xticks(x + width * (len(modes) - 1) / 2)
     ax.set_xticklabels(models, fontsize=8, rotation=15, ha="right")
-    ax.set_ylim(0, 115)
+    ax.set_ylim(0, 128)  # headroom for the rotated value labels
     ax.set_yticks([0, 25, 50, 75, 100])
     ax.axhline(y=100, color=BROWN_300, linestyle="--", linewidth=0.5, alpha=0.3)
     _style_ax(ax)
-    ax.legend(loc="lower left", fontsize=8, ncol=2, framealpha=0.8, edgecolor=BROWN_300)
+    # Same reason as plot_tier: with every bar at the ceiling there is no
+    # interior gap left to drop a legend into.
+    ax.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.16),
+        fontsize=8,
+        ncol=len(modes),
+        framealpha=0.8,
+        edgecolor=BROWN_300,
+    )
 
 
 def _detect_vera_version(used_paths: list[Path]) -> str:
@@ -669,10 +823,25 @@ def main():
         for w in warnings:
             print(w)
 
+    # Refuse to write a chart with no data in it. extract_data records an
+    # absent file as 0, which is the right call for one missing cell — a
+    # visible gap you go and fill — but when EVERY cell is absent it
+    # produces a fully-formed chart of zeros that looks like a result. You
+    # find out it is empty once it is already in the slide deck.
+    if not used_paths:
+        raise SystemExit(
+            f"No result files matched bench-{version} in {results_dir}/ — "
+            f"refusing to write an empty chart.\n"
+            f"Models looked for: "
+            f"{', '.join(m.file_prefix for m in lineup_for(version))}\n"
+            f"If this version ran a different lineup, add it to "
+            f"HISTORICAL_LINEUPS in scripts/plot_results.py."
+        )
+
     vera_version = _detect_vera_version(used_paths)
     problem_count = _detect_problem_count(used_paths)
     subtitle = (
-        f"{problem_count} problems \u00d7 {len(MODELS)} models "
+        f"{problem_count} problems \u00d7 {len(lineup_for(version))} models "
         f"\u00d7 {len(all_modes)} modes"
     )
 
@@ -692,7 +861,10 @@ def main():
     gs = fig.add_gridspec(
         4,
         n_tiers,
-        hspace=0.35,
+        # Roomier than the original 0.35: the tier panels now carry their
+        # legends *below* the axes, which pushed the next row's title
+        # into them.
+        hspace=0.5,
         wspace=0.3,
         height_ratios=[1, 1, 1, 0.3],
         left=0.10,

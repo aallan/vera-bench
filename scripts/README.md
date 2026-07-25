@@ -36,7 +36,7 @@ fix.
 |-------|--------|------|
 | `s0` | Model ids exist, via the provider listings the script queries — currently OpenAI and Moonshot. Anthropic ids are not queried here and are covered by `s1` instead | free |
 | `s1` | Auth, id acceptance and request parameters — one problem per model, Python target (no ~28k-token prefix) | cheap |
-| `s2` | The reasoning-budget pair actually differs — same model, same problem, mode the only variable | 2 calls |
+| `s2` | The reasoning-mode pair actually differs — same model, same problem, mode the only variable | 2 calls |
 | `s3` | Prompt-cache accounting: one model **per provider**, two calls each against the ~29k Vera prefix, checking `cached_tokens` on the second | 6 calls |
 | `s5` | All six target variants end-to-end (five languages — Vera runs in both full-spec and spec-from-NL), proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
 
@@ -394,15 +394,42 @@ See `DESIGN.md` for rationale on the tier split.
 
 Pulled from `veralang.dev`:
 
-| Role | Hex |
-|------|-----|
-| Vera | `#1A7F45` (green) |
-| Vera NL | `#52b788` (light green) |
-| Python | `#E05600` (orange) |
-| TypeScript | `#975526` (brown) |
-| Aver | `#6B4FBB` (indigo) |
-| Positive delta | `#1A7F45` (green) |
-| Negative delta | `#C0392B` (red) |
+| Role | Hex | Hatch | Marker |
+|------|-----|-------|--------|
+| Vera | `#1A7F45` (green) | — | `o` |
+| Vera NL | `#52b788` (light green) | `//` | `s` |
+| Python | `#E05600` (orange) | `..` | `^` |
+| TypeScript | `#975526` (brown) | `\\` | `D` |
+| Aver | `#6B4FBB` (indigo) | `xx` | `v` |
+| AILANG | `#C2185B` (magenta) | `--` | `P` |
+| Positive delta | `#1A7F45` (green) | | |
+| Negative delta | `#C0392B` (red) | | |
+
+### Colour is never the only channel
+
+The brand palette does **not** pass a colourblind-safety audit, on two
+pairs that matter:
+
+| Pair | ΔE | Under |
+|------|----|-------|
+| Vera green ↔ Python orange | 4.4 | protanopia |
+| Vera green ↔ AILANG magenta | 2.1 | deuteranopia |
+| Python orange ↔ TypeScript brown | 13.9 | normal vision (floor is 15) |
+
+The first is **not fixable by reassignment**: green-versus-orange *is* the
+red–green axis, and it is precisely the comparison the benchmark exists to
+make. Roughly 1 in 12 men has some red–green deficiency, which at talk
+scale is several people in the room.
+
+So identity is carried redundantly rather than by hue alone —
+`LANG_HATCH` (a fixed texture per language on every bar), `LANG_MARKER`
+(a fixed shape per language on every dot), and a direct value label on
+every mark. Both maps live in `plot_results.py` beside `COLORS`, are keyed
+by language, and are **never cycled**, so a language keeps its texture in
+charts that omit the others.
+
+Re-audit with the palette validator after any colour change; do not
+eyeball ΔE.
 
 ### Historical charts
 
@@ -517,6 +544,65 @@ that belong in the speaker's slide deck rather than the repo. The
 gitignore covers `assets/vera-bench_slide_*.png` for the case where
 someone explicitly outputs to `assets/` for preview — the canonical
 artefact is the script itself, regeneration is cheap.
+
+---
+
+## `plot_narrative.py` — row-level talk slides
+
+Four more 16:9 slides, in the same house style and writing to the same
+`assets/vera-bench_slide_*.png` (gitignored) filenames. Split from
+`plot_slide.py` because of the **data path**, not the visual style:
+`plot_slide` renders whatever `extract_data` returns, which is one number
+per (model, mode). These four need the raw JSONL rows.
+
+| Type | Question it answers |
+|------|--------------------|
+| `refusal` | Where did models decline to answer — and did that same model solve that same problem elsewhere? |
+| `generation` | Consecutive flagship releases (`GENERATION_PAIR`) across every language, as a slope chart |
+| `saturation` | Every (model, language) score as one dot, with a "1 problem = N pp" scale bar |
+| `coverage` | What pass@1 structurally cannot see: the 24 of 60 problems with no test cases |
+
+```bash
+python scripts/plot_narrative.py --version 0.0.16            # all four
+python scripts/plot_narrative.py --version 0.0.16 --type refusal
+python scripts/plot_narrative.py --type generation --include-ztd
+```
+
+Unlike `plot_slide.py`, `--version` defaults to the **current** bench
+version, not `0.0.7` — these slides have no historical lineup to pin.
+
+`generation` plots the four core modes (`GENERATION_MODES`). Aver and
+AILANG are opt-in via `--include-ztd`: between Opus 4.8 and Opus 5 they
+move +2 and 0, so they contribute two flat columns to a slide whose whole
+content is direction, and they squeeze the four languages that *do* move
+into two-thirds of the width.
+
+### `solved()` and gradeability
+
+The refusal slide claims a model *could* have done a problem, so what
+counts as "solved" has to be right:
+
+- **gradeable problem** (has test cases) → `run_correct is True`
+- **no test cases** → `check_pass is True`
+
+24 of the 60 problems carry `run_correct: None` *by construction*, never
+because anything failed. Testing `run_correct is True` alone reports a
+problem that every language compiled and verified as solved **nowhere** —
+which reverses the argument the slide exists to make. Covered by
+`tests/test_plot_narrative.py::TestSolved`.
+
+### Axis policy
+
+Applied per form, not globally:
+
+- **bars start at zero** — a bar's length *is* the quantity, so a cut
+  baseline misstates ratios
+- **dots and slopes may zoom** — position-only marks carry no area to
+  misread
+
+That is why `saturation` and `generation` are dots and slopes. With every
+score between 89 and 100, bars would render as nine identical
+full-height blocks and show nothing.
 
 ---
 

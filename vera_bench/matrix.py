@@ -37,11 +37,19 @@ class Model:
 # Moonshot ships no ceiling-above-flagship model. openai-pro/gpt-5.6-sol is
 # Sol at reasoning.mode=pro — same underlying model as the opus-tier entry,
 # the controlled reasoning-budget comparison.
+#
+# WITHIN a tier, most capable first. The charts read left-to-right as
+# descending capability (that is what the tier order itself encodes), so a
+# newer, stronger model sitting to the right of the one it supersedes
+# reads as the reverse of the truth — hence Opus 5 before Opus 4.8. This
+# is presentation order only; the `generation` slide keeps its own
+# explicit CHRONOLOGICAL chain, because a trajectory over time must run
+# oldest-to-newest regardless of how the tiers are laid out.
 MODELS: list[Model] = [
     Model("claude-fable-5", "anthropic", "fable", "Claude Fable 5", ztd=True),
     Model("openai-pro/gpt-5.6-sol", "openai", "fable", "GPT-5.6 Sol (pro)"),
-    Model("claude-opus-4-8", "anthropic", "opus", "Claude Opus 4.8", ztd=True),
     Model("claude-opus-5", "anthropic", "opus", "Claude Opus 5", ztd=True),
+    Model("claude-opus-4-8", "anthropic", "opus", "Claude Opus 4.8", ztd=True),
     Model("gpt-5.6-sol", "openai", "opus", "GPT-5.6 Sol", ztd=True),
     Model("moonshot/kimi-k3", "moonshot", "opus", "Kimi K3", ztd=True),
     Model("claude-sonnet-5", "anthropic", "sonnet", "Claude Sonnet 5"),
