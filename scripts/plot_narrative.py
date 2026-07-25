@@ -53,13 +53,18 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-import matplotlib
+# Guarded: the test job imports this module for solved(), best_by_problem()
+# and find_refusals(), none of which draw anything. See plot_results.
+try:
+    import matplotlib
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from matplotlib.lines import Line2D  # noqa: E402
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # noqa: E402
+    import numpy as np  # noqa: E402
+    from matplotlib.lines import Line2D  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - only where matplotlib absent
+    matplotlib = plt = np = None
+    Line2D = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import scripts.plot_slide as _slide  # noqa: E402

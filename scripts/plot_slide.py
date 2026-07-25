@@ -57,14 +57,22 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
-import matplotlib
+# Guarded for the same reason as plot_results: the test job imports this
+# module for its data helpers and constants, and must not need a plotting
+# backend to do it. main() calls _require_mpl() before drawing anything.
+# Annotations are lazy (`from __future__ import annotations`), so `Axes`
+# being None does not break the signatures that mention it.
+try:
+    import matplotlib
 
-matplotlib.use("Agg")
-
-import matplotlib.pyplot as plt  # noqa: E402
-import numpy as np  # noqa: E402
-from matplotlib.axes import Axes  # noqa: E402
-from matplotlib.patches import Patch  # noqa: E402
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt  # noqa: E402
+    import numpy as np  # noqa: E402
+    from matplotlib.axes import Axes  # noqa: E402
+    from matplotlib.patches import Patch  # noqa: E402
+except ModuleNotFoundError:  # pragma: no cover - only where matplotlib absent
+    matplotlib = plt = np = None
+    Axes = Patch = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from scripts.plot_results import (  # noqa: E402
@@ -82,6 +90,7 @@ from scripts.plot_results import (  # noqa: E402
     ZERO_STUB,
     ZTD_DISPLAYS,
     ModelSpec,
+    _require_mpl,
     complete_models,
     extract_data,
 )
@@ -186,6 +195,7 @@ def _merge_tiers(tiers: dict[str, dict]) -> dict:
 
 def _slide_rcparams() -> None:
     """rcParams shared across all slide types."""
+    _require_mpl()
     matplotlib.rcParams.update(
         {
             "font.family": "sans-serif",
