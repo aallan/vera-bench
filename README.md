@@ -156,12 +156,14 @@ Every chart in this section, and several that did not make it, are described in
 
 Three languages absent from every training set, on the five models that ran all
 three. Vera averages 98.8% and AILANG 99.4%, against 97.0% for Python on those
-same five models. Aver trails at 93.2%.
+same five models. Aver averages 93.2%.
 
 Two of the three unfamiliar languages therefore match or beat the most familiar
-one. That is the benchmark's central claim in its most direct form, and Aver is
-the reminder that being absent from the training data is not on its own worth
-anything: the design has to earn it.
+one. The three also spread further apart from each other than any of them sits
+from Python, which is the more informative comparison: whatever moves these
+scores, it is not simply whether a model has seen the language before. Design
+differences between unfamiliar languages account for more than unfamiliarity
+does.
 
 No LLM has been trained on Vera. There are no Vera examples on GitHub, no Stack
 Overflow answers, no tutorials; the language was created after these models'

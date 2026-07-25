@@ -90,7 +90,7 @@ costs a model anything; it can no longer rank the field at the top.
 Vera, Aver and AILANG across the five models that ran all three. None of the
 three appears in any training set, so every point came from a document in the
 prompt. Vera averages 98.8% and AILANG 99.4%, against 97.0% for Python on the
-same five models, while Aver trails at 93.2%.
+same five models, and Aver 93.2%.
 
 ### Regenerating them
 
