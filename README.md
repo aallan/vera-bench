@@ -16,24 +16,23 @@ compiled, it ran, and the output matched. A refusal, a compile failure, a crash
 and a wrong answer all count the same way, as not solved. The one exception is
 the coverage chart, which counts problems rather than scoring them.
 
-The short version is that the ideas behind Vera appear to work. Models with no
-training data in the language now write it about as well as they write Python,
-the design choice that looks most hostile to human authors is the one they
-reward, and every new model does better than the last.
+The ideas behind Vera appear to work. Models with no training data in the
+language now write it about as well as they write Python, the design choice
+that looks most hostile to human authors is the one they reward, and every new
+model does better than the last.
 
 ### Vera holds its own
 
 ![Vera minus Python and TypeScript, percentage points, per model](assets/fig-delta.png)
 
-Green is a win for Vera. Nine months ago this chart was almost entirely red,
-and the worst case had a model solving seventeen percentage points fewer
-problems in Vera than in Python. It is now roughly balanced, with the wins
-concentrated in the newest models on the board.
+Green is a win for Vera. It wins outright for four of the nine models and
+draws level with three more, and the wins sit with the newest models on the
+board.
 
-That is the whole claim, and it is worth being precise about how small it is.
-The margin is about one problem. What matters is not the size of the lead but
-that the deficit is gone: a language no model has ever seen no longer costs
-them anything.
+The margin is about one problem, so the lead is narrow. The deficit is what
+has gone: a language no model has ever seen no longer costs them anything.
+Nine months ago this chart was almost entirely red, and the worst case solved
+seventeen percentage points fewer problems in Vera than in Python.
 
 ### Removing variable names was the right call
 
@@ -70,8 +69,8 @@ better than it writes Python.
 
 ![One model at two reasoning budgets, four languages](assets/fig-reasoning.png)
 
-The same model run twice, at standard and at extended reasoning, on the same
-problems. Deliberation is the only thing that changes.
+One model, two reasoning budgets, the same problems. Deliberation is the only
+thing that changes.
 
 Nothing changes. Whatever stops these models solving the last two or three
 problems, more thinking time is not the answer to it, and that holds in Python
