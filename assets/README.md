@@ -70,12 +70,13 @@ refusals from two models is a pattern rather than a finding.
 
 ### `fig-coverage.png`: what the headline metric misses
 
-Which of the 60 problems can be scored by comparing output, and which cannot.
-24 cannot: they take a list, tree, array or ADT as input, and `vera run` passes
-arguments on a command line, so there is no way to call them with a test case.
-Those 24 are the ADT, match and effect problems, the ones that exercise what
-makes Vera different, so the score is measured on the part of the set where
-the languages are most alike.
+Which of the 60 problems are scored by comparing output, and which are not. 24
+are not, because Vera is the only language here invoked without a generated
+wrapper: `vera run --fn` passes arguments on a command line, so a problem whose
+input is a list or a tree cannot be called at all. Those 24 are the ADT, match
+and effect problems, so the score is measured on the part of the set where the
+languages are most alike. Tracked in
+[#107](https://github.com/aallan/vera-bench/issues/107).
 
 ### `fig-saturation.png`: the benchmark is saturating
 

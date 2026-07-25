@@ -112,36 +112,33 @@ move.
 
 ![Refusals by model and language](assets/fig-refusal.png)
 
-Five refusals across the sweep. Every one in Python or TypeScript, none in
-Vera, and in each case the same model went on to solve the same problem in four
-or five other languages. The problems were unremarkable, along the lines of
-dividing two numbers and guarding against a zero divisor.
-
-All five came from the two models that ship cybersecurity classifiers. The two
-models from the same vendor without them refused nothing. One reading is that
-the strictest safety tuning is also the most prone to false positives, and that
-in this sweep those false positives fired only in languages the models had
-read.
-
-Five refusals from two models will not support that conclusion. An unfamiliar
-language may simply never have produced output resembling the thing a
-classifier watches for. It is an observation worth measuring properly, not a
-result.
+There were five refusals across the whole run, every one of them in Python or
+TypeScript and none in Vera. The problems were unremarkable, along the lines of
+dividing two numbers and guarding against a zero divisor, and in each case the
+same model went on to solve the same problem in four or five other languages.
+All five came from Claude Fable 5 and Claude Opus 5, the two models in the
+sweep that ship cybersecurity classifiers, so these are almost certainly false
+positives from those guardrails rather than anything to do with the problems
+themselves.
 
 ### What the headline metric cannot see
 
 ![Which problems pass@1 can and cannot grade, by tier](assets/fig-coverage.png)
 
-Every score reported here is computed over 36 of the 60 problems. The other 24
-cannot be scored at all. They take a list, a tree or a custom data type as input, and the
-harness passes arguments on a command line, so there is no way to call them
-with a test case in the first place.
+Every score reported above is computed over 36 of the 60 problems. The other 24
+are not scored, and the reason is a limitation of this harness rather than
+anything about Vera. Python, TypeScript and AILANG solutions are called from a
+wrapper the harness generates, which can pass a list or a tree as an argument
+quite happily. Vera solutions are invoked through `vera run --fn`, which takes
+its arguments on a command line, so a problem whose input is a data structure
+cannot be called at all.
 
-Those 24 are the ADT, pattern-matching and effect-handler problems, which are
-the ones that exercise what makes Vera different from Python. So the score is
-measured on the part of the benchmark where the two languages are most alike.
-Vera does check and verify the other 24, and the models pass almost all of
-them, but Python has no equivalent step to compare that against.
+Those 24 are the ADT, pattern-matching and effect-handler problems, the ones
+that exercise what makes Vera different from Python. So the score is measured
+on the part of the benchmark where the two languages are most alike. Giving
+Vera the same generated-wrapper treatment as the other languages would fix
+this, and is the most valuable outstanding change to the benchmark
+([#107](https://github.com/aallan/vera-bench/issues/107)).
 
 ### The benchmark is saturating
 
