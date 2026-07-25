@@ -9,45 +9,148 @@ A benchmark for evaluating LLM code generation in [Vera](https://github.com/aall
 
 ## Results
 
-![VeraBench v0.0.7 Results](assets/results-graph.png)
+Nine models, three providers, 60 problems across five difficulty tiers, run
+against [Vera v0.1.7](https://github.com/aallan/vera/releases/tag/v0.1.7).
+Every chart below reports **% solved**: the model wrote code, it compiled, it
+ran, and the output matched. A refusal, a compile failure, a crash and a wrong
+answer all count the same way, as not solved.
 
-Results from [VeraBench v0.0.7](https://github.com/aallan/vera-bench/releases/tag/v0.0.7) against [Vera v0.0.108](https://github.com/aallan/vera/releases/tag/v0.0.108) across 50 problems, 6 models, and 4 modes per model.
+The short version is that the ideas behind Vera appear to work. Models with no
+training data in the language now write it about as well as they write Python,
+the design choice that looks most hostile to human authors is the one they
+reward, and every new model does better than the last.
 
-### run_correct by model (Vera full-spec vs Python vs TypeScript)
+### Vera holds its own
 
-**Flagship tier:**
+![Vera minus Python and TypeScript, percentage points, per model](assets/fig-delta.png)
 
-| Model | Vera | Python | TypeScript |
-|-------|------|--------|------------|
-| **Kimi K2.5** | **100%** | 86% | 91% |
-| GPT-4.1 | 91% | 96% | 96% |
-| Claude Opus 4 | 88% | 96% | 96% |
+Green is a win for Vera. Nine months ago this chart was almost entirely red,
+and the worst case had a model solving seventeen percentage points fewer
+problems in Vera than in Python. It is now roughly balanced, with the wins
+concentrated in the newest models on the board.
 
-**Sonnet tier:**
+That is the whole claim, and it is worth being precise about how small it is.
+The margin is about one problem. What matters is not the size of the lead but
+that the deficit is gone: a language no model has ever seen no longer costs
+them anything.
 
-| Model | Vera | Python | TypeScript |
-|-------|------|--------|------------|
-| **Kimi K2 Turbo** | **83%** | 88% | 79% |
-| Claude Sonnet 4 | 79% | 96% | 88% |
-| GPT-4o | 78% | 93% | 83% |
+### Removing variable names was the right call
 
-### Key findings
+![Vera against Aver, both zero-training-data languages, five models](assets/fig-vera-vs-aver.png)
 
-**Kimi K2.5 writes perfect Vera code** — 100% run_correct on both full-spec and spec-from-NL modes, beating Python (86%) and TypeScript (91%). This is the first model where Vera is the best language across the board.
+This is the closest the benchmark gets to a controlled experiment. Vera and
+[Aver](https://github.com/jasisz/aver) are both languages no model was trained
+on, both statically typed, both learned from a single document supplied in the
+prompt. Neither gets the advantage of familiarity, so familiarity cannot
+explain a difference between them.
 
-**Three models beat TypeScript on Vera.** Kimi K2.5 (+9pp), Kimi K2 Turbo (+4pp), and in our [initial v0.0.4 benchmark](https://github.com/aallan/vera-bench/releases/tag/v0.0.4) Claude Sonnet 4 also beat TypeScript (83% vs 79%). The pattern is consistent across providers: Vera's mandatory contracts and typed slot references provide enough structure to compensate for zero training data.
+What separates them is that Vera has no variable names at all. It uses typed
+slot references, where Aver uses ordinary bindings. Vera wins on every model
+tested, and not one of them does better with names than without them. Of all
+the decisions in the language, dropping identifiers is the one that reads as
+most obviously hostile to a human reader, and it is the one the models reward.
 
-**Python remains the strongest target for most models.** Claude, OpenAI, and Moonshot all hit 86–96% run_correct on Python. The gap between Python and Vera varies from 0pp (Kimi K2.5 spec-from-NL: both 100%) to 17pp (Claude Sonnet 4: 96% vs 79%).
+### The direction of travel
 
-**Spec-from-NL is the harder test.** When models must infer their own contracts from natural language, performance drops for most models — GPT-4.1 falls from 91% to 50%. But Kimi K2.5 holds at 100%, suggesting it has internalised Vera's type system well enough to author specifications from scratch.
+![Three Claude flagships across four languages](assets/fig-generation.png)
 
-> **Note:** These are single-run results. LLM outputs are non-deterministic — individual problems can flip between pass and fail across runs. The v0.0.4 Claude Sonnet 4 result (83% Vera, 79% TypeScript) shifted to 79%/88% in the v0.0.7 re-run, illustrating this variance. Stable rates will require [pass@k](https://arxiv.org/abs/2107.03374) evaluation with multiple trials. This is early days — 50 problems, one run per model.
+Each new flagship writes Vera better than the one before it, in both the
+full-spec mode and the harder spec-from-NL mode where the model has to write
+its own contracts before it writes any code. Over the same period the two
+mainstream languages have stopped moving.
+
+Only the last step is properly controlled, because the earlier one spans a
+compiler, a standard library and a revision of the teaching document, so it
+measures Vera and the models improving together. The controlled step points
+the same way. The newest model is the first in this benchmark to write Vera
+better than it writes Python.
+
+### It is the structure, not the compute
+
+![One model at two reasoning budgets, four languages](assets/fig-reasoning.png)
+
+The same model run twice, at standard and at extended reasoning, on the same
+problems. Deliberation is the only thing that changes.
+
+Nothing changes. Whatever stops these models solving the last two or three
+problems, more thinking time is not the answer to it, and that holds in Python
+as firmly as it does in Vera. Vera's advantage, where it has one, comes from
+the structure in the language rather than from giving the model longer to
+reconstruct that structure for itself.
+
+### An effect nobody designed for
+
+![Refusals by model and language](assets/fig-refusal.png)
+
+Models sometimes decline to answer. Every refusal in this sweep happened in
+Python or TypeScript, and none at all in Vera, and in each case the same model
+went on to solve the same problem in four or five other languages. The
+problems concerned were things like dividing two numbers and guarding against
+a zero divisor.
+
+The refusals came from the two models that ship cybersecurity classifiers, and
+not from the two models by the same vendor that do not. So the reading is that
+the strictest safety tuning is also the most prone to false positives, and
+those false positives only fire in languages the model has actually read. A
+language absent from the training data inherits none of them. It is a small
+sample and a side effect rather than a design goal, but it points somewhere
+interesting.
+
+### What the headline number misses
+
+![Which problems pass@1 can and cannot grade, by tier](assets/fig-coverage.png)
+
+Two fifths of the problem set has no test cases, and the reason is mechanical:
+most of those problems take a list, a tree or an algebraic data type as an
+argument, and the runner passes arguments on a command line. There is no way
+to hand one to them.
+
+Those problems are concentrated in the tiers built around data types,
+exhaustive matching and effect handlers, which is precisely the machinery
+Vera's contracts and prover exist to check. So the number every chart here
+leads with is blind to the part of the benchmark Vera was designed for, and it
+grades everyone on the subset that suits Python best. Vera checks and verifies
+those problems anyway, and the models get essentially all of them right.
+
+### Full results
+
+| Model | Vera | Vera spec-from-NL | Python | TypeScript |
+|---|---|---|---|---|
+| Claude Fable 5 | **100%** | 97% | 94% | 92% |
+| GPT-5.6 Sol (pro) | **100%** | 92% | 97% | 100% |
+| Claude Opus 5 | **100%** | **100%** | 94% | 94% |
+| Claude Opus 4.8 | 94% | 94% | 100% | 100% |
+| GPT-5.6 Sol | **100%** | 94% | 97% | 100% |
+| Kimi K3 | **100%** | 97% | 100% | 100% |
+| Claude Sonnet 5 | 97% | 89% | 100% | 100% |
+| GPT-5.6 Terra | **100%** | 94% | 100% | 100% |
+| Kimi K2.6 | **100%** | 94% | 100% | 100% |
+
+Every chart in this section, and several that did not make it, are described
+in [assets/GRAPHS.md](assets/GRAPHS.md) with the command that regenerates
+them.
+
+> **On reading these numbers.** Single run per model, no pass@k. LLM output is
+> non-deterministic and individual problems flip between runs. With 36
+> gradeable problems one problem is worth 2.8 percentage points, so most of
+> the gaps above are one or two problems wide and the benchmark is close to
+> the point where it can no longer separate the models at the top. Harder
+> problems are the next piece of work.
 
 ### Why this matters: zero training data
 
-No LLM has ever been trained on Vera. There are no Vera examples on GitHub, no Stack Overflow answers, no tutorials — the language was created after these models' training cutoffs. Every token of Vera code in these results was written by a model that learned the language entirely from a single document ([SKILL.md](https://veralang.dev/SKILL.md)) provided in the prompt at evaluation time.
+No LLM has ever been trained on Vera. There are no Vera examples on GitHub, no
+Stack Overflow answers, no tutorials; the language was created after these
+models' training cutoffs. Every token of Vera in these results was written by
+a model that learned the language at evaluation time, from a single document
+([SKILL.md](https://veralang.dev/SKILL.md)) in the prompt.
 
-Python and TypeScript, by contrast, are among the most heavily represented languages in LLM training data — billions of lines of code, documentation, and Q&A. The fact that multiple models write *better* Vera than TypeScript despite this asymmetry suggests that language design matters more than training data volume. Vera's mandatory contracts, typed slot references, and explicit effect annotations give models enough structural guardrails that in-context instruction alone is sufficient — no pre-training required.
+Python and TypeScript are at the other extreme, among the most heavily
+represented languages in any training corpus. Models still write Vera as well
+as they write either of them. That gap in exposure, and the absence of any
+corresponding gap in the results, is the argument: language design appears to
+matter more than how much of the language a model has read.
+
 
 ## Overview
 
@@ -65,10 +168,16 @@ The benchmark covers five difficulty tiers:
 
 For each problem, we measure:
 
+- **% solved (pass@1)** — The headline. Solved over the problems that can be
+  output-graded, where a refusal, a compile failure, a runtime error and a
+  wrong answer all count alike as not solved.
 - **check@1** — Does the code pass `vera check` on first attempt?
 - **verify@1** — Does it pass `vera verify` (Z3 contract verification)?
 - **fix@1** — Given the error message, can the model fix it in one turn?
-- **run_correct** — Does execution produce the correct output?
+- **run_correct** — Does execution produce the correct output? Measured only
+  over attempts that compiled, so it is not comparable across models that
+  refuse or fail to compile at different rates. That is why the charts report
+  % solved instead.
 
 The same problems are also run in Python, TypeScript, [Aver](https://github.com/jasisz/aver), and [AILANG](https://ailang.sunholo.com/) as baselines. AILANG and Aver are zero-training-data languages, providing additional data points alongside Vera for the language-design-vs-training-data thesis.
 

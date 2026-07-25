@@ -529,7 +529,17 @@ class MoonshotClient:
         system: str,
         user: str,
         max_tokens: int = 4096,
-        timeout: float = 120.0,
+        # Higher than the other providers' 120s, deliberately. Kimi on a
+        # hard Tier-5 spec-from-NL problem exceeds 120s *every* time, not
+        # occasionally: VB-T5-009 failed identically across a dozen
+        # retries at four different --max-tokens values, because the
+        # budget is the wrong lever — a smaller one does not make the
+        # model deliberate faster. The harness asks whether a model CAN
+        # solve a problem, not whether it can do so quickly, so a client
+        # timeout that low was silently converting "slow" into "failed".
+        # Recorded as a transient API error, it was also unfixable from
+        # the CLI, which has no timeout flag (#105).
+        timeout: float = 300.0,
     ) -> LLMResponse:
         start = time.monotonic()
         response = _call_openai_compatible(

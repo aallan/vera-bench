@@ -14,6 +14,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   head-to-head — Opus 5 shipped 2026-07-24. `vera_bench/matrix.py` grows to
   nine models; the sweep, the preflight gate and the charts pick it up from
   the registry with no other change.
+- **A narrative Results section in the README, and `assets/GRAPHS.md`.** The
+  previous section dropped in the full documentation chart and let the reader
+  find the story. It now walks the argument: Vera holds its own, removing
+  variable names was the right call, the direction of travel, structure rather
+  than compute, refusals, and what the headline metric cannot see. `GRAPHS.md`
+  documents every chart in the repository, what it means, and the command that
+  regenerates it.
+- **`--bare` and a `transparent` background for the slide renderers.** Draws
+  the plot with no title, subtitle or footnote, cropped to the content, for
+  embedding in a page whose prose carries them. The six figures the README and
+  veralang.dev embed are rendered this way into `assets/fig-*.png`, which
+  unlike the slides are committed, because a README image has to be in the
+  repository to render.
+- **`scripts/plot_narrative.py` — four row-level talk slides.** `refusal`
+  (where models declined, and whether that same model solved that same
+  problem in another language), `generation` (consecutive flagship
+  releases across every language, as a slope chart), `saturation` (every
+  model × language score as one dot, with a "1 problem = N pp" scale bar)
+  and `coverage` (what pass@1 structurally cannot see — the 24 of 60
+  problems with no test cases). Separate from `plot_slide.py` because of
+  the data path, not the styling: those renderers consume `extract_data`'s
+  one-number-per-cell aggregate, and these need the raw JSONL rows.
+- **`LANG_HATCH` / `LANG_MARKER` in `plot_results.py`.** A fixed texture
+  and marker shape per language, so series identity never rests on hue
+  alone. The brand palette fails a colourblind audit on two pairs — Vera
+  green vs Python orange at ΔE 4.4 (protanopia) and Vera green vs AILANG
+  magenta at ΔE 2.1 (deuteranopia). The first is not fixable by
+  reassignment: green-versus-orange *is* the red–green axis, and it is
+  exactly the comparison the benchmark exists to make.
 - **`scripts/sweep_status.py` / `scripts/rerun_failed.py` — sweep
   visibility and surgical repair.** `vera-bench run`'s `rich` progress
   blanks itself off-TTY, so `run_sweep.sh`'s tee'd logs hold only a banner
@@ -62,7 +91,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`errored` counted model runtime-failures as harness errors.** The
+- **The zero-training-data slide silently omitted Claude Opus 5.**
+  `plot_slide.ZTD_MODELS` was a hand-kept literal listing four models. When
+  Opus 5 joined the matrix — with both its Aver and AILANG targets swept —
+  the slide simply left it out, and rendered perfectly: a four-model lineup
+  is indistinguishable from a deliberate one. It now derives from the
+  matrix's own `ztd` flag (`plot_results.ZTD_DISPLAYS`), the exact drift the
+  matrix consolidation exists to prevent.
+- **The delta slide's x-axis still said `run_correct`.** The bars became
+  pass@1 (% solved) when the metric changed; the axis label did not, and
+  named the very metric that change replaced.
+- **Chart layout broke at nine models and at four-model tiers.** The tier
+  panels were sized for three models, so the opus tier's growth to four ran
+  its x labels together (`Claude Opus 4.8Claude Opus 5`) and overprinted its
+  value labels; the delta slide's paired labels collided whenever both
+  deltas were equal (`−6` on `−6`); and every legend was positioned for a
+  chart with interior whitespace, which a frontier lineup scoring 92–100%
+  no longer has — so they printed over the bars. The delta chart's ±22
+  floor, sized for v0.0.7's ±17 spread, left two-thirds of the panel empty
+  against deltas of ±8. The
   metric added in [#95](https://github.com/aallan/vera-bench/issues/95)
   tallied every row carrying an `error_message`. But the Vera evaluator
   now records the runtime diagnostic for a contract violation, a
