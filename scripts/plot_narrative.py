@@ -490,6 +490,14 @@ def render_generation(
     """
     wanted = modes or CORE_MODES
     chain = GENERATION_CHAIN if span_versions else GENERATION_CHAIN[-2:]
+    # The chain pins its own bench version per link, because the trajectory
+    # spans releases by design. --version therefore cannot steer it, and
+    # saying so beats rendering the 0.0.16 chain under a 0.0.9 heading.
+    if version != chain[-1][0]:
+        print(
+            f"  generation slide: --version {version} does not apply; the "
+            f"chain pins its own versions ({', '.join(v for v, _ in chain)})"
+        )
 
     # Each link may come from a different bench version, so load per
     # version rather than once.
