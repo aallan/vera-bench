@@ -88,10 +88,18 @@ way, which is suggestive rather than conclusive on a sample of one transition.
 
 ### Reasoning budget
 
-![One model at two reasoning budgets, four languages](assets/fig-reasoning.png)
+![GPT-5.6 Sol at two reasoning budgets, across four languages](assets/fig-reasoning.png)
 
 One model, two reasoning budgets, the same problems. Deliberation is the only
 variable.
+
+The model is GPT-5.6 Sol. OpenAI's Responses API takes a `reasoning.mode`
+parameter, and the two runs set it to `standard` and to `pro`; nothing else
+differs. Pro is available only on that endpoint, so the harness sends the
+standard arm there as well. Otherwise the two would differ by endpoint as well
+as by mode, and the chart would be measuring both at once. Mode is also a
+separate axis from `reasoning.effort`, which controls how much reasoning
+happens rather than which execution path runs it.
 
 Nothing moves in any of the four languages. Whatever stops these models on the
 last two or three problems does not yield to more thinking time, which also
