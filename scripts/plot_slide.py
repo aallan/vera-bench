@@ -15,12 +15,12 @@ Five slide types are supported:
                 subset of models that ran the ZTD generation targets. Needs
                 Aver/AILANG result files, so it's opt-in (--type ztd), not
                 part of --type all.
-- `reasoning` — one model at two reasoning budgets (REASONING_PAIR) across
+- `reasoning` — one model at two reasoning modes (REASONING_PAIR) across
                 every core mode, per-language delta annotated. The
                 controlled comparison: both entries are the SAME model, so
                 deliberation is the only variable — if Vera's delta is ~0
                 while comparison languages gain, the language is supplying
-                structure the reasoning budget otherwise reconstructs.
+                structure the pro path would otherwise have to reconstruct.
                 Opt-in; needs both halves of the pair.
 
 Standalone script — not part of the documentation chart-generation flow in
@@ -777,7 +777,7 @@ def render_ztd(
 # ----------------------------------------------------------------------
 
 # Display names of a (default, pro) pair from plot_results.MODELS. Both
-# entries are the SAME underlying model at different reasoning budgets,
+# entries are the SAME underlying model at different reasoning modes,
 # so the only variable between them is deliberation.
 REASONING_PAIR = ("GPT-5.6 Sol", "GPT-5.6 Sol (pro)")
 REASONING_MODES = ["Vera", "Vera NL", "Python", "TypeScript"]
@@ -789,12 +789,12 @@ def render_reasoning(
     background: str = DEFAULT_BACKGROUND,
     missing: set[tuple[str, str]] | None = None,
 ) -> None:
-    """Does a bigger reasoning budget help — and does it help less on Vera?
+    """Does the pro reasoning path help — and does it help less on Vera?
 
     The controlled comparison no other provider offers: one model, two
     reasoning modes, every language. If Vera's delta is ~0 while the
     comparison languages gain from extra deliberation, the language is
-    supplying the structure the reasoning budget otherwise has to
+    supplying the structure the pro path would otherwise have to
     reconstruct.
     """
     all_data = _merge_tiers(tiers)
@@ -884,7 +884,7 @@ def render_reasoning(
     ax.text(
         0.5,
         1.015,
-        f"{base_name} — one model, two reasoning budgets",
+        f"{base_name} — reasoning.mode: standard against pro",
         transform=ax.transAxes,
         ha="center",
         va="bottom",

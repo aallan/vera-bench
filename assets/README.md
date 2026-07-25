@@ -19,56 +19,49 @@ They are committed because a README image has to be in the repository to
 render, which is why they sit outside the `vera-bench_slide_*` naming that
 `.gitignore` excludes.
 
-### `fig-delta.png`: Vera holds its own
+### `fig-delta.png`: Vera against Python and TypeScript
 
 Vera's score minus each comparison language, one row per model, green to the
 right. Vera wins outright for four of the nine models and draws level with
-three more. Nine months ago this chart was almost entirely red, and the worst
-case had a model solving seventeen percentage points fewer problems in Vera
-than in Python. The wins are not evenly spread: Claude Fable 5 and Claude
-Opus 5 carry most of them, and both are models that refused to answer problems
-in Python. A tie draws a short grey stub at the axis, so a zero reads as a
-zero and not as missing data.
+three more. The wins are not evenly spread: Claude Fable 5 and Claude Opus 5
+carry most of them, and both are models that refused to answer problems in
+Python.
 
-### `fig-vera-vs-aver.png`: naming things is the variable
+### `fig-vera-vs-aver.png`: a controlled comparison
 
-The closest the benchmark gets to a controlled experiment. Vera and
-[Aver](https://github.com/jasisz/aver) are both zero-training-data languages,
-both statically typed, both learned from a single document in the prompt, so
-familiarity cannot explain a difference between them. What separates them is
-that Vera has no variable names at all, using typed slot references where Aver
-uses ordinary bindings. Vera wins on all five models, and not one does better
-with names than without them.
+Comparing Vera to Python confounds design against training data: Python is
+common in every training set and Vera is absent from all of them.
+[Aver](https://github.com/jasisz/aver) is another language designed for models
+to write, and it removes that difference. The biggest design difference left is
+that Vera has no variable names, using typed slot references. Vera scores
+higher on all five models that ran both.
 
 ### `fig-generation.png`: the direction of travel
 
-Three Claude flagships across four languages, as a slope chart so direction
-reads without arithmetic. Each new model writes Vera better than the last, in
-both the full-spec mode and the harder spec-from-NL mode where it has to write
-its own contracts first. Over the same period Python and TypeScript have
-stopped improving. Only the last step is properly controlled; the earlier one
-spans a compiler, a standard library and a revision of the teaching document,
-so it measures Vera and the models improving together.
+Three Claude flagships across four languages. Claude Opus 4 solved fewer
+problems in Vera than in Python; Claude Opus 5 reverses that. Both Vera modes
+rise at every step, while Python and TypeScript end where they started or
+below. Only the last step is controlled; the earlier one spans a compiler, a
+standard library and a revision of the teaching document, so it measures the
+ecosystem improving as much as the models.
 
-### `fig-reasoning.png`: thinking longer does not help
+### `fig-reasoning.png`: reasoning mode
 
-GPT-5.6 Sol ran twice, at standard and at pro reasoning, same problems, same
-prompt, deliberation the only thing that changes. Nothing moves. Whatever is
-stopping these models solving the last two or three problems, more thinking
-time is not the answer to it, and that holds in Python as firmly as in Vera.
+GPT-5.6 Sol at `reasoning.mode` standard and pro, same problems, same prompt.
+Mode picks which execution path the model takes; `reasoning.effort`, a separate
+axis, controls how much reasoning it does once on that path, and this chart
+varies mode alone. Nothing moves in any of the four languages.
 
-### `fig-refusal.png`: models refuse in the languages they know
+### `fig-refusal.png`: refusals
 
-A model by language grid. Five refusals in the whole sweep, every one of them
-in Python or TypeScript, none at all in Vera, and in each case the same model
-went on to solve the same problem in four or five other languages. All five
-come from the two models that ship cyber classifiers; two other Anthropic
-models ran the same sweep and neither refused anything. The reading is that
-the strictest safety tuning is also the most prone to false positives, and that
-in this sweep those fired only in the languages the models had read. Five
-refusals from two models is a pattern rather than a finding.
+A model by language grid. Five refusals in the whole run, every one of them in
+Python or TypeScript and none in Vera, and in each case the same model went on
+to solve the same problem in four or five other languages. All five came from
+Claude Fable 5 and Claude Opus 5, the two models in the benchmark that ship
+cybersecurity classifiers, so these are likely false positives from those
+guardrails rather than anything to do with the problems themselves.
 
-### `fig-coverage.png`: what the headline metric misses
+### `fig-coverage.png`: what the headline metric cannot see
 
 Which of the 60 problems are scored by comparing output, and which are not. 24
 are not, because Vera is the only language here invoked without a generated

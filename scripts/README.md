@@ -36,7 +36,7 @@ fix.
 |-------|--------|------|
 | `s0` | Model ids exist, via the provider listings the script queries — currently OpenAI and Moonshot. Anthropic ids are not queried here and are covered by `s1` instead | free |
 | `s1` | Auth, id acceptance and request parameters — one problem per model, Python target (no ~28k-token prefix) | cheap |
-| `s2` | The reasoning-budget pair actually differs — same model, same problem, mode the only variable | 2 calls |
+| `s2` | The reasoning-mode pair actually differs — same model, same problem, mode the only variable | 2 calls |
 | `s3` | Prompt-cache accounting: one model **per provider**, two calls each against the ~29k Vera prefix, checking `cached_tokens` on the second | 6 calls |
 | `s5` | All six target variants end-to-end (five languages — Vera runs in both full-spec and spec-from-NL), proving the Vera / Aver / AILANG toolchains work *through the harness* | 6 calls |
 
