@@ -99,17 +99,16 @@ result.
 
 ![Which problems pass@1 can and cannot grade, by tier](assets/fig-coverage.png)
 
-Two fifths of the problem set has no test cases. The reason is mechanical: most
-of those problems take a list, a tree or an algebraic data type as an argument,
-and the runner passes arguments on a command line.
+Every chart above scores 36 of the 60 problems. The other 24 cannot be scored
+at all. They take a list, a tree or a custom data type as input, and the
+harness passes arguments on a command line, so there is no way to call them
+with a test case in the first place.
 
-They concentrate in the tiers built around data types, exhaustive matching and
-effect handlers, which is the machinery Vera's contracts and prover exist to
-check. The headline number is therefore computed over the subset of the
-benchmark that suits Python best, and is blind to the part Vera was designed
-for. Vera checks and verifies those problems, and the models get essentially
-all of them right, but that is a different measurement and not comparable
-across languages.
+Those 24 are the ADT, pattern-matching and effect-handler problems, which are
+the ones that exercise what makes Vera different from Python. So the score is
+measured on the part of the benchmark where the two languages are most alike.
+Vera does check and verify the other 24, and the models pass almost all of
+them, but Python has no equivalent step to compare that against.
 
 ### Full results
 

@@ -70,12 +70,12 @@ refusals from two models is a pattern rather than a finding.
 
 ### `fig-coverage.png`: what the headline metric misses
 
-24 of the 60 problems have no test cases, and the reason is mechanical: 20 of
-them take a list, tree, array or ADT as an argument, and `vera run` passes
-arguments on a command line. Those 24 cluster in the ADT, match and effect
-tiers, which is precisely the machinery Vera's contracts and prover exist to
-check. So pass@1 is blind to the 40% of the problem set where Vera does the
-thing it was built to do. Vera still checks and verifies all 24.
+Which of the 60 problems can be scored by comparing output, and which cannot.
+24 cannot: they take a list, tree, array or ADT as input, and `vera run` passes
+arguments on a command line, so there is no way to call them with a test case.
+Those 24 are the ADT, match and effect problems, the ones that exercise what
+makes Vera different, so the score is measured on the part of the set where
+the languages are most alike.
 
 ### Regenerating them
 
