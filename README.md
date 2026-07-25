@@ -155,34 +155,7 @@ tell you that an unfamiliar language costs a model nothing, which is the
 question it was built to answer, but it can no longer rank the field at the
 top. The next version needs harder problems.
 
-### Zero training data
-
-![Vera, Aver and AILANG across the five models that ran all three](assets/fig-ztd.png)
-
-Three languages absent from every training set, on the five models that ran all
-three. Vera averages 98.8% and AILANG 99.4%, against 97.0% for Python on those
-same five models. Aver averages 93.2%.
-
-Two of the three unfamiliar languages therefore match or beat the most familiar
-one. The three also spread further apart from each other than any of them sits
-from Python, which is the more informative comparison: whatever moves these
-scores, it is not simply whether a model has seen the language before. Design
-differences between unfamiliar languages account for more than unfamiliarity
-does.
-
-No LLM has been trained on Vera. There are no Vera examples on GitHub, no Stack
-Overflow answers, no tutorials; the language was created after these models'
-training cutoffs. Every token of Vera in these results was written by a model
-that learned the language at evaluation time, from a single document
-([SKILL.md](https://veralang.dev/SKILL.md)) in the prompt.
-
-Python and TypeScript sit at the other extreme, among the most heavily
-represented languages in any training corpus. Models write Vera about as well
-as they write either. That asymmetry in exposure, set against the absence of a
-matching asymmetry in the results, is the argument the benchmark exists to
-test, and one release of it is not enough to settle the question.
-
-### The one controlled comparison
+### A controlled comparison
 
 ![Vera against Aver, both zero-training-data languages, five models](assets/fig-vera-vs-aver.png)
 

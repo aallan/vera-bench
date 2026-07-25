@@ -11,7 +11,7 @@ counts problems rather than scoring them. Only 36 of the 60 problems can be
 graded that way, so one problem is worth 2.8 percentage points. Keep that
 number in mind when reading any gap.
 
-## The eight README figures
+## The seven README figures
 
 Rendered `--bare` and transparent: no title, no subtitle, no footnote, cropped
 to the plot, so the prose around them carries what the slide versions bake in.
@@ -86,13 +86,6 @@ in at least one of them, so with 36 graded problems most gaps are one or two
 problems wide. The benchmark can still answer whether an unfamiliar language
 costs a model anything; it can no longer rank the field at the top.
 
-### `fig-ztd.png`: zero training data
-
-Vera, Aver and AILANG across the five models that ran all three. None of the
-three appears in any training set, so every point came from a document in the
-prompt. Vera averages 98.8% and AILANG 99.4%, against 97.0% for Python on the
-same five models, and Aver 93.2%.
-
 ### Regenerating them
 
 ```bash
@@ -111,8 +104,6 @@ python scripts/plot_narrative.py --version $V --type coverage --bare \
   --background transparent --output assets/fig-coverage.png
 python scripts/plot_narrative.py --version $V --type saturation --bare \
   --background transparent --output assets/fig-saturation.png
-python scripts/plot_slide.py --version $V --type ztd --bare \
-  --background transparent --output assets/fig-ztd.png
 ```
 
 ⚠ These carry dark brown text, which suits a light page and the cream section
@@ -143,9 +134,11 @@ python scripts/plot_slide.py --version 0.0.16 --type tiers \
 python scripts/plot_narrative.py --version 0.0.16
 ```
 
-Two have no committed counterpart, because the README tells their story in
-prose instead: **tiers** and **all-modes**, which are per-capability-tier and
-per-mode reference views of numbers the other charts already carry.
+Three have no committed counterpart. **tiers** and **all-modes** are
+per-capability-tier and per-mode reference views of numbers the other charts
+already carry. **ztd** is the three-language zero-training-data slide, Vera
+against Aver against AILANG; the committed `fig-vera-vs-aver.png` is the
+two-language cut of it, which is what the README argues from.
 
 **Historical charts.** Earlier sweeps render against the lineup that actually
 ran them, which `plot_results.py` keeps in `HISTORICAL_LINEUPS`. If a version
