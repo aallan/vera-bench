@@ -40,11 +40,11 @@ satisfies them. That tests whether it understands Vera well enough to specify a
 problem in it. The two columns below are those runs, and on the command line
 they are the default and `--mode spec-from-nl`.
 
-The distance between them is where the interesting part sits. It measures what
-it costs a model to design a specification rather than fill one in, and for
-most of the field that runs to six or eight points. Two models close the gap
-completely, and Claude Opus 5 is the only one that closes it at 100%. It writes
-the contracts as reliably as it satisfies them.
+The distance between them measures what it costs a model to design a
+specification rather than fill one in, and for most of the field that runs to
+six or eight points. Two models close the gap completely, but Claude Opus 5 is
+the only one that closes it at 100%. It writes the contracts as reliably as it
+satisfies them.
 
 | Model | Vera | Vera NL | Python | TypeScript |
 |---|---|---|---|---|
