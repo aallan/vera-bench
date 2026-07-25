@@ -9,17 +9,13 @@ A benchmark for evaluating LLM code generation in [Vera](https://github.com/aall
 
 ## Results
 
-Nine models, three providers, 60 problems across five difficulty tiers, run
-against [Vera v0.1.7](https://github.com/aallan/vera/releases/tag/v0.1.7).
-Every score chart below reports **% solved**: the model wrote code, it
-compiled, it ran, and the output matched. A refusal, a compile failure, a crash
-and a wrong answer all count the same way, as not solved. The one exception is
-the coverage chart, which counts problems rather than scoring them.
-
 The ideas behind Vera appear to work. Models with no training data in the
 language now write it about as well as they write Python, the design choice
 that looks most hostile to human authors is the one they reward, and every new
 model does better than the last.
+
+Nine models, three providers, 60 problems across five difficulty tiers, against
+[Vera v0.1.7](https://github.com/aallan/vera/releases/tag/v0.1.7).
 
 ### Vera holds its own
 
@@ -131,12 +127,16 @@ Every chart in this section, and several that did not make it, are described
 in [assets/README.md](assets/README.md) with the command that regenerates
 them.
 
-> **On reading these numbers.** Single run per model, no pass@k. LLM output is
-> non-deterministic and individual problems flip between runs. With 36
-> gradeable problems one problem is worth 2.8 percentage points, so most of
-> the gaps above are one or two problems wide and the benchmark is close to
-> the point where it can no longer separate the models at the top. Harder
-> problems are the next piece of work.
+> **On reading these numbers.** The charts report **% solved**: the model
+> wrote code, it compiled, it ran, and the output matched. A refusal, a
+> compile failure, a crash and a wrong answer all count the same way, as not
+> solved; the coverage chart is the exception, and counts problems instead.
+> Single run per model, no pass@k. LLM output is non-deterministic and
+> individual problems flip between runs. With 36 gradeable problems one
+> problem is worth 2.8 percentage points, so most of the gaps above are one or
+> two problems wide and the benchmark is close to the point where it can no
+> longer separate the models at the top. Harder problems are the next piece of
+> work.
 
 ### Why this matters: zero training data
 
