@@ -86,25 +86,28 @@ library and a revision of the teaching document, so it measures the Vera
 ecosystem improving as much as the models. The controlled step moves the same
 way, which is suggestive rather than conclusive on a sample of one transition.
 
-### Reasoning budget
+### Reasoning mode
 
-![GPT-5.6 Sol at two reasoning budgets, across four languages](assets/fig-reasoning.png)
+![GPT-5.6 Sol at two reasoning modes, across four languages](assets/fig-reasoning.png)
 
-One model, two reasoning budgets, the same problems. Deliberation is the only
-variable.
+One model, two reasoning modes, the same problems. How the model reasons is the
+only variable.
 
 The model is GPT-5.6 Sol. OpenAI's Responses API takes a `reasoning.mode`
 parameter, and the two runs set it to `standard` and to `pro`; nothing else
-differs. Pro is available only on that endpoint, so the harness sends the
-standard arm there as well. Otherwise the two would differ by endpoint as well
-as by mode, and the chart would be measuring both at once. Mode is also a
-separate axis from `reasoning.effort`, which controls how much reasoning
-happens rather than which execution path runs it.
+differs.
+
+`reasoning.mode` is a separate axis from `reasoning.effort`. Mode picks which
+execution path the model takes, standard or pro. Effort controls how much
+reasoning it does once it is on that path. This chart varies mode and leaves
+effort at its default, so what it measures is the more thorough execution path
+rather than simply a longer think on the same one.
 
 Nothing moves in any of the four languages. Whatever stops these models on the
-last two or three problems does not yield to more thinking time, which also
-means Vera's position does not depend on models spending longer to reconstruct
-the structure the language supplies. It is a null result, and null results on a
+last two or three problems is not something the pro path fixes, and that holds
+in Python as firmly as in Vera. Vera's standing does not depend on the more
+expensive execution path either, which matters because the pro entry is the
+most costly run in the sweep. It is a null result, and null results on a
 saturated benchmark are weak: there is very little room left for anything to
 move.
 
