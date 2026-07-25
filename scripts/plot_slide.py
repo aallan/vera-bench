@@ -281,6 +281,9 @@ def render_delta(
                     bar.get_y() + bar.get_height() / 2,
                     zero_stub,
                     height,
+                    # Straddle the axis. Drawn from zero rightwards it reads as a
+                    # tiny win for Vera, which is exactly what a tie is not.
+                    left=-zero_stub / 2,
                     color=BROWN_900,
                     alpha=0.55,
                     linewidth=0,
@@ -291,7 +294,7 @@ def render_delta(
             # constant fraction of the axis, so once the x-limit tightened
             # to the data the labels floated out into whitespace rather
             # than sitting at the ends of their bars.
-            tip = zero_stub if val == 0 else val
+            tip = zero_stub / 2 if val == 0 else val
             sign = "+" if val > 0 else ""
             ax.annotate(
                 f"{sign}{val}",
