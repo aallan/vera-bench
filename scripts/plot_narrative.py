@@ -188,7 +188,7 @@ def best_by_problem(rows: list[dict]) -> dict[str, dict]:
     return best
 
 
-def solved(row: dict | None, problem_id: str) -> bool:
+def solved(row: dict | None, problem_id: str, version: str | None = None) -> bool:
     """Did this attempt succeed, by the strongest verdict available?
 
     Gradeability decides which verdict applies. 24 of the 60 problems
@@ -204,13 +204,14 @@ def solved(row: dict | None, problem_id: str) -> bool:
     """
     if row is None:
         return False
-    if problem_id in _gradeable_ids():
+    if problem_id in _gradeable_ids(version):
         return row.get("run_correct") is True
     return row.get("check_pass") is True
 
 
 def find_refusals(
     rows_by_target: dict[tuple[str, str], list[dict]],
+    version: str | None = None,
 ) -> list[dict]:
     """Every refusal, with the languages that same model solved it in.
 
@@ -230,7 +231,7 @@ def find_refusals(
                 for (other_model, other_mode), other_best in best_cache.items()
                 if other_model == model
                 and other_mode != mode
-                and solved(other_best.get(pid), pid)
+                and solved(other_best.get(pid), pid, version)
             )
             found.append(
                 {"model": model, "mode": mode, "problem": pid, "solved_in": solved_in}
@@ -261,7 +262,7 @@ def render_refusal(
     zero-training-data block being blank is the finding.
     """
     rows_by_target = load_rows(results_dir, version, ALL_MODES)
-    refusals = find_refusals(rows_by_target)
+    refusals = find_refusals(rows_by_target, version)
 
     model_names = [m.display for m in lineup_for(version)]
     counts: dict[tuple[str, str], int] = defaultdict(int)
@@ -707,7 +708,7 @@ def render_saturation(
     wanted = modes or CORE_MODES
     tiers, _warn, _used, missing = extract_data(results_dir, version, wanted)
     all_data = _merge_tiers(tiers)
-    n_gradeable = len(_gradeable_ids())
+    n_gradeable = len(_gradeable_ids(version))
     per_problem = 100 / n_gradeable if n_gradeable else 0
 
     fig, ax = plt.subplots(figsize=(16, 9), dpi=180)
@@ -837,10 +838,10 @@ def render_saturation(
 # ----------------------------------------------------------------------
 
 
-def _problem_structure() -> dict[int, tuple[int, int]]:
+def _problem_structure(version: str | None = None) -> dict[int, tuple[int, int]]:
     """Per tier: (total problems, gradeable problems)."""
     root = Path(__file__).resolve().parent.parent / "problems"
-    gradeable = _gradeable_ids()
+    gradeable = _gradeable_ids(version)
     out: dict[int, list[int]] = defaultdict(lambda: [0, 0])
     for pf in sorted(root.rglob("VB_*.json")):
         try:
@@ -869,13 +870,13 @@ def render_coverage(
     Vera exists to check. This slide states that plainly and then shows
     check@1 / verify, which do cover all 60.
     """
-    structure = _problem_structure()
+    structure = _problem_structure(version)
     tiers_n = sorted(structure)
     if not tiers_n:
         print("  coverage slide: no problems found under problems/ — skipping")
         return
     rows_by_target = load_rows(results_dir, version, ["Vera"])
-    gradeable = _gradeable_ids()
+    gradeable = _gradeable_ids(version)
 
     # Restricted to the problems pass@1 CANNOT see. Rates over all 60
     # would merely restate the headline chart on a second axis; the claim
