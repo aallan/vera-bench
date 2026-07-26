@@ -6,13 +6,47 @@
   "description_neutral": "Convert a string to uppercase.",
   "signature": "public fn to_upper(@String -> @String)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "to_upper",
-  "tags": ["string", "builtin-discovery", "string-upper", "case-conversion"],
-  "test_cases": [],
+  "tags": [
+    "string",
+    "builtin-discovery",
+    "string-upper",
+    "case-conversion"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        "abc"
+      ],
+      "expected": "ABC"
+    },
+    {
+      "args": [
+        ""
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        "MiXeD 42!"
+      ],
+      "expected": "MIXED 42!"
+    },
+    {
+      "args": [
+        "ALREADY"
+      ],
+      "expected": "ALREADY"
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
   "notes": "Tests discovery of string_upper. The naming convention is string_upper, not toUpperCase or upper()."

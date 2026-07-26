@@ -6,13 +6,49 @@
   "description_neutral": "Print the numbers 1 through n, each on its own line.",
   "signature": "public fn print_numbers(@Nat -> @Unit)",
   "contracts": {
-    "requires": ["@Nat.0 >= 0"],
-    "ensures": ["true"],
+    "requires": [
+      "@Nat.0 >= 0"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "<IO>"
   },
   "entry_point": "print_numbers",
-  "tags": ["io-effect", "effect-declaration", "pure-helper", "where-block", "loop", "to-string"],
-  "test_cases": [],
+  "tags": [
+    "io-effect",
+    "effect-declaration",
+    "pure-helper",
+    "where-block",
+    "loop",
+    "to-string"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        0
+      ],
+      "expected": ""
+    },
+    {
+      "args": [
+        1
+      ],
+      "expected": "1"
+    },
+    {
+      "args": [
+        3
+      ],
+      "expected": "1\n2\n3"
+    },
+    {
+      "args": [
+        5
+      ],
+      "expected": "1\n2\n3\n4\n5"
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
   "notes": "Tests IO effect declaration, to_string discovery, and recursive IO loop. The agent must declare effect IO { op print(String -> Unit); } and use a where block for the loop. The format_number helper must be pure."

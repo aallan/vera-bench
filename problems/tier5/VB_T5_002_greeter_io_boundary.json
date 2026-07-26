@@ -22,7 +22,20 @@
     "effect-declaration",
     "string-concat"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        "world"
+      ],
+      "expected": "Hello, world!"
+    },
+    {
+      "args": [
+        "Vera"
+      ],
+      "expected": "Hello, Vera!"
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
   "notes": "Tests the pure/IO boundary. The agent must declare 'effect IO { op print(String -> Unit); }' and ensure build_greeting is effects(pure) while greet is effects(<IO>). String contracts fall to Tier 3."
