@@ -30,6 +30,12 @@ from vera_bench.prompts import (
 )
 from vera_bench.validate import normalize_output
 from vera_bench.vera_runner import VeraRunner
+from vera_bench.vera_wrapper import (
+    PROBE_FN,
+    Unsupported,
+    build_wrapper,
+    can_wrap,
+)
 
 console = Console()
 
@@ -146,14 +152,42 @@ def _evaluate_code(
     # would have been recorded as the model's fault.
     all_pass = True
     last_run_error: str | None = None
+    # A problem whose entry point takes a data structure cannot be called
+    # through `vera run --fn`, which passes arguments on a command line.
+    # For those, generate a caller with the arguments written into the
+    # source, the way the Python and AILANG evaluators already do (#107).
+    signature = problem.get("signature", "")
+    wrapped = can_wrap(signature)
     for i, tc in enumerate(test_cases):
         if not isinstance(tc, dict):
             continue
         args = tc.get("args", [])
         expected = tc.get("expected")
         result["tests_total"] += 1
+
+        run_path, run_fn, run_args = file_path, entry_point, args
+        if wrapped:
+            try:
+                wrapper, expected = build_wrapper(
+                    code, entry_point, signature, args, expected
+                )
+            except Unsupported as e:
+                # Leave the problem ungraded rather than score it on a
+                # wrapper we are not sure of: a generated caller that
+                # fails to compile would be recorded as the model writing
+                # a wrong program.
+                result["run_correct"] = None
+                result["tests_total"] = 0
+                result["tests_passed"] = 0
+                if not result.get("error_message"):
+                    result["error_message"] = f"test wrapper unavailable: {e}"
+                return result
+            run_path = work_dir / f"{problem['id']}_attempt{attempt}_probe{i}.vera"
+            run_path.write_text(code + "\n" + wrapper, encoding="utf-8")
+            run_fn, run_args = PROBE_FN, None
+
         try:
-            run = vera.run_fn(file_path, entry_point, args if args else None)
+            run = vera.run_fn(run_path, run_fn, run_args if run_args else None)
         except subprocess.TimeoutExpired:
             all_pass = False
             if last_run_error is None:

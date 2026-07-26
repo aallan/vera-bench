@@ -6,13 +6,48 @@
   "description_neutral": "Return the first element of an array, or -1 if the array is empty.",
   "signature": "public fn safe_head(@Array<Int> -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "safe_head",
-  "tags": ["exception-effect", "handler", "effect-discharge", "two-functions", "array-access", "empty-check"],
-  "test_cases": [],
+  "tags": [
+    "exception-effect",
+    "handler",
+    "effect-discharge",
+    "two-functions",
+    "array-access",
+    "empty-check"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        [
+          7,
+          8
+        ]
+      ],
+      "expected": 7
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": -1
+    },
+    {
+      "args": [
+        [
+          42
+        ]
+      ],
+      "expected": 42
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
   "notes": "Tests Exn<Int> for empty array handling. Similar to VB-T5-005 but simpler (single param, always index 0). The agent must use array_length for the empty check and array indexing with [0]."
