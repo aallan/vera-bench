@@ -9,11 +9,11 @@ fn print_and_continue(i: Int, n: Int) -> Unit
     print_loop(i + 1, n)
 
 fn print_loop(i: Int, n: Int) -> Unit
-    ? "Recurses from i to n, printing each integer."
+    ? "Recurses from i to n printing each integer; prints nothing when i exceeds n."
     ! [Console.print]
-    match i < n
-        true  -> print_and_continue(i, n)
-        false -> Console.print("{n}")
+    match i > n
+        true  -> Unit
+        false -> print_and_continue(i, n)
 
 fn print_numbers(n: Int) -> Unit
     ? "Prints 1 through n on separate lines."
@@ -22,4 +22,11 @@ fn print_numbers(n: Int) -> Unit
 
 fn main() -> Unit
     ! [Console.print]
+    print_numbers(0)
+    Console.print("<<VB-CASE>>")
+    print_numbers(1)
+    Console.print("<<VB-CASE>>")
+    print_numbers(3)
+    Console.print("<<VB-CASE>>")
     print_numbers(5)
+    Console.print("<<VB-CASE>>")

@@ -338,3 +338,23 @@ def printed_form(
     the unqualified rendering.
     """
     return render(value, spec, language, names, native, qualifier)
+
+
+#: Printed between test cases by the generated Aver/AILANG mains, so a
+#: problem whose output is several lines (or none) can still be split
+#: back into per-case chunks. The one-line-per-case protocol cannot
+#: express that on its own, and restructuring to one subprocess per case
+#: would cost a compile per case in both languages.
+STDOUT_SENTINEL = "<<VB-CASE>>"
+
+
+def grades_on_stdout(problem: dict) -> bool:
+    """Whether this problem is graded on printed output, not a return value."""
+    from vera_bench.vera_wrapper import Unsupported as _U
+    from vera_bench.vera_wrapper import parse_signature
+
+    try:
+        _, ret = parse_signature(problem.get("signature", ""))
+    except _U:
+        return False
+    return ret == "@Unit"

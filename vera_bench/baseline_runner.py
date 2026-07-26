@@ -17,7 +17,9 @@ from rich.console import Console
 from rich.progress import Progress
 
 from vera_bench.adt_render import (
+    STDOUT_SENTINEL,
     declared_type,
+    grades_on_stdout,
     printed_form,
     render,
     render_args,
@@ -161,7 +163,11 @@ def _build_python_wrapper(
         # sides are walked into a comparable shape (#107 step 2b).
         adt_ret = _adt_expected(problem, src_text, "python", expected)
         cmp_py = (
-            f"_norm(actual_{i}) == _norm({adt_ret})"
+            # An @Unit problem is graded on what it PRINTED, not on the
+            # None it returned (#107 step 5).
+            f"_buf_{i}.getvalue().strip() == {expected_repr}.strip()"
+            if grades_on_stdout(problem)
+            else f"_norm(actual_{i}) == _norm({adt_ret})"
             if adt_ret is not None
             else f"actual_{i} == {expected_repr}"
         )
@@ -173,7 +179,8 @@ def _build_python_wrapper(
                 # every call runs under a stdout redirect. The captured
                 # text is discarded for now; grading @Unit problems ON
                 # that text is #107 step 5.
-                "    with contextlib.redirect_stdout(io.StringIO()):",
+                f"    _buf_{i} = io.StringIO()",
+                f"    with contextlib.redirect_stdout(_buf_{i}):",
                 f"        actual_{i} = {entry_point}({call_expr})",
                 f"    passed_{i} = {cmp_py}",
                 f'    results.append({{"passed": passed_{i},'
@@ -202,6 +209,12 @@ def _build_typescript_wrapper(
     lines = [
         f'import {{ {ts_fn} }} from "{rel_path}";',
         "",
+        "let _out: string[] = [];",
+        "const _log = console.log;",
+        "const _cap = (...a: any[]) => { _out.push(a.join(' ') + '\\n'); };",
+        # A solution may print with either; capture both.
+        "const _w = process.stdout.write.bind(process.stdout);",
+        "const _capw = (c: any) => { _out.push(String(c)); return true; };",
         "const _norm = (v: any): any => (v && typeof v === 'object')",
         "  ? (Array.isArray(v) ? v.map(_norm)",
         "     : Object.keys(v).sort().reduce("
@@ -238,10 +251,17 @@ def _build_typescript_wrapper(
         lines.extend(
             [
                 "try {",
+                "  _out = []; console.log = _cap;",
+                "  (process.stdout as any).write = _capw;",
                 f"  const actual_{i} = {ts_fn}({ts_call});",
+                "  console.log = _log;",
+                "  (process.stdout as any).write = _w;",
                 f"  const passed_{i} = "
                 + (
-                    f"JSON.stringify(_norm(actual_{i})) === "
+                    # @Unit: compare what was printed (#107 step 5).
+                    f"_out.join('').trim() === {expected_json}.trim();"
+                    if grades_on_stdout(problem)
+                    else f"JSON.stringify(_norm(actual_{i})) === "
                     f"JSON.stringify(_norm({adt_ret_ts}));"
                     if adt_ret_ts is not None
                     else f"Array.isArray(actual_{i}) || Array.isArray({expected_json}) "
@@ -615,7 +635,13 @@ def run_aver_baseline(
 
     # Parse output: each line corresponds to one test case result
     stdout = run_result.stdout.strip()
-    output_lines = stdout.split("\n") if stdout else []
+    if grades_on_stdout(problem):
+        # A case may print several lines or none, so the one-line-per-case
+        # protocol cannot address them positionally. The generated main
+        # prints a sentinel between cases instead (#107 step 5).
+        output_lines = [c.strip() for c in stdout.split(STDOUT_SENTINEL)]
+    else:
+        output_lines = stdout.split("\n") if stdout else []
     tests_passed = 0
 
     src_text = baseline_path.read_text(encoding="utf-8")
@@ -868,7 +894,13 @@ def run_ailang_baseline(
     # Parse stdout: each line corresponds to one test case result.
     # Reuses the Aver output-matching logic (handles bool 1/0 vs "true"/"false").
     stdout = run_result.stdout.strip()
-    output_lines = stdout.split("\n") if stdout else []
+    if grades_on_stdout(problem):
+        # A case may print several lines or none, so the one-line-per-case
+        # protocol cannot address them positionally. The generated main
+        # prints a sentinel between cases instead (#107 step 5).
+        output_lines = [c.strip() for c in stdout.split(STDOUT_SENTINEL)]
+    else:
+        output_lines = stdout.split("\n") if stdout else []
     tests_passed = 0
 
     ail_src = baseline_path.read_text(encoding="utf-8")

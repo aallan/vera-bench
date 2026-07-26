@@ -19,6 +19,7 @@ from rich.progress import Progress
 
 from vera_bench.adt_render import (
     declared_type,
+    grades_on_stdout,
     render,
     render_args,
     resolve_names,
@@ -402,7 +403,11 @@ def _evaluate_python_code(
         call_expr = adt_args if adt_args is not None else f"*{args_repr}"
         adt_ret = _adt_expected(problem, code, "python", expected)
         cmp_py = (
-            f"_norm(actual_{i}) == _norm({adt_ret})"
+            # An @Unit problem is graded on what it PRINTED, not on the
+            # None it returned (#107 step 5).
+            f"_buf_{i}.getvalue().strip() == {expected_repr}.strip()"
+            if grades_on_stdout(problem)
+            else f"_norm(actual_{i}) == _norm({adt_ret})"
             if adt_ret is not None
             else f"actual_{i} == {expected_repr}"
         )
@@ -414,7 +419,8 @@ def _evaluate_python_code(
                 # every call runs under a stdout redirect. The captured
                 # text is discarded for now; grading @Unit problems ON
                 # that text is #107 step 5.
-                "    with contextlib.redirect_stdout(io.StringIO()):",
+                f"    _buf_{i} = io.StringIO()",
+                f"    with contextlib.redirect_stdout(_buf_{i}):",
                 f"        actual_{i} = {entry_point}({call_expr})",
                 f"    passed_{i} = {cmp_py}",
                 f'    results.append({{"passed": passed_{i},'
@@ -519,6 +525,12 @@ def _evaluate_typescript_code(
     wrapper_lines = [
         f'import {{ {ts_fn} }} from "./{code_path.name}";',
         "",
+        "let _out: string[] = [];",
+        "const _log = console.log;",
+        "const _cap = (...a: any[]) => { _out.push(a.join(' ') + '\\n'); };",
+        # A solution may print with either; capture both.
+        "const _w = process.stdout.write.bind(process.stdout);",
+        "const _capw = (c: any) => { _out.push(String(c)); return true; };",
         "const _norm = (v: any): any => (v && typeof v === 'object')",
         "  ? (Array.isArray(v) ? v.map(_norm)",
         "     : Object.keys(v).sort().reduce("
@@ -549,10 +561,17 @@ def _evaluate_typescript_code(
         wrapper_lines.extend(
             [
                 "try {",
+                "  _out = []; console.log = _cap;",
+                "  (process.stdout as any).write = _capw;",
                 f"  const actual_{i} = {ts_fn}({ts_call});",
+                "  console.log = _log;",
+                "  (process.stdout as any).write = _w;",
                 f"  const passed_{i} = "
                 + (
-                    f"JSON.stringify(_norm(actual_{i})) === "
+                    # @Unit: compare what was printed (#107 step 5).
+                    f"_out.join('').trim() === {expected_json}.trim();"
+                    if grades_on_stdout(problem)
+                    else f"JSON.stringify(_norm(actual_{i})) === "
                     f"JSON.stringify(_norm({adt_ret_ts}));"
                     if adt_ret_ts is not None
                     else f"Array.isArray(actual_{i}) || Array.isArray({expected_json}) "
