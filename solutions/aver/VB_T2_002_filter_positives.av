@@ -18,6 +18,7 @@ verify filter_positives
 
 fn main() -> Unit
     ! [Console.print]
+    Console.print("{filter_positives([1, -2, 3])}")
     Console.print("{filter_positives([])}")
-    Console.print("{filter_positives([1, -2, 3, -4, 5])}")
-    Console.print("{filter_positives([-1, -2, -3])}")
+    Console.print("{filter_positives([-1, -2])}")
+    Console.print("{filter_positives([0, 1])}")

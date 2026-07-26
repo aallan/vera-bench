@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
+
 from vera_bench.matrix import MODELS, PROVIDER_ENV_KEYS, detect_provider
 
 
@@ -146,3 +151,69 @@ class TestPassAtOne:
 
     def test_none_when_no_gradeable_present(self):
         assert self._pass1([self._row("X", check=True, run=None)], {"P0"}) is None
+
+
+class TestGradeableVersioning:
+    """The gradeable set is version-pinned, like the model lineup.
+
+    problems/ on disk only knows today's problem set, but old result
+    files carry rows for problems that were not gradeable when swept.
+    Without the pin, regenerating a v0.0.16 chart after test cases
+    landed for 10 more problems would divide 36 problems' worth of
+    solves by 46 and silently deflate every published number.
+    """
+
+    def _pr(self) -> "ModuleType":
+        import pathlib
+        import sys
+
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
+        import scripts.plot_results as pr
+
+        return pr
+
+    def test_old_version_excludes_later_graded_problems(self, monkeypatch):
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {"P0", "P1"})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {"P1": "0.0.17"})
+        assert pr._gradeable_ids("0.0.16") == {"P0"}
+        assert pr._gradeable_ids("0.0.17") == {"P0", "P1"}
+        assert pr._gradeable_ids(None) == {"P0", "P1"}
+
+    def test_unparseable_version_is_treated_as_current(self, monkeypatch):
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {"P0", "P1"})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {"P1": "0.0.17"})
+        assert pr._gradeable_ids("not-a-version") == {"P0", "P1"}
+
+    def test_pass_at_1_uses_the_versioned_denominator(self, monkeypatch):
+        # Ten problems, all solved; two of them only became gradeable in
+        # 0.0.17. A 0.0.16 file scoring 8/8 must not become 8/10.
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {f"P{i}" for i in range(10)})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {"P8": "0.0.17", "P9": "0.0.17"})
+        rows = [
+            {
+                "problem_id": f"P{i}",
+                "attempt": 1,
+                "check_pass": True,
+                # The two later-graded problems look exactly as they do in
+                # a real old file: present, ungraded, no error.
+                "run_correct": True if i < 8 else None,
+                "error_message": None,
+            }
+            for i in range(10)
+        ]
+        assert pr._pass_at_1_pct(rows, "0.0.16") == 100
+        assert pr._pass_at_1_pct(rows, "0.0.17") == 80
+
+    def test_every_pinned_id_is_gradeable_today(self):
+        # A GRADEABLE_ADDED entry for a problem with no test cases would
+        # mean the pin and the problem set disagree about reality.
+        pr = self._pr()
+        pr._GRADEABLE_IDS = None  # drop any patched value; read from disk
+        current = pr._gradeable_ids(None)
+        missing = set(pr.GRADEABLE_ADDED) - current
+        assert not missing, f"pinned but not gradeable on disk: {sorted(missing)}"
+        for version in pr.GRADEABLE_ADDED.values():
+            assert pr._version_tuple(version) is not None

@@ -1,18 +1,18 @@
 module Greeting
     intent = "Generates a greeting string from a name using string interpolation."
-    exposes [greeting]
+    exposes [greet]
 
-fn greeting(name: String) -> String
+fn greet(name: String) -> String
     ? "Returns a greeting in the form Hello, <name>!"
     "Hello, {name}!"
 
-verify greeting
-    greeting("Alice") => "Hello, Alice!"
-    greeting("World") => "Hello, World!"
-    greeting("Aver") => "Hello, Aver!"
+verify greet
+    greet("Alice") => "Hello, Alice!"
+    greet("World") => "Hello, World!"
+    greet("Aver") => "Hello, Aver!"
 
 fn main() -> Unit
     ! [Console.print]
-    Console.print("{greeting("Alice")}")
-    Console.print("{greeting("World")}")
-    Console.print("{greeting("Aver")}")
+    Console.print("{greet("world")}")
+    Console.print("{greet("Ada")}")
+    Console.print("{greet("x")}")

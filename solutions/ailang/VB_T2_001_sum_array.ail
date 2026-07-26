@@ -6,4 +6,9 @@ func add(acc: int, x: int) -> int = acc + x
 
 export func sum_array(xs: [int]) -> int = foldl(add, 0, xs)
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(sum_array([1, 2, 3, 4])));
+  println(show(sum_array([])));
+  println(show(sum_array([-5, 5])));
+  println(show(sum_array([7])))
+}

@@ -7,20 +7,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.17] - 2026-07-26
+
 ### Added
 
+- **Ten more problems are output-graded: 36 of 60 becomes 46.**
+  `vera run --fn` passes arguments on a command line, which carries only
+  scalars, so every problem whose entry point takes a data structure had
+  no test cases at all. `vera_bench/vera_wrapper.py` now generates a
+  caller with the arguments written into the source — the treatment
+  Python, TypeScript and AILANG always had — used by both the LLM
+  evaluator and `vera-bench validate`, which run test cases through
+  separate code paths and must agree. Structured *return* values print
+  as raw WASM addresses (`vera run` on an `@Array<Int>` emits something
+  like `81972`), so for those the wrapper embeds the expected value,
+  compares element-by-element in Vera, and returns a boolean. Where a
+  wrapper cannot be built the problem stays ungraded with the reason
+  recorded, never scored against a caller that might not compile. Eight
+  problems needed the wrapper (array inputs); two more needed nothing
+  but test cases, because the "integer arguments only" limitation no
+  longer holds against vera 0.1.7 — strings and bools round-trip on the
+  command line, probed rather than assumed. Grading is gated on the
+  canonical baselines in all five languages, which is what kept the two
+  IO problems out: Vera grades them on stdout, but the Aver and AILANG
+  baseline protocol is one printed line per test case, and
+  `print_numbers` emits several lines or none. They stay ungraded with
+  that constraint recorded
+  ([#107](https://github.com/aallan/vera-bench/issues/107) step 5). The
+  other 12 ungraded problems all take an ADT argument (step 2).
+- **`GRADEABLE_ADDED` version-pins the pass@1 denominator.** The
+  gradeable set is read from `problems/` on disk, which only knows
+  today's problem set; old result files carry rows for problems that
+  were not gradeable when swept. Without the pin, regenerating a v0.0.16
+  chart after this release would divide 36 problems' worth of solves by
+  46 and silently deflate every published number. Same failure class,
+  same remedy, as `HISTORICAL_LINEUPS`: charts for a version use that
+  version's denominator, verified by reproducing the published v0.0.16
+  numbers exactly.
 - **Claude Opus 5 in the model matrix.** Added alongside `claude-opus-4-8`
   (same `opus` tier, same zero-training-data targets) for a same-day
   head-to-head — Opus 5 shipped 2026-07-24. `vera_bench/matrix.py` grows to
   nine models; the sweep, the preflight gate and the charts pick it up from
   the registry with no other change.
-- **A narrative Results section in the README, and `assets/GRAPHS.md`.** The
+- **A narrative Results section in the README, and `assets/README.md`.** The
   previous section dropped in the full documentation chart and let the reader
-  find the story. It now walks the argument: Vera holds its own, removing
-  variable names was the right call, the direction of travel, structure rather
-  than compute, refusals, and what the headline metric cannot see. `GRAPHS.md`
-  documents every chart in the repository, what it means, and the command that
-  regenerates it.
+  find the story. It now walks the argument, one chart per claim, and
+  `assets/README.md` documents every committed image with the command that
+  regenerates it. (`assets/GRAPHS.md` is uncommitted talk notes covering the
+  generated slides as well.)
 - **`--bare` and a `transparent` background for the slide renderers.** Draws
   the plot with no title, subtitle or footnote, cropped to the content, for
   embedding in a page whose prose carries them. The six figures the README and
@@ -32,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   problem in another language), `generation` (consecutive flagship
   releases across every language, as a slope chart), `saturation` (every
   model × language score as one dot, with a "1 problem = N pp" scale bar)
-  and `coverage` (what pass@1 structurally cannot see — the 24 of 60
+  and `coverage` (what pass@1 structurally cannot see — the
   problems with no test cases). Separate from `plot_slide.py` because of
   the data path, not the styling: those renderers consume `extract_data`'s
   one-number-per-cell aggregate, and these need the raw JSONL rows.
@@ -56,6 +90,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`MoonshotClient` request timeout raised from 120s to 300s.** Kimi on
+  a hard Tier-5 spec-from-NL problem exceeded 120s deterministically —
+  VB-T5-009 failed identically across a dozen retries at four
+  `--max-tokens` values — and the harness recorded each as a *transient*
+  API error, inviting retries that could never succeed. The timeout is
+  still hardcoded per-client and unreachable from the CLI
+  ([#105](https://github.com/aallan/vera-bench/issues/105)); other
+  providers remain at 120s. Moonshot rows from this version are
+  therefore not strictly comparable with v0.0.16 rows on long problems,
+  which is part of why this is a version bump.
 - **Charts report "% solved" (pass@1), not `run_correct`.** `run_correct`
   was measured only over the problems that compiled, so a model that
   refused or failed to compile shrank its own denominator and scored
@@ -91,6 +135,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **VB-T5-008's canonical solution swapped its recursion arguments.**
+  `print_loop` is called as `(current, limit)` but recursed as
+  `(limit, current + 1)`, flipping the parameter roles on the first
+  recursion — a De Bruijn hazard the language's own gotcha list warns
+  about. `print_numbers(3)` printed `1` and stopped; `print_numbers(1)`
+  diverged. `check` and `verify` both pass the broken version; it sat in
+  the repo because the problem had no test cases, so nothing ever ran
+  it. The first IO problem the coverage work reached caught it — the
+  blind spot this release closes was hiding a real defect in our own
+  canonical set.
 - **The zero-training-data slide silently omitted Claude Opus 5.**
   `plot_slide.ZTD_MODELS` was a hand-kept literal listing four models. When
   Opus 5 joined the matrix — with both its Aver and AILANG targets swept —

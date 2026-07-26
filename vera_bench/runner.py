@@ -30,6 +30,12 @@ from vera_bench.prompts import (
 )
 from vera_bench.validate import normalize_output
 from vera_bench.vera_runner import VeraRunner
+from vera_bench.vera_wrapper import (
+    PROBE_FN,
+    Unsupported,
+    build_wrapper,
+    can_wrap,
+)
 
 console = Console()
 
@@ -146,14 +152,42 @@ def _evaluate_code(
     # would have been recorded as the model's fault.
     all_pass = True
     last_run_error: str | None = None
+    # A problem whose entry point takes a data structure cannot be called
+    # through `vera run --fn`, which passes arguments on a command line.
+    # For those, generate a caller with the arguments written into the
+    # source, the way the Python and AILANG evaluators already do (#107).
+    signature = problem.get("signature", "")
+    wrapped = can_wrap(signature)
     for i, tc in enumerate(test_cases):
         if not isinstance(tc, dict):
             continue
         args = tc.get("args", [])
         expected = tc.get("expected")
         result["tests_total"] += 1
+
+        run_path, run_fn, run_args = file_path, entry_point, args
+        if wrapped:
+            try:
+                wrapper, expected = build_wrapper(
+                    code, entry_point, signature, args, expected
+                )
+            except Unsupported as e:
+                # Leave the problem ungraded rather than score it on a
+                # wrapper we are not sure of: a generated caller that
+                # fails to compile would be recorded as the model writing
+                # a wrong program.
+                result["run_correct"] = None
+                result["tests_total"] = 0
+                result["tests_passed"] = 0
+                if not result.get("error_message"):
+                    result["error_message"] = f"test wrapper unavailable: {e}"
+                return result
+            run_path = work_dir / f"{problem['id']}_attempt{attempt}_probe{i}.vera"
+            run_path.write_text(code + "\n" + wrapper, encoding="utf-8")
+            run_fn, run_args = PROBE_FN, None
+
         try:
-            run = vera.run_fn(file_path, entry_point, args if args else None)
+            run = vera.run_fn(run_path, run_fn, run_args if run_args else None)
         except subprocess.TimeoutExpired:
             all_pass = False
             if last_run_error is None:
@@ -226,6 +260,8 @@ def _evaluate_python_code(
 
     # Build test wrapper
     wrapper_lines = [
+        "import contextlib",
+        "import io",
         "import json",
         "import sys",
         f"sys.path.insert(0, {str(work_dir)!r})",
@@ -246,7 +282,13 @@ def _evaluate_python_code(
         wrapper_lines.extend(
             [
                 "try:",
-                f"    actual_{i} = {entry_point}(*{args_repr})",
+                # Solutions that print (the IO problems) would interleave
+                # with the JSON result line and corrupt the protocol, so
+                # every call runs under a stdout redirect. The captured
+                # text is discarded for now; grading @Unit problems ON
+                # that text is #107 step 5.
+                "    with contextlib.redirect_stdout(io.StringIO()):",
+                f"        actual_{i} = {entry_point}(*{args_repr})",
                 f"    passed_{i} = actual_{i} == {expected_repr}",
                 f'    results.append({{"passed": passed_{i},'
                 f' "actual": repr(actual_{i})}})',
@@ -364,12 +406,19 @@ def _evaluate_typescript_code(
             expected = expected == "true"
         args_json = json.dumps(args)
         expected_json = json.dumps(expected)
-        # Use == (not ===) so true==1 and false==0 match
+        # Loose == (not ===) so a Vera-style 1/0 expected matches a native
+        # boolean (VB-T1-006's original false failure). Arrays are the
+        # exception: == on arrays is reference equality and always false
+        # for a fresh return value, so they compare by JSON — which is
+        # value equality for the int/string arrays the problems use.
         wrapper_lines.extend(
             [
                 "try {",
                 f"  const actual_{i} = {ts_fn}(...{args_json});",
-                f"  const passed_{i} = actual_{i} == {expected_json};",
+                f"  const passed_{i} = Array.isArray(actual_{i}) || "
+                f"Array.isArray({expected_json}) "
+                f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
+                f": actual_{i} == {expected_json};",
                 f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
                 "} catch (e: any) {",
                 "  results.push({passed: false, error: String(e)});",

@@ -247,13 +247,55 @@ def _load_jsonl(path: Path) -> list[dict]:
 
 _GRADEABLE_IDS: set[str] | None = None
 
+# Problems whose test cases were first added in a given bench version.
+# The gradeable set is read from problems/ on disk, which only knows
+# TODAY's problem set — but old result files carry rows for problems
+# that were not gradeable when they were swept. Without this pin,
+# regenerating a v0.0.16 chart after #107 landed would divide 36
+# problems' worth of solves by the current 46-problem denominator (the
+# 36 plus the ten this release added) and silently deflate every
+# published number. Same failure class, same
+# remedy, as HISTORICAL_LINEUPS above.
+#
+# Maintenance rule: whenever test cases are added to an EXISTING
+# problem, record its id here against the first bench version whose
+# sweeps grade it. Brand-new problems need no entry — old result files
+# carry no rows for them at all, so presence-filtering already excludes
+# them.
+GRADEABLE_ADDED: dict[str, str] = {
+    pid: "0.0.17"
+    for pid in (
+        # arrays, via the generated wrapper (#107 step 1)
+        "VB-T2-001",
+        "VB-T2-002",
+        "VB-T2-006",
+        "VB-T2-007",
+        "VB-T2-008",
+        "VB-T2-010",
+        "VB-T5-005",
+        "VB-T5-010",
+        # scalar strings on the CLI, no wrapper needed
+        "VB-T2-003",
+        "VB-T2-009",
+    )
+}
 
-def _gradeable_ids() -> set[str]:
-    """Problem ids that have test cases — the only ones output-gradeable.
 
-    Cached. Read from problems/ so the pass@1 denominator is the real
-    number of gradeable problems (currently 36 of 60), not a hardcoded
-    constant that would silently rot if the set changed.
+def _version_tuple(version: str) -> tuple[int, ...] | None:
+    try:
+        return tuple(int(x) for x in version.split("."))
+    except (AttributeError, ValueError):
+        return None
+
+
+def _gradeable_ids(version: str | None = None) -> set[str]:
+    """Problem ids output-gradeable as of `version` (None = today).
+
+    The base set is read from problems/ so the pass@1 denominator is the
+    real number of gradeable problems, not a hardcoded constant that
+    would silently rot. `version` then subtracts problems whose test
+    cases postdate that bench version, per GRADEABLE_ADDED — an
+    unparseable version is treated as current rather than guessed at.
     """
     global _GRADEABLE_IDS
     if _GRADEABLE_IDS is None:
@@ -267,10 +309,19 @@ def _gradeable_ids() -> set[str]:
             if p.get("test_cases"):
                 ids.add(p.get("id"))
         _GRADEABLE_IDS = ids
-    return _GRADEABLE_IDS
+    base = _GRADEABLE_IDS
+    vt = _version_tuple(version) if version is not None else None
+    if vt is None:
+        return base
+    return {
+        pid
+        for pid in base
+        if pid not in GRADEABLE_ADDED
+        or (_version_tuple(GRADEABLE_ADDED[pid]) or ()) <= vt
+    }
 
 
-def _pass_at_1_pct(rows: list[dict]) -> int | None:
+def _pass_at_1_pct(rows: list[dict], version: str | None = None) -> int | None:
     """pass@1 as an integer percent: solved / gradeable-problems-present.
 
     A refusal, a compile failure, a runtime error and a wrong answer all
@@ -284,7 +335,7 @@ def _pass_at_1_pct(rows: list[dict]) -> int | None:
     problem is present, so the caller can treat that as absent data rather
     than a genuine 0%.
     """
-    gradeable = _gradeable_ids()
+    gradeable = _gradeable_ids(version)
     attempts: dict[str, dict[int | None, dict]] = {}
     for r in rows:
         pid = r.get("problem_id")
@@ -355,7 +406,7 @@ def extract_data(
                 continue
             used_paths.append(path)
             data = _load_jsonl(path)
-            pass1 = _pass_at_1_pct(data)
+            pass1 = _pass_at_1_pct(data, version)
             if pass1 is None:
                 # No gradeable problem produced a verdict — the file has
                 # none, or every attempt infra-failed. Distinguish from a

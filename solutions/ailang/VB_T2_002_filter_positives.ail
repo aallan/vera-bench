@@ -6,4 +6,9 @@ func isPos(x: int) -> bool = x > 0
 
 export func filter_positives(xs: [int]) -> [int] = filter(isPos, xs)
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(filter_positives([1, -2, 3])));
+  println(show(filter_positives([])));
+  println(show(filter_positives([-1, -2])));
+  println(show(filter_positives([0, 1])))
+}

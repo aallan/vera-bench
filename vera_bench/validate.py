@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
 
 from vera_bench.vera_runner import VeraRunner
+from vera_bench.vera_wrapper import (
+    PROBE_FN,
+    Unsupported,
+    build_wrapper,
+    can_wrap,
+)
 
 REQUIRED_FIELDS = [
     "id",
@@ -144,6 +151,16 @@ def validate_problem(
     # Test cases
     test_cases = problem.get("test_cases", [])
     entry_point = problem.get("entry_point", "")
+    # Same generated-caller path the LLM evaluator uses: a problem taking a
+    # data structure cannot be called through `vera run --fn` at all (#107).
+    # Both paths must agree, or the canonical solutions would be validated
+    # differently from the code being graded against them.
+    signature = problem.get("signature", "")
+    wrapped = can_wrap(signature)
+    source = Path(vera_file).read_text(encoding="utf-8") if wrapped else ""
+    probe_dir: tempfile.TemporaryDirectory | None = (
+        tempfile.TemporaryDirectory() if wrapped else None
+    )
     for tc in test_cases:
         if not isinstance(tc, dict):
             result["errors"].append(f"malformed test case: {tc!r}")
@@ -151,8 +168,20 @@ def validate_problem(
         args = tc.get("args", [])
         expected = tc.get("expected")
         result["tests_run"] += 1
+        run_file, run_entry, run_args = vera_file, entry_point, args
+        if wrapped:
+            try:
+                wrapper, expected = build_wrapper(
+                    source, entry_point, signature, args, expected
+                )
+            except Unsupported as e:
+                result["errors"].append(f"run({args}): no wrapper: {e}")
+                continue
+            run_file = Path(probe_dir.name) / f"probe{result['tests_run']}.vera"
+            run_file.write_text(source + "\n" + wrapper, encoding="utf-8")
+            run_entry, run_args = PROBE_FN, None
         try:
-            run = runner.run_fn(vera_file, entry_point, args if args else None)
+            run = runner.run_fn(run_file, run_entry, run_args if run_args else None)
             if run.exit_code != 0:
                 result["errors"].append(
                     f"run({args}): non-zero exit code {run.exit_code}"

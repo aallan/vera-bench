@@ -83,8 +83,9 @@ started or below.
 
 Only the second step is controlled. The first spans a compiler, a standard
 library and a revision of the teaching document, so it measures the Vera
-ecosystem improving as much as the models. The controlled step moves the same
-way, which is suggestive rather than conclusive on a sample of one transition.
+ecosystem improving alongside the models, in unknown proportion. The controlled
+step moves the same way, which is suggestive rather than conclusive on a sample
+of one transition.
 
 ### Reasoning mode
 
@@ -129,20 +130,25 @@ to do with the problems themselves.
 
 ![Which problems pass@1 can and cannot grade, by tier](assets/fig-coverage.png)
 
-Every score reported above is computed over 36 of the 60 problems. The other 24
-are not scored, and the reason is a limitation of this harness rather than
-anything about Vera. Python, TypeScript and AILANG solutions are called from a
-wrapper the harness generates, which can pass a list or a tree as an argument
-quite happily. Vera solutions are invoked through `vera run --fn`, which takes
-its arguments on a command line, so a problem whose input is a data structure
-cannot be called at all.
+Every score reported above is computed over 36 of the 60 problems, the number
+that carried test cases when this sweep ran. Most of the rest could not be
+called at all: `vera run --fn` passes its arguments on a command line, and a
+command line cannot carry a list or a tree. Python, TypeScript and AILANG
+never had that limit, because the harness calls them from a generated wrapper
+with the arguments written into the source. The few others sat out for their
+own reasons: two string problems under an older compiler's argument handling,
+and two IO problems whose multi-line output the cross-language baseline
+protocol cannot host.
 
-Those 24 are the ADT, pattern-matching and effect-handler problems, the ones
-that exercise what makes Vera different from Python. So the score is measured
-on the part of the benchmark where the two languages are most alike. Giving
-Vera the same generated-wrapper treatment as the other languages would fix
-this, and is the most valuable outstanding change to the benchmark
-([#107](https://github.com/aallan/vera-bench/issues/107)).
+Vera now gets the same treatment
+([#107](https://github.com/aallan/vera-bench/issues/107)): as of v0.0.17,
+ten more problems grade, 46 of the 60. Reaching for the rest immediately paid
+for itself, exposing a canonical solution that had shipped broken; `check` and
+`verify` both passed it, and only running it caught it. The 14 still ungraded
+are the twelve that take an ADT argument, plus those two IO problems. They are the
+ADT, pattern-matching and effect-handler problems, the ones that exercise what
+makes Vera different from Python, so the scores above are measured on the part
+of the benchmark where the two languages are most alike.
 
 ### The benchmark is saturating
 

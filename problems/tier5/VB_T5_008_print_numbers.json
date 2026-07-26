@@ -6,12 +6,23 @@
   "description_neutral": "Print the numbers 1 through n, each on its own line.",
   "signature": "public fn print_numbers(@Nat -> @Unit)",
   "contracts": {
-    "requires": ["@Nat.0 >= 0"],
-    "ensures": ["true"],
+    "requires": [
+      "@Nat.0 >= 0"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "<IO>"
   },
   "entry_point": "print_numbers",
-  "tags": ["io-effect", "effect-declaration", "pure-helper", "where-block", "loop", "to-string"],
+  "tags": [
+    "io-effect",
+    "effect-declaration",
+    "pure-helper",
+    "where-block",
+    "loop",
+    "to-string"
+  ],
   "test_cases": [],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,

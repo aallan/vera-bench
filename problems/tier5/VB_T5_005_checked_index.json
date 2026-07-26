@@ -6,13 +6,65 @@
   "description_neutral": "Safely access an array element by index. Return -1 if the index is out of bounds.",
   "signature": "public fn safe_index(@Array<Int>, @Nat -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "safe_index",
-  "tags": ["exception-effect", "handler", "effect-discharge", "two-functions", "array-access", "bounds-check"],
-  "test_cases": [],
+  "tags": [
+    "exception-effect",
+    "handler",
+    "effect-discharge",
+    "two-functions",
+    "array-access",
+    "bounds-check"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        [
+          10,
+          20,
+          30
+        ],
+        1
+      ],
+      "expected": 20
+    },
+    {
+      "args": [
+        [
+          10,
+          20,
+          30
+        ],
+        0
+      ],
+      "expected": 10
+    },
+    {
+      "args": [
+        [
+          10,
+          20,
+          30
+        ],
+        3
+      ],
+      "expected": -1
+    },
+    {
+      "args": [
+        [],
+        0
+      ],
+      "expected": -1
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
   "notes": "Tests Exn<Int> for bounds checking. The agent must declare effect Exn<E> { op throw(E -> Never); } and use handle[Exn<Int>] to discharge the effect. array_length is used for the bounds check."

@@ -18,7 +18,7 @@ verify sum_positives
 
 fn main() -> Unit
     ! [Console.print]
+    Console.print("{sum_positives([1, -2, 3])}")
     Console.print("{sum_positives([])}")
-    Console.print("{sum_positives([1, -2, 3, -4, 5])}")
-    Console.print("{sum_positives([-1, -2, -3])}")
-    Console.print("{sum_positives([0, 1, 2])}")
+    Console.print("{sum_positives([-1, -2])}")
+    Console.print("{sum_positives([0, 5])}")

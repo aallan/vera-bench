@@ -56,6 +56,8 @@ def _build_python_wrapper(
     test_cases = problem.get("test_cases", [])
 
     lines = [
+        "import contextlib",
+        "import io",
         "import json",
         "import sys",
         f"sys.path.insert(0, {str(baseline_path.parent)!r})",
@@ -74,7 +76,13 @@ def _build_python_wrapper(
         lines.extend(
             [
                 "try:",
-                f"    actual_{i} = {entry_point}(*{args_repr})",
+                # Solutions that print (the IO problems) would interleave
+                # with the JSON result line and corrupt the protocol, so
+                # every call runs under a stdout redirect. The captured
+                # text is discarded for now; grading @Unit problems ON
+                # that text is #107 step 5.
+                "    with contextlib.redirect_stdout(io.StringIO()):",
+                f"        actual_{i} = {entry_point}(*{args_repr})",
                 f"    passed_{i} = actual_{i} == {expected_repr}",
                 f'    results.append({{"passed": passed_{i},'
                 f' "actual": repr(actual_{i})}})',
@@ -118,12 +126,19 @@ def _build_typescript_wrapper(
             pass  # keep as int, use == below
         args_json = json.dumps(args)
         expected_json = json.dumps(expected)
-        # Use == (not ===) so true==1 and false==0 match
+        # Loose == (not ===) so a Vera-style 1/0 expected matches a native
+        # boolean (VB-T1-006's original false failure). Arrays are the
+        # exception: == on arrays is reference equality and always false
+        # for a fresh return value, so they compare by JSON — which is
+        # value equality for the int/string arrays the problems use.
         lines.extend(
             [
                 "try {",
                 f"  const actual_{i} = {ts_fn}(...{args_json});",
-                f"  const passed_{i} = actual_{i} == {expected_json};",
+                f"  const passed_{i} = Array.isArray(actual_{i}) || "
+                f"Array.isArray({expected_json}) "
+                f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
+                f": actual_{i} == {expected_json};",
                 f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
                 "} catch (e: any) {",
                 "  results.push({passed: false, error: String(e)});",

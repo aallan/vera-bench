@@ -8,4 +8,8 @@ export func safe_head(xs: [int]) -> int =
     None => -1
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(safe_head([7, 8])));
+  println(show(safe_head([])));
+  println(show(safe_head([42])))
+}

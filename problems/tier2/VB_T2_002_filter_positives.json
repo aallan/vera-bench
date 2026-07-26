@@ -22,7 +22,47 @@
     "builtin-discovery",
     "closure"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          -2,
+          3
+        ]
+      ],
+      "expected": [
+        1,
+        3
+      ]
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": []
+    },
+    {
+      "args": [
+        [
+          -1,
+          -2
+        ]
+      ],
+      "expected": []
+    },
+    {
+      "args": [
+        [
+          0,
+          1
+        ]
+      ],
+      "expected": [
+        1
+      ]
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
   "notes": "Tests array_filter with a predicate closure. The predicate closure fn(@Int -> @Bool) effects(pure) { @Int.0 > 0 } is the idiomatic pattern."

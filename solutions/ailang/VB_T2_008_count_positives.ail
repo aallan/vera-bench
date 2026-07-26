@@ -6,4 +6,9 @@ func isPos(x: int) -> bool = x > 0
 
 export func count_positives(xs: [int]) -> int = length(filter(isPos, xs))
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(count_positives([1, -2, 3])));
+  println(show(count_positives([])));
+  println(show(count_positives([-1, -2])));
+  println(show(count_positives([0, 0])))
+}

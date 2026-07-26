@@ -32,7 +32,7 @@ verify safe_index
 
 fn main() -> Unit
     ! [Console.print]
+    Console.print("{safe_index([10, 20, 30], 1)}")
     Console.print("{safe_index([10, 20, 30], 0)}")
-    Console.print("{safe_index([10, 20, 30], 2)}")
-    Console.print("{safe_index([10, 20, 30], 5)}")
+    Console.print("{safe_index([10, 20, 30], 3)}")
     Console.print("{safe_index([], 0)}")

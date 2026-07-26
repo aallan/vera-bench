@@ -14,6 +14,7 @@ verify to_upper
 
 fn main() -> Unit
     ! [Console.print]
-    Console.print("{to_upper("hello")}")
-    Console.print("{to_upper("World")}")
+    Console.print("{to_upper("abc")}")
     Console.print("{to_upper("")}")
+    Console.print("{to_upper("MiXeD 42!")}")
+    Console.print("{to_upper("ALREADY")}")

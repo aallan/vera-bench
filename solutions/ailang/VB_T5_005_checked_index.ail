@@ -8,4 +8,9 @@ export func safe_index(xs: [int], i: int) -> int =
     None => -1
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(safe_index([10, 20, 30], 1)));
+  println(show(safe_index([10, 20, 30], 0)));
+  println(show(safe_index([10, 20, 30], 3)));
+  println(show(safe_index([], 0)))
+}

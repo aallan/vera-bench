@@ -23,7 +23,42 @@
     "composition",
     "higher-order"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          -2,
+          3
+        ]
+      ],
+      "expected": 4
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          -1,
+          -2
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          0,
+          5
+        ]
+      ],
+      "expected": 5
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
   "notes": "Tests composing array_filter + array_fold. Both closures need effects(pure). The fold accumulator starts at 0."

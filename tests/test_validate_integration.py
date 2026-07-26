@@ -149,3 +149,26 @@ class TestRunValidation:
     def test_full_validation(self):
         exit_code = run_validation()
         assert exit_code == 0
+
+
+class TestCanonicalRegressions:
+    """Pin behaviours of canonical solutions that once shipped broken.
+
+    VB-T5-008's print_loop recursed with its arguments swapped, printing
+    "1" for n=3 and diverging for n=1 — and check and verify both passed
+    it. Its test cases were later withdrawn (the aver/ailang baseline
+    protocol cannot host multi-line stdout, #107 step 5), so this test is
+    what stops the bug coming back in the meantime.
+    """
+
+    SOL = SOLUTIONS_DIR / "vera" / "VB-T5-008_print_numbers.vera"
+
+    def test_print_numbers_prints_the_full_range(self):
+        run = VeraRunner().run_fn(self.SOL, "print_numbers", [3])
+        assert run.exit_code == 0
+        assert run.stdout.strip().splitlines() == ["1", "2", "3"]
+
+    def test_print_numbers_n1_terminates(self):
+        run = VeraRunner().run_fn(self.SOL, "print_numbers", [1])
+        assert run.exit_code == 0
+        assert run.stdout.strip() == "1"

@@ -6,13 +6,58 @@
   "description_neutral": "Count how many positive elements are in an integer list.",
   "signature": "public fn count_positives(@Array<Int> -> @Nat)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["@Nat.result >= 0"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "@Nat.result >= 0"
+    ],
     "effects": "pure"
   },
   "entry_point": "count_positives",
-  "tags": ["array", "builtin-discovery", "array-filter", "array-length", "composition"],
-  "test_cases": [],
+  "tags": [
+    "array",
+    "builtin-discovery",
+    "array-filter",
+    "array-length",
+    "composition"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          -2,
+          3
+        ]
+      ],
+      "expected": 2
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          -1,
+          -2
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          0,
+          0
+        ]
+      ],
+      "expected": 0
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
   "notes": "Tests composing two builtins: array_filter + array_length. The ensures clause with @Nat.result >= 0 falls to Tier 3 because array_length is not SMT-verifiable."

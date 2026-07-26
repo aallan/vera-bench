@@ -32,7 +32,12 @@ where {
       ()
     } else {
       IO.print(format_number(@Nat.1));
-      print_loop(@Nat.0, @Nat.1 + 1)
+      -- Recurse as (current + 1, limit). The frame is called as
+      -- (current, limit), so @Nat.1 is current and @Nat.0 is the limit;
+      -- passing (@Nat.0, @Nat.1 + 1) swapped the roles on the first
+      -- recursion, which made n=3 stop after printing 1 and n=1 diverge.
+      -- check and verify both passed that — only running it caught it.
+      print_loop(@Nat.1 + 1, @Nat.0)
     }
   }
 }

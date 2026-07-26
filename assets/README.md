@@ -7,9 +7,11 @@ history; see [Generated, not committed](#generated-not-committed).
 Every score chart reports **% solved**: the model wrote code, it compiled, it
 ran, and the output matched. A refusal, a compile failure, a crash and a wrong
 answer all count alike, as not solved. `fig-coverage.png` is the exception; it
-counts problems rather than scoring them. Only 36 of the 60 problems can be
-graded that way, so one problem is worth 2.8 percentage points. Keep that
-number in mind when reading any gap.
+counts problems rather than scoring them. The committed charts show the
+v0.0.16 sweep, when 36 of the 60 problems could be graded that way, so one
+problem is worth 2.8 percentage points; keep that number in mind when reading
+any gap. From v0.0.17 the graded set is 46, and charts rendered for a version
+use that version's own denominator.
 
 ## The seven README figures
 
@@ -43,7 +45,7 @@ problems in Vera than in Python; Claude Opus 5 reverses that. Both Vera modes
 rise at every step, while Python and TypeScript end where they started or
 below. Only the last step is controlled; the earlier one spans a compiler, a
 standard library and a revision of the teaching document, so it measures the
-ecosystem improving as much as the models.
+ecosystem improving alongside the models, in unknown proportion.
 
 ### `fig-reasoning.png`: reasoning mode
 
@@ -63,13 +65,14 @@ guardrails rather than anything to do with the problems themselves.
 
 ### `fig-coverage.png`: what the headline metric cannot see
 
-Which of the 60 problems are scored by comparing output, and which are not. 24
-are not, because Vera is the only language here invoked without a generated
-wrapper: `vera run --fn` passes arguments on a command line, so a problem whose
-input is a list or a tree cannot be called at all. Those 24 are the ADT, match
-and effect problems, so the score is measured on the part of the set where the
-languages are most alike. Tracked in
-[#107](https://github.com/aallan/vera-bench/issues/107).
+Which of the 60 problems are scored by comparing output, and which are not.
+In the committed v0.0.16 render, 24 are not: `vera run --fn` passes arguments
+on a command line, so a problem whose input is a list or a tree could not be
+called at all. A generated wrapper closed most of that gap in v0.0.17
+([#107](https://github.com/aallan/vera-bench/issues/107)), leaving 14: twelve
+ADT-argument problems and two IO problems whose multi-line output the
+baseline protocol cannot host. A render for a given `--version` shows that
+version's own split.
 
 ### `fig-saturation.png`: the benchmark is saturating
 

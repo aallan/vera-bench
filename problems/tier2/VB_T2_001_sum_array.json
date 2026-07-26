@@ -21,7 +21,42 @@
     "higher-order",
     "builtin-discovery"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          2,
+          3,
+          4
+        ]
+      ],
+      "expected": 10
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          -5,
+          5
+        ]
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          7
+        ]
+      ],
+      "expected": 7
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
   "notes": "Tests whether the agent discovers array_fold and writes the correct closure syntax. The closure inside array_fold needs its own effects(pure) annotation."

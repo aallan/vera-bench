@@ -17,6 +17,7 @@ verify sum_array
 
 fn main() -> Unit
     ! [Console.print]
+    Console.print("{sum_array([1, 2, 3, 4])}")
     Console.print("{sum_array([])}")
-    Console.print("{sum_array([1, 2, 3])}")
-    Console.print("{sum_array([10, -3, 5])}")
+    Console.print("{sum_array([-5, 5])}")
+    Console.print("{sum_array([7])}")
