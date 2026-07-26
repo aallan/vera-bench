@@ -25,8 +25,24 @@ New benchmark problems are welcome. For each new problem, you must produce:
 
 Every comparison language needs a baseline, or `vera-bench baselines --language
 {lang}` covers fewer problems than its siblings and the cross-language numbers
-stop being like-for-like. (Baselines only execute the 36 problems that carry
-`test_cases`; the other 24 are validated by `vera check` alone.)
+stop being like-for-like. (Baselines only execute the problems that carry
+`test_cases` — 46 of 60 as of v0.0.17; the rest are validated by `vera check`
+alone.)
+
+Adding or changing `test_cases` on a problem carries three obligations, and
+`vera-bench baselines` across all four languages is the check that you met
+them:
+
+1. The **Aver and AILANG canonical mains** print one line per test case, in
+   test-case order — they are data that must track the problem JSON. Extend
+   them with the new cases.
+2. The **`GRADEABLE_ADDED`** table in `scripts/plot_results.py` records, for
+   an existing problem gaining its first test cases, the bench version whose
+   sweeps first grade it. Without an entry, regenerating an older version's
+   charts silently deflates its published numbers.
+3. All five languages must actually grade the new cases. If one cannot (the
+   aver/ailang line protocol cannot host multi-line stdout, for instance),
+   the problem stays ungraded everywhere rather than scored unevenly.
 
 See [CLAUDE.md](CLAUDE.md) for problem structure, tier definitions, and Vera gotchas.
 

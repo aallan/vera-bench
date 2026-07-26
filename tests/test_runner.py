@@ -2303,12 +2303,15 @@ class TestAilangLiteral:
 
 class TestStripAilangMain:
     def test_removes_block_main(self):
-        # NB: omit `! {IO}` from the def line — the strip function's brace
-        # counting treats `{IO}` as a balanced block (see xfail below).
+        # The realistic form: an effect-annotated `! {IO}` def line, which
+        # every canonical main uses. A comment here used to warn that the
+        # brace counting treated `{IO}` as a balanced block and pointed at
+        # an xfail that did not exist; tested directly, the function
+        # handles it fine, so the test now covers the common case.
         code = (
             "module benchmark/solution\n\n"
             "export func foo(x: int) -> int = x + 1\n\n"
-            "export func main() -> () {\n"
+            "export func main() -> () ! {IO} {\n"
             "  println(show(foo(5)))\n"
             "}\n"
         )

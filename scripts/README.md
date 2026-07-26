@@ -15,7 +15,7 @@ the installed package, but kept in-repo for reproducibility.
 
 ## `preflight.sh` — pre-sweep gate
 
-Run this **before** committing to a full sweep. A full sweep is ~52 target-runs — 8 models × 6 LLM targets, plus the 4 baseline runs once for the whole sweep rather than per model — with
+Run this **before** committing to a full sweep. A full sweep is up to 50 runs — 46 LLM target-runs (9 models × 4 core targets, plus Aver and AILANG for the 5 zero-training-data models, the pro tier opt-in) and the 4 baseline runs, which happen once for the whole sweep rather than per model — with
 no resume (see [Output files](#output-files)), so a wrong model id, a rejected
 API parameter, or a compiler missing from `PATH` costs hours and real money to
 discover late. Every check here is a single problem — the whole gate is roughly
@@ -449,6 +449,13 @@ The canonical historical snapshot for v0.0.7 lives at its GitHub tag URL:
 
 ### Reproducibility
 
+**When test cases are added to an existing problem**, record its id in
+`GRADEABLE_ADDED` (top of `plot_results.py`) against the first bench version
+whose sweeps grade it — the pass@1 denominator is version-pinned so historical
+charts keep the denominator of their own era. The full contract for adding
+test cases (baseline mains, all-languages gating) is in
+[CONTRIBUTING.md](../CONTRIBUTING.md).
+
 Because the script reads from JSONL files rather than hardcoded numbers,
 regenerating a chart requires the corresponding result files to be present
 in `results/`. Note that `results/*.jsonl` is **gitignored** — only the
@@ -585,8 +592,8 @@ counts as "solved" has to be right:
 - **gradeable problem** (has test cases) → `run_correct is True`
 - **no test cases** → `check_pass is True`
 
-24 of the 60 problems carry `run_correct: None` *by construction*, never
-because anything failed. Testing `run_correct is True` alone reports a
+Problems without test cases (14 of the 60 as of v0.0.17) carry
+`run_correct: None` *by construction*, never because anything failed. Testing `run_correct is True` alone reports a
 problem that every language compiled and verified as solved **nowhere** —
 which reverses the argument the slide exists to make. Covered by
 `tests/test_plot_narrative.py::TestSolved`.

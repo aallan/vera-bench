@@ -154,8 +154,8 @@ class TestGradeableVersioning:
     problems/ on disk only knows today's problem set, but old result
     files carry rows for problems that were not gradeable when swept.
     Without the pin, regenerating a v0.0.16 chart after test cases
-    landed for 12 more problems would divide 36 problems' worth of
-    solves by 48 and silently deflate every published number.
+    landed for 10 more problems would divide 36 problems' worth of
+    solves by 46 and silently deflate every published number.
     """
 
     def _pr(self):

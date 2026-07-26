@@ -1077,8 +1077,8 @@ def render_coverage(
         0.5,
         0.865,
         f"{total - n_grad} of {total} problems have no test cases — not an oversight.\n"
-        "Most take a list, tree or ADT as input, which `vera run` cannot "
-        "pass on a command line.\n"
+        "Their entry points take or produce shapes the harness cannot "
+        "yet grade through `vera run`.\n"
         "They are the ADT, match and effect problems — exactly what "
         "contracts and a prover are for.",
         ha="center",

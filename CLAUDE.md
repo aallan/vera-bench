@@ -64,6 +64,8 @@ vera run solutions/vera/VB-T1-001_absolute_value.vera --fn absolute_value -- -42
 - **Bare `None`/`Err`** can fail type inference — use typed let bindings.
 - **`vera test` input generation** supports `Int`, `Nat`, `Bool`, `String`, and `Float64` parameters (since vera v0.0.106). ADT generation is not yet supported (issue #440). The benchmark uses `vera run`, not `vera test`.
 - **`map_new()` / `set_new()`** need type context — provide via let bindings or annotations.
+- **Structured return values print as WASM addresses** under `vera run --fn` — an `@Array<Int>` return prints something like `81972`, not the elements. Never compare stdout against a structured expected value; the generated test wrapper (`vera_bench/vera_wrapper.py`) embeds the expected value and compares *in Vera*, returning a Bool.
+- **Identifiers cannot start with an underscore** (`[E005]`) — generated helper functions use ordinary names (`probe_main`, not `_probe`).
 
 ## Test case bool gotcha
 
@@ -72,7 +74,16 @@ vera run solutions/vera/VB-T1-001_absolute_value.vera --fn absolute_value -- -42
 - **Python**: String `"true"`/`"false"` in expected values must be normalised to Python `True`/`False` (see `_build_python_wrapper` in `baseline_runner.py`).
 - **TypeScript**: Integer `1`/`0` expected values must use loose equality (`==` not `===`) because TypeScript returns native `boolean` and `true === 1` is `false` in strict mode.
 
-Both issues have caused false baseline failures (VB-T4-003 for Python, VB-T1-006 for TypeScript).
+Both issues have caused false baseline failures (VB-T4-003 for Python, VB-T1-006 for TypeScript). TypeScript *arrays* are the exception to loose `==`: that is reference equality on a fresh return value, so the wrappers compare arrays by `JSON.stringify` and primitives by `==`.
+
+## Harness invariants
+
+Rules that hold the grading together; break one and results go quietly wrong.
+
+- **Two code paths run test cases** — the LLM evaluator (`runner.py`) and the canonical validator (`validate.py`) each call `run_fn` independently. Both must route structured arguments through `vera_bench/vera_wrapper.py`, or canonical solutions get validated under different rules than graded code (this happened; validate compared array returns against WASM pointers).
+- **Aver and AILANG canonical mains are data.** Their baseline protocol is one printed line per test case, in test-case order, emitted by the solution's own `main` — so `test_cases` edits require regenerating those mains. Never-run canonicals hide real defects: one AILANG file had never parsed, and VB-T5-008's Vera solution shipped with swapped recursion arguments.
+- **`GRADEABLE_ADDED` (scripts/plot_results.py) version-pins the pass@1 denominator.** An existing problem gaining test cases gets an entry with the first bench version whose sweeps grade it; otherwise regenerating an older version's charts silently deflates its published numbers.
+- **Grading is all-languages-or-none.** A problem only carries test cases when every language's harness can grade them (`vera-bench baselines` across all four comparison languages is the check); otherwise the cross-language scores stop being like-for-like. The two IO problems are ungraded for exactly this reason.
 
 ## Comparison languages
 
@@ -109,7 +120,7 @@ Models can be reached *through* OpenRouter — which aggregates other vendors' m
 
 ### Tier 5 cross-language caveat
 
-Tier 5 problems test algebraic effect handlers in Vera (`State`, `Exn`, `IO`). Other languages solve these with native idioms (`try/except` in Python, `try/catch` in TypeScript, etc.). Cross-language T5 comparison is apples-to-oranges. See issue [#50](https://github.com/aallan/vera-bench/issues/50).
+Tier 5 problems test algebraic effect handlers in Vera (`State`, `Exn`, `IO`). Other languages solve these with native idioms (`try/except` in Python, `try/catch` in TypeScript, etc.). Cross-language T5 comparison is apples-to-oranges; use the T1–T4 aggregate for cross-language headlines (the convention adopted when #50 closed — see KNOWN_ISSUES.md for the standing limitation).
 
 ## Coding conventions
 

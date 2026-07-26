@@ -4,8 +4,9 @@
 # stage list, where S4 was a Moonshot-caching probe that turned
 # out to need no separate call.)
 #
-# Run this before committing to a full sweep. A full sweep is ~52
-# target-runs: 8 models x 6 LLM targets = 48, plus the 4 baseline
+# Run this before committing to a full sweep. A full sweep is up to
+# 50 runs: 46 LLM target-runs (9 models x 4 core targets, plus Aver
+# and AILANG for the 5 ztd models; pro tier opt-in) and the 4 baseline
 # runs, which happen once for the whole sweep rather than per model.
 # There is no resume, so a model id that does not exist, a parameter
 # the API rejects, or a toolchain that is not on PATH costs hours and
