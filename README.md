@@ -142,7 +142,7 @@ protocol cannot host.
 
 Vera now gets the same treatment
 ([#107](https://github.com/aallan/vera-bench/issues/107)): as of v0.0.17,
-ten more problems grade, 46 of the 60. Reaching for the rest immediately paid
+every problem grades: 60 of 60. Reaching for the rest immediately paid
 for itself, exposing a canonical solution that had shipped broken; `check` and
 `verify` both passed it, and only running it caught it. The 14 still ungraded
 are the twelve that take an ADT argument, plus those two IO problems. They are the

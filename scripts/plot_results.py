@@ -263,21 +263,46 @@ _GRADEABLE_IDS: set[str] | None = None
 # carry no rows for them at all, so presence-filtering already excludes
 # them.
 GRADEABLE_ADDED: dict[str, str] = {
-    pid: "0.0.17"
-    for pid in (
-        # arrays, via the generated wrapper (#107 step 1)
-        "VB-T2-001",
-        "VB-T2-002",
-        "VB-T2-006",
-        "VB-T2-007",
-        "VB-T2-008",
-        "VB-T2-010",
-        "VB-T5-005",
-        "VB-T5-010",
-        # scalar strings on the CLI, no wrapper needed
-        "VB-T2-003",
-        "VB-T2-009",
-    )
+    **{
+        pid: "0.0.17"
+        for pid in (
+            # arrays, via the generated wrapper (#107 step 1)
+            "VB-T2-001",
+            "VB-T2-002",
+            "VB-T2-006",
+            "VB-T2-007",
+            "VB-T2-008",
+            "VB-T2-010",
+            "VB-T5-005",
+            "VB-T5-010",
+            # scalar strings on the CLI, no wrapper needed
+            "VB-T2-003",
+            "VB-T2-009",
+        )
+    },
+    **{
+        pid: "0.0.18"
+        for pid in (
+            # ADT arguments, matched against the model's own declaration
+            # (#107 step 2a)
+            "VB-T3-001",
+            "VB-T3-002",
+            "VB-T3-003",
+            "VB-T3-004",
+            "VB-T3-005",
+            "VB-T3-006",
+            "VB-T3-007",
+            "VB-T3-008",
+            "VB-T4-009",
+            # ADT returns, compared structurally per language (step 2b)
+            "VB-T3-009",
+            "VB-T3-010",
+            "VB-T4-006",
+            # graded on printed output (step 5)
+            "VB-T5-002",
+            "VB-T5-008",
+        )
+    },
 }
 
 

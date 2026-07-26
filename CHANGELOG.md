@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.18] - 2026-07-27
+
+### Added
+
+- **Every problem is output-graded: 46 of 60 becomes 60 of 60.** The last
+  fourteen split three ways, each needing a different answer in all five
+  languages. **ADT arguments** (nine problems) ask the *model* to define
+  the type, so a test case cannot be a literal: each problem now carries
+  an `adt` block naming the constructors it asks for, and the harness
+  maps those onto whatever the solution declared — by name
+  case-insensitively, then by unique shape, then declining. A model that
+  writes `Empty`/`Node` is graded; `Add(Expr, Expr)` against a
+  hypothetical `Mul(Expr, Expr)` is ambiguous by shape and declines
+  rather than guessing wrong. **ADT returns** (three) needed a
+  comparison per language, because none of them share Vera's: Vera uses
+  an unrolled match, Python walks both sides into a comparable form
+  (a returned `Cons` has no `__eq__`), TypeScript compares key-sorted
+  JSON, Aver has structural `==`, and AILANG has no derived `Eq` at all
+  so its printed form is the only route. **IO problems** (two) are graded
+  on what they printed, with a sentinel between cases so a case that
+  prints several lines or none can still be split out
+  ([#107](https://github.com/aallan/vera-bench/issues/107)).
+- **Generated code is stored beside the result rows.** A sweep's verdicts
+  survived in the JSONL and the code that earned them did not, which is
+  why expanding the graded set cost a full re-sweep: 460 answers to
+  newly-graded problems had already been generated, all of them
+  compiling, and none could be graded because they were gone. Each
+  attempt now writes to `results/code/{target}/` with `code_path` on the
+  row. On by default; `--no-store-code` opts out
+  ([#109](https://github.com/aallan/vera-bench/issues/109)).
+
+### Fixed
+
+- **Six canonical solutions were wrong, in four of the five languages.**
+  Every one passed `check` and `verify`; every one was visible the moment
+  it was run. Vera's `list_reverse` and `print_numbers` both recursed
+  with their arguments swapped — the first diverged, the second printed
+  `1` for `n=3`. Aver's `print_loop` guarded the wrong way and printed
+  `0` for `print_numbers(0)`. An AILANG file had never parsed
+  (semicolons where the grammar wants commas) and two more declared a
+  leafless `MyLeaf` contradicting both the problem and their own
+  `tree_sum`. TypeScript's greeter was named `greetIO` where the entry
+  point is `greet`, so nothing using the problem definition could reach
+  it. These are the problems that had no test cases, which is precisely
+  why nothing had ever run them.
+- **An unmappable constructor took down a whole baselines run** through
+  an uncaught exception. It now leaves that one problem ungraded, which
+  is what a harness gap should look like — never a wrong answer, and
+  never twenty-six problems that silently never ran.
+
 ## [0.0.17] - 2026-07-26
 
 ### Added
