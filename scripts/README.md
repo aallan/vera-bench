@@ -567,7 +567,7 @@ per (model, mode). These four need the raw JSONL rows.
 | `refusal` | Where did models decline to answer — and did that same model solve that same problem elsewhere? |
 | `generation` | Consecutive flagship releases (`GENERATION_PAIR`) across every language, as a slope chart |
 | `saturation` | Every (model, language) score as one dot, with a "1 problem = N pp" scale bar |
-| `coverage` | What pass@1 structurally cannot see: the 24 of 60 problems with no test cases |
+| `coverage` | What pass@1 structurally cannot see: the problems with no test cases (14 of 60 as of v0.0.17, version-pinned) |
 
 ```bash
 python scripts/plot_narrative.py --version 0.0.16            # all four
