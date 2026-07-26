@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 import click
@@ -97,6 +98,15 @@ def validate(problems_dir: Path | None, solutions_dir: Path | None):
     help="Keep temporary generated files",
 )
 @click.option(
+    "--no-store-code",
+    is_flag=True,
+    help=(
+        "Do not save each attempt's generated code beside the results. "
+        "Storage is on by default: without it a finished run cannot be "
+        "re-graded or inspected, only re-bought."
+    ),
+)
+@click.option(
     "--parallel",
     type=click.IntRange(min=1),
     default=1,
@@ -117,6 +127,7 @@ def run(
     output_dir: Path | None,
     max_tokens: int,
     keep_temps: bool,
+    no_store_code: bool,
     parallel: int,
 ):
     """Run benchmark against an LLM model."""
@@ -298,9 +309,15 @@ def run(
         parts.append(f"ailang-{_ver_slug(ailang_ver)}")
     output_path = output_dir / f"{'-'.join(parts)}.jsonl"
 
-    # Truncate stale results from previous runs
+    # Truncate stale results from previous runs. The stored code goes
+    # with them: `run` has no resume, so leaving a previous run's files
+    # would pair fresh rows with stale code under the same names — the
+    # kind of mislabelling that is invisible until someone trusts it.
     if output_path.exists():
         output_path.unlink()
+    stale_code = output_path.parent / "code" / output_path.stem
+    if stale_code.is_dir():
+        shutil.rmtree(stale_code)
 
     console.print(f"Model:    {model}")
     console.print(f"Language: {language}")
@@ -332,6 +349,7 @@ def run(
         bench_version=bench_ver,
         vera_version=vera_ver,
         parallel=parallel,
+        store_generated_code=not no_store_code,
     )
 
     # Print summary

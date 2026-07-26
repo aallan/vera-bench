@@ -45,6 +45,54 @@ _FENCE_RE = re.compile(
 )
 
 
+#: File extension for stored generated code, by language.
+_CODE_EXT = {
+    "vera": "vera",
+    "python": "py",
+    "typescript": "ts",
+    "aver": "av",
+    "ailang": "ail",
+}
+
+
+def store_code(
+    code_dir: Path | None,
+    problem_id: str,
+    attempt: int,
+    language: str,
+    code: str,
+) -> str | None:
+    """Write one attempt's generated code beside the results.
+
+    Returns the path relative to the *results* directory, so a row stays
+    valid if the whole tree is moved or shipped as a release asset.
+
+    Without this, a benchmark run is unfalsifiable after the fact: the
+    verdicts survive and the code that earned them does not. That cost a
+    full re-sweep when the graded set expanded, because there was no way
+    to grade the answers we had already paid for.
+
+    Storage is instrumentation, so a failed write must not lose a run
+    that cost real money — an OSError is reported and swallowed. It is
+    never *silent*: the row simply carries no `code_path`, and the
+    console says why.
+    """
+    if code_dir is None:
+        return None
+    ext = _CODE_EXT.get(language, "txt")
+    path = code_dir / f"{problem_id}_attempt{attempt}.{ext}"
+    try:
+        code_dir.mkdir(parents=True, exist_ok=True)
+        path.write_text(code, encoding="utf-8")
+    except OSError as e:
+        console.print(f"[yellow]Could not store code for {problem_id}: {e}[/yellow]")
+        return None
+    try:
+        return str(path.relative_to(code_dir.parent.parent))
+    except ValueError:  # code_dir supplied from outside the results tree
+        return str(path)
+
+
 def extract_code(response_text: str) -> str:
     """Extract code from an LLM response.
 
@@ -84,6 +132,9 @@ class ProblemResult:
     error_message: str | None = None
     bench_version: str = ""
     vera_version: str = ""
+    #: Where this attempt's generated code was stored, relative to the
+    #: results directory. None when storage is off or the write failed.
+    code_path: str | None = None
 
     def to_jsonl(self) -> str:
         d = asdict(self)
@@ -1096,6 +1147,7 @@ def run_single_problem(
     max_tokens: int = 4096,
     bench_version: str = "",
     vera_version: str = "",
+    code_dir: Path | None = None,
 ) -> list[ProblemResult]:
     """Run the full pipeline for one problem.
 
@@ -1152,6 +1204,7 @@ def run_single_problem(
         return results
 
     code = extract_code(llm_response.text)
+    code_path = store_code(code_dir, problem["id"], 1, language, code)
 
     if language == "aver":
         eval_result = _evaluate_aver_code(code, problem, work_dir, attempt=1)
@@ -1181,6 +1234,7 @@ def run_single_problem(
             timestamp=_now(),
             bench_version=bench_version,
             vera_version=vera_version,
+            code_path=code_path,
             **eval_result,
         )
     )
@@ -1226,6 +1280,7 @@ def run_single_problem(
             return results
 
         fix_code = extract_code(fix_response.text)
+        fix_code_path = store_code(code_dir, problem["id"], 2, language, fix_code)
         fix_eval = _evaluate_aver_code(fix_code, problem, work_dir, attempt=2)
 
         results.append(
@@ -1241,6 +1296,7 @@ def run_single_problem(
                 timestamp=_now(),
                 bench_version=bench_version,
                 vera_version=vera_version,
+                code_path=fix_code_path,
                 **fix_eval,
             )
         )
@@ -1284,6 +1340,7 @@ def run_single_problem(
             return results
 
         fix_code = extract_code(fix_response.text)
+        fix_code_path = store_code(code_dir, problem["id"], 2, language, fix_code)
         fix_eval = _evaluate_ailang_code(fix_code, problem, work_dir, attempt=2)
 
         results.append(
@@ -1299,6 +1356,7 @@ def run_single_problem(
                 timestamp=_now(),
                 bench_version=bench_version,
                 vera_version=vera_version,
+                code_path=fix_code_path,
                 **fix_eval,
             )
         )
@@ -1332,6 +1390,7 @@ def run_single_problem(
             return results
 
         fix_code = extract_code(fix_response.text)
+        fix_code_path = store_code(code_dir, problem["id"], 2, language, fix_code)
         fix_eval = _evaluate_code(fix_code, problem, vera, work_dir, attempt=2)
 
         results.append(
@@ -1347,6 +1406,7 @@ def run_single_problem(
                 timestamp=_now(),
                 bench_version=bench_version,
                 vera_version=vera_version,
+                code_path=fix_code_path,
                 **fix_eval,
             )
         )
@@ -1368,6 +1428,7 @@ def run_benchmark(
     bench_version: str = "",
     vera_version: str = "",
     parallel: int = 1,
+    store_generated_code: bool = True,
 ) -> list[ProblemResult]:
     """Run the full benchmark across all problems.
 
@@ -1391,6 +1452,14 @@ def run_benchmark(
     rather than a silent under-report when a problem crashes.
     """
     work_dir = Path(tempfile.mkdtemp(prefix="verabench_"))
+    # One directory per target, named for the JSONL it accompanies, so a
+    # row's code_path is unambiguous even when several targets share a
+    # results directory.
+    code_dir = (
+        output_path.parent / "code" / output_path.stem
+        if output_path is not None and store_generated_code
+        else None
+    )
     all_results: list[ProblemResult] = []
 
     def _record(problem_results: list[ProblemResult]) -> None:
@@ -1445,6 +1514,7 @@ def run_benchmark(
                             max_tokens=max_tokens,
                             bench_version=bench_version,
                             vera_version=vera_version,
+                            code_dir=code_dir,
                         )
                     except AuthError:
                         # Auth failures (bad API key) abort the whole
@@ -1484,6 +1554,7 @@ def run_benchmark(
                     max_tokens=max_tokens,
                     bench_version=bench_version,
                     vera_version=vera_version,
+                    code_dir=code_dir,
                 )
 
             with Progress(console=console) as progress:
