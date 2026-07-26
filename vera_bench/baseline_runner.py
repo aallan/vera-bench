@@ -18,8 +18,11 @@ from rich.progress import Progress
 
 from vera_bench.adt_render import (
     declared_type,
+    printed_form,
+    render,
     render_args,
     resolve_names,
+    returns_adt,
     uses_native_collection,
 )
 from vera_bench.runner import ProblemResult
@@ -52,6 +55,36 @@ def _find_baseline_file(
         names = [str(m) for m in matches]
         raise ValueError(f"Multiple baselines for {prefix} in {lang_dir}: {names}")
     return None
+
+
+def _adt_printed(
+    problem: dict, source: str, language: str, expected: object
+) -> str | None:
+    """The expected ADT return as the language prints it, or None."""
+    if not returns_adt(problem):
+        return None
+    spec = problem["adt"]
+    native = language == "aver" and uses_native_collection(source, spec)
+    names = {} if native else resolve_names(source, spec, language)
+    return printed_form(expected, spec, language, names, native)
+
+
+def _adt_expected(
+    problem: dict, source: str, language: str, expected: object
+) -> str | None:
+    """The expected ADT value rendered in `language`, or None.
+
+    Only for problems whose entry point RETURNS the ADT. Both sides of
+    the comparison are then built from the same constructors, so they are
+    the same shape and can be compared structurally.
+    """
+    if not returns_adt(problem):
+        return None
+    spec = problem["adt"]
+    native = language == "aver" and uses_native_collection(source, spec)
+    names = {} if native else resolve_names(source, spec, language)
+    qualifier = declared_type(source, language, spec)
+    return render(expected, spec, language, names, native, qualifier)
 
 
 def _adt_call(problem: dict, source: str, language: str, args: list) -> str | None:
@@ -88,6 +121,13 @@ def _build_python_wrapper(
         "import contextlib",
         "import io",
         "import json",
+        # A returned ADT has no __eq__, so both sides are walked into a
+        # comparable shape. Both are built with the SAME constructors, so
+        # class names line up (#107 step 2b).
+        "def _norm(v):",
+        "    if isinstance(v, (bool, int, float, str)) or v is None: return v",
+        "    if isinstance(v, (list, tuple)): return [_norm(x) for x in v]",
+        "    return [type(v).__name__] + [_norm(x) for x in vars(v).values()]",
         "import sys",
         f"sys.path.insert(0, {str(baseline_path.parent)!r})",
         # Star-import so an ADT problem's constructors come with the
@@ -107,10 +147,17 @@ def _build_python_wrapper(
         expected_repr = repr(expected)
         # An ADT argument cannot be a plain literal: it has to be built
         # with the solution's own constructors (#107 step 2).
-        adt_args = _adt_call(
-            problem, baseline_path.read_text(encoding="utf-8"), "python", args
-        )
+        src_text = baseline_path.read_text(encoding="utf-8")
+        adt_args = _adt_call(problem, src_text, "python", args)
         call_expr = adt_args if adt_args is not None else f"*{args_repr}"
+        # A returned ADT has no structural equality in Python, so both
+        # sides are walked into a comparable shape (#107 step 2b).
+        adt_ret = _adt_expected(problem, src_text, "python", expected)
+        cmp_py = (
+            f"_norm(actual_{i}) == _norm({adt_ret})"
+            if adt_ret is not None
+            else f"actual_{i} == {expected_repr}"
+        )
         lines.extend(
             [
                 "try:",
@@ -121,7 +168,7 @@ def _build_python_wrapper(
                 # that text is #107 step 5.
                 "    with contextlib.redirect_stdout(io.StringIO()):",
                 f"        actual_{i} = {entry_point}({call_expr})",
-                f"    passed_{i} = actual_{i} == {expected_repr}",
+                f"    passed_{i} = {cmp_py}",
                 f'    results.append({{"passed": passed_{i},'
                 f' "actual": repr(actual_{i})}})',
                 "except Exception as e:",
@@ -148,6 +195,11 @@ def _build_typescript_wrapper(
     lines = [
         f'import {{ {ts_fn} }} from "{rel_path}";',
         "",
+        "const _norm = (v: any): any => (v && typeof v === 'object')",
+        "  ? (Array.isArray(v) ? v.map(_norm)",
+        "     : Object.keys(v).sort().reduce("
+        "        (o: any,k)=>{o[k]=_norm(v[k]);return o;},{}))",
+        "  : v;",
         "const results: Array<"
         "{passed: boolean, actual?: string, error?: string}> = [];",
         "",
@@ -168,6 +220,9 @@ def _build_typescript_wrapper(
             problem, baseline_path.read_text(encoding="utf-8"), "typescript", args
         )
         ts_call = adt_args if adt_args is not None else f"...{args_json}"
+        adt_ret_ts = _adt_expected(
+            problem, baseline_path.read_text(encoding="utf-8"), "typescript", expected
+        )
         # Loose == (not ===) so a Vera-style 1/0 expected matches a native
         # boolean (VB-T1-006's original false failure). Arrays are the
         # exception: == on arrays is reference equality and always false
@@ -177,10 +232,15 @@ def _build_typescript_wrapper(
             [
                 "try {",
                 f"  const actual_{i} = {ts_fn}({ts_call});",
-                f"  const passed_{i} = Array.isArray(actual_{i}) || "
-                f"Array.isArray({expected_json}) "
-                f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
-                f": actual_{i} == {expected_json};",
+                f"  const passed_{i} = "
+                + (
+                    f"JSON.stringify(_norm(actual_{i})) === "
+                    f"JSON.stringify(_norm({adt_ret_ts}));"
+                    if adt_ret_ts is not None
+                    else f"Array.isArray(actual_{i}) || Array.isArray({expected_json}) "
+                    f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
+                    f": actual_{i} == {expected_json};"
+                ),
                 f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
                 "} catch (e: any) {",
                 "  results.push({passed: false, error: String(e)});",
@@ -551,11 +611,20 @@ def run_aver_baseline(
     output_lines = stdout.split("\n") if stdout else []
     tests_passed = 0
 
+    src_text = baseline_path.read_text(encoding="utf-8")
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
+        # An ADT return prints as `Cons(1, Nil)` in both Aver and AILANG,
+        # which is the same syntax the renderer emits — so the printed
+        # form IS the comparison, no equality instance required (#107
+        # step 2b). AILANG has no derived Eq for user types, so this is
+        # the only route there.
+        printed = _adt_printed(problem, src_text, "aver", expected)
         if i < len(output_lines):
             actual = output_lines[i].strip()
-            if _aver_output_matches(actual, expected):
+            if printed is not None:
+                tests_passed += 1 if actual == printed else 0
+            elif _aver_output_matches(actual, expected):
                 tests_passed += 1
 
     return ProblemResult(
@@ -786,11 +855,18 @@ def run_ailang_baseline(
     output_lines = stdout.split("\n") if stdout else []
     tests_passed = 0
 
+    ail_src = baseline_path.read_text(encoding="utf-8")
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
+        # `show` renders an AILANG ADT in the same syntax the renderer
+        # emits, which is the only comparison available: AILANG has no
+        # derived Eq for user types (#107 step 2b).
+        printed = _adt_printed(problem, ail_src, "ailang", expected)
         if i < len(output_lines):
             actual = output_lines[i].strip()
-            if _aver_output_matches(actual, expected):
+            if printed is not None:
+                tests_passed += 1 if actual == printed else 0
+            elif _aver_output_matches(actual, expected):
                 tests_passed += 1
 
     return ProblemResult(

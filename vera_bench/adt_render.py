@@ -263,3 +263,36 @@ def declared_type(source: str, language: str, spec: dict) -> str:
         return m.group(1)
     builtin = re.search(r"\b(List|Option)<", source)
     return builtin.group(1) if builtin else ""
+
+
+def returns_adt(problem: dict) -> bool:
+    """Whether the entry point returns the problem's ADT."""
+    spec = problem.get("adt")
+    if not spec:
+        return False
+    from vera_bench.vera_wrapper import Unsupported as _U
+    from vera_bench.vera_wrapper import parse_signature
+
+    try:
+        _, ret = parse_signature(problem.get("signature", ""))
+    except _U:
+        return False
+    return ret == f"@{spec.get('type')}"
+
+
+def printed_form(
+    value: object,
+    spec: dict,
+    language: str,
+    names: dict[str, str] | None = None,
+    native: bool = False,
+) -> str:
+    """The string a language prints for this ADT value.
+
+    Aver and AILANG both render a constructor application in the same
+    syntax this module emits — `Cons(1, Nil)` — which makes an ADT return
+    comparable without any equality instance. Aver additionally strips
+    the type qualifier it requires on the way in, so the printed form is
+    the unqualified rendering.
+    """
+    return render(value, spec, language, names, native, qualifier="")

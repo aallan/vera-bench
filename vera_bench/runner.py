@@ -19,8 +19,10 @@ from rich.progress import Progress
 
 from vera_bench.adt_render import (
     declared_type,
+    render,
     render_args,
     resolve_names,
+    returns_adt,
     uses_native_collection,
 )
 from vera_bench.models import AuthError, LLMClient
@@ -148,6 +150,24 @@ class ProblemResult:
         # Drop None values for cleaner JSONL
         d = {k: v for k, v in d.items() if v is not None}
         return json.dumps(d, ensure_ascii=False)
+
+
+def _adt_expected(
+    problem: dict, source: str, language: str, expected: object
+) -> str | None:
+    """The expected ADT value rendered in `language`, or None.
+
+    Only for problems whose entry point RETURNS the ADT. Returns a
+    literal built with the solution's own constructors, so both sides of
+    the comparison are the same shape.
+    """
+    if not returns_adt(problem):
+        return None
+    spec = problem["adt"]
+    native = language == "aver" and uses_native_collection(source, spec)
+    names = {} if native else resolve_names(source, spec, language)
+    qualifier = declared_type(source, language, spec)
+    return render(expected, spec, language, names, native, qualifier)
 
 
 def _adt_call(problem: dict, source: str, language: str, args: list) -> str | None:
@@ -344,6 +364,13 @@ def _evaluate_python_code(
         "import contextlib",
         "import io",
         "import json",
+        # A returned ADT has no __eq__, so both sides are walked into a
+        # comparable shape. Both are built with the SAME constructors, so
+        # class names line up (#107 step 2b).
+        "def _norm(v):",
+        "    if isinstance(v, (bool, int, float, str)) or v is None: return v",
+        "    if isinstance(v, (list, tuple)): return [_norm(x) for x in v]",
+        "    return [type(v).__name__] + [_norm(x) for x in vars(v).values()]",
         "import sys",
         f"sys.path.insert(0, {str(work_dir)!r})",
         # Star-import so an ADT problem's constructors come with the
@@ -367,6 +394,12 @@ def _evaluate_python_code(
         # with the solution's own constructors (#107 step 2).
         adt_args = _adt_call(problem, code, "python", args)
         call_expr = adt_args if adt_args is not None else f"*{args_repr}"
+        adt_ret = _adt_expected(problem, code, "python", expected)
+        cmp_py = (
+            f"_norm(actual_{i}) == _norm({adt_ret})"
+            if adt_ret is not None
+            else f"actual_{i} == {expected_repr}"
+        )
         wrapper_lines.extend(
             [
                 "try:",
@@ -377,7 +410,7 @@ def _evaluate_python_code(
                 # that text is #107 step 5.
                 "    with contextlib.redirect_stdout(io.StringIO()):",
                 f"        actual_{i} = {entry_point}({call_expr})",
-                f"    passed_{i} = actual_{i} == {expected_repr}",
+                f"    passed_{i} = {cmp_py}",
                 f'    results.append({{"passed": passed_{i},'
                 f' "actual": repr(actual_{i})}})',
                 "except Exception as e:",
@@ -480,6 +513,11 @@ def _evaluate_typescript_code(
     wrapper_lines = [
         f'import {{ {ts_fn} }} from "./{code_path.name}";',
         "",
+        "const _norm = (v: any): any => (v && typeof v === 'object')",
+        "  ? (Array.isArray(v) ? v.map(_norm)",
+        "     : Object.keys(v).sort().reduce("
+        "        (o: any,k)=>{o[k]=_norm(v[k]);return o;},{}))",
+        "  : v;",
         "const results: Array<{passed: boolean,"
         " actual?: string, error?: string}> = [];",
         "",
@@ -496,6 +534,7 @@ def _evaluate_typescript_code(
         expected_json = json.dumps(expected)
         adt_args = _adt_call(problem, code, "typescript", args)
         ts_call = adt_args if adt_args is not None else f"...{args_json}"
+        adt_ret_ts = _adt_expected(problem, code, "typescript", expected)
         # Loose == (not ===) so a Vera-style 1/0 expected matches a native
         # boolean (VB-T1-006's original false failure). Arrays are the
         # exception: == on arrays is reference equality and always false
@@ -505,10 +544,15 @@ def _evaluate_typescript_code(
             [
                 "try {",
                 f"  const actual_{i} = {ts_fn}({ts_call});",
-                f"  const passed_{i} = Array.isArray(actual_{i}) || "
-                f"Array.isArray({expected_json}) "
-                f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
-                f": actual_{i} == {expected_json};",
+                f"  const passed_{i} = "
+                + (
+                    f"JSON.stringify(_norm(actual_{i})) === "
+                    f"JSON.stringify(_norm({adt_ret_ts}));"
+                    if adt_ret_ts is not None
+                    else f"Array.isArray(actual_{i}) || Array.isArray({expected_json}) "
+                    f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
+                    f": actual_{i} == {expected_json};"
+                ),
                 f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
                 "} catch (e: any) {",
                 "  results.push({passed: false, error: String(e)});",

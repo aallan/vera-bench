@@ -23,7 +23,55 @@
     "data-definition",
     "two-list-params"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "expected": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "args": [
+        [],
+        []
+      ],
+      "expected": []
+    },
+    {
+      "args": [
+        [
+          1
+        ],
+        []
+      ],
+      "expected": [
+        1
+      ]
+    },
+    {
+      "args": [
+        [],
+        [
+          5,
+          6
+        ]
+      ],
+      "expected": [
+        5,
+        6
+      ]
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
   "notes": "Parameters: list_append(xs, ys). @List.0=ys, @List.1=xs. decreases(@List.1). Inside Cons(@Int, @List), the matched tail is @List.0 and ys shifts to @List.1. The termination metric on a non-rightmost parameter has a T3 runtime check.",

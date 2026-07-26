@@ -23,7 +23,50 @@
     "where-block",
     "accumulator"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "expected": [
+        3,
+        2,
+        1
+      ]
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": []
+    },
+    {
+      "args": [
+        [
+          7
+        ]
+      ],
+      "expected": [
+        7
+      ]
+    },
+    {
+      "args": [
+        [
+          1,
+          -2
+        ]
+      ],
+      "expected": [
+        -2,
+        1
+      ]
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
   "notes": "Tests where blocks (helper functions). reverse_acc(acc, xs): @List.0=xs (rightmost), @List.1=acc (parameter indices). decreases(@List.1) because xs gets shorter. Inside Cons(@Int, @List) match arm: @Int.0=head, @List.0=tail (ADT field indices, distinct from parameter indices). The where-block termination metric has a Tier 3 runtime check.",
