@@ -185,9 +185,11 @@ once no published analysis draws on results from that window.
 
 ### Harness (née Codecov) acquisition — CI coverage reporting
 
-The coverage gate and badge depend on Codecov, whose acquisition by Harness
-puts long-term service continuity outside our control. Watch item, not a
-fault: nothing is broken today.
+The coverage badge and report history depend on Codecov, whose acquisition
+by Harness puts long-term service continuity outside our control. The merge
+gate itself does not: `--cov-fail-under=80` runs inside pytest in CI, so a
+Codecov outage loses reporting, not enforcement. Watch item, not a fault:
+nothing is broken today.
 
 **Exit condition:** tracked in
 [#80](https://github.com/aallan/vera-bench/issues/80) — either Harness

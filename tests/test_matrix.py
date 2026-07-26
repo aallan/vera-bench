@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
+
 from vera_bench.matrix import MODELS, PROVIDER_ENV_KEYS, detect_provider
 
 
@@ -158,7 +163,7 @@ class TestGradeableVersioning:
     solves by 46 and silently deflate every published number.
     """
 
-    def _pr(self):
+    def _pr(self) -> "ModuleType":
         import pathlib
         import sys
 

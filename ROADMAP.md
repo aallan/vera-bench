@@ -17,6 +17,7 @@ operational debts the v0.0.16 sweep exposed, in priority order:
 - [ ] `run_sweep.sh` per-problem retry instead of whole-target re-runs ([#101](https://github.com/aallan/vera-bench/issues/101))
 - [ ] Tier the test suite (unit vs integration) so the merge gate is fast and hermetic ([#102](https://github.com/aallan/vera-bench/issues/102))
 - [ ] Test coverage >90% ([#5](https://github.com/aallan/vera-bench/issues/5))
+- [ ] Deduplicate the Python/TypeScript wrapper builders across `runner.py` and `baseline_runner.py` ([#111](https://github.com/aallan/vera-bench/issues/111)) — four copies that must move in lockstep by hand; the Vera path already shares `vera_wrapper.py`
 
 ## Milestone 2: Breadth — providers, languages, problems
 

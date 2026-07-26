@@ -592,8 +592,10 @@ counts as "solved" has to be right:
 - **gradeable problem** (has test cases) → `run_correct is True`
 - **no test cases** → `check_pass is True`
 
-Problems without test cases (14 of the 60 as of v0.0.17) carry
-`run_correct: None` *by construction*, never because anything failed. Testing `run_correct is True` alone reports a
+Problems without test cases (14 of the 60 as of v0.0.17; the split is
+version-pinned, so a `--version` render shows its own era's) carry
+`run_correct: None` *by construction*, never because anything failed.
+Testing `run_correct is True` alone reports a
 problem that every language compiled and verified as solved **nowhere** —
 which reverses the argument the slide exists to make. Covered by
 `tests/test_plot_narrative.py::TestSolved`.

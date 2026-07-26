@@ -14,9 +14,9 @@ slides here need something that aggregate cannot express:
 - `saturation` — every (model, language) score as its own dot, to show
                  the frontier is bunched against the ceiling and that the
                  headline deltas are one or two problems wide.
-- `coverage`   — what pass@1 structurally cannot see: the 24 of 60
-                 problems with no test cases, and Vera's check/verify
-                 rates over the full 60.
+- `coverage`   — what pass@1 structurally cannot see: the problems
+                 with no test cases, and Vera's check/verify rates over
+                 the rest.
 
 Kept out of `plot_slide.py` deliberately. That module's data path is
 `extract_data` -> tier dict of ints; threading a second, row-level path
@@ -191,9 +191,9 @@ def best_by_problem(rows: list[dict]) -> dict[str, dict]:
 def solved(row: dict | None, problem_id: str, version: str | None = None) -> bool:
     """Did this attempt succeed, by the strongest verdict available?
 
-    Gradeability decides which verdict applies. 24 of the 60 problems
-    carry no test cases, so `run_correct` is None for them by
-    construction — never because anything failed. Testing `run_correct is
+    Gradeability decides which verdict applies. Problems without test
+    cases (14 of 60 as of v0.0.17; version-pinned) carry `run_correct`
+    None by construction — never because anything failed. Testing `run_correct is
     True` alone therefore reports a problem the model compiled and
     verified everywhere as solved NOWHERE, which on the refusal slide
     inverts the argument: the line exists to prove the model *could* do
@@ -458,8 +458,8 @@ def render_refusal(
     fig.text(
         0.5,
         0.035,
-        "solved = output matched the test cases, or — for the 24 problems "
-        "with no test cases — the code compiled and passed its contracts.     "
+        "solved = output matched the test cases, or — for problems with "
+        "no test cases — the code compiled and passed its contracts.     "
         "·  =  language not run for that model",
         ha="center",
         fontsize=13,

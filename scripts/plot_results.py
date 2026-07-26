@@ -252,8 +252,9 @@ _GRADEABLE_IDS: set[str] | None = None
 # TODAY's problem set — but old result files carry rows for problems
 # that were not gradeable when they were swept. Without this pin,
 # regenerating a v0.0.16 chart after #107 landed would divide 36
-# problems' worth of solves by the current 48-problem denominator and
-# silently deflate every published number. Same failure class, same
+# problems' worth of solves by the current 46-problem denominator (the
+# 36 plus the ten this release added) and silently deflate every
+# published number. Same failure class, same
 # remedy, as HISTORICAL_LINEUPS above.
 #
 # Maintenance rule: whenever test cases are added to an EXISTING
