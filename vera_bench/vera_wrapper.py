@@ -243,6 +243,16 @@ def build_wrapper(
         # `vera run` prints a Bool as 1/0.
         return eq + "\n" + main, 1
 
+    if adt is not None and ret == f"@{adt['type']}":
+        if not mapping:
+            mapping = match_constructors(source, adt)
+        eq_body = adt_eq_body(expected, adt, mapping)
+        eq = _fn(_EQ_FN, ret, "@Bool", "effects(pure)", eq_body, public=False)
+        main = _fn(
+            PROBE_FN, "@Unit", "@Bool", effects, f"  {_EQ_FN}({call})", public=True
+        )
+        return eq + "\n" + main, 1
+
     raise Unsupported(f"no comparison strategy for return type {ret}")
 
 
@@ -370,6 +380,71 @@ def render_adt(value: object, spec: dict, mapping: dict[str, str]) -> str:
         for a, t in zip(args, want["args"])
     ]
     return f"{mapping[ctor]}({', '.join(rendered)})"
+
+
+def adt_eq_body(expected: object, spec: dict, mapping: dict[str, str]) -> str:
+    """An unrolled match that is true exactly for `expected`.
+
+    Recursion is deliberately avoided. A generated recursive equality
+    would need its own `decreases` clause and correct De Bruijn indices
+    in every arm — and a wrong index there compiles, verifies, and
+    computes the wrong answer, which is precisely how VB-T5-008 shipped
+    broken. The expected value is known when the wrapper is generated, so
+    the shape is spelled out instead: each arm either matches the exact
+    constructor and payload, or returns false.
+
+    Inside a `Cons(@Int, @List)` arm, `@Int.0` is the matched head and
+    `@List.0` the matched tail — the nearest binding, not an outer one.
+    """
+    if spec.get("form") == "list":
+        if not isinstance(expected, list):
+            raise Unsupported(f"expected {expected!r} is not a list")
+        empty, cons = mapping[spec["empty"]], mapping[spec["cons"]]
+
+        def build(items: list) -> str:
+            if not items:
+                return (
+                    f"match @List.0 {{ {empty} -> true, {cons}(@Int, @List) -> false }}"
+                )
+            head, rest = items[0], items[1:]
+            inner = build(rest)
+            return (
+                f"match @List.0 {{ {empty} -> false, "
+                f"{cons}(@Int, @List) -> if @Int.0 == {render_value(head, '@Int')} "
+                f"then {{ {inner} }} else {{ false }} }}"
+            )
+
+        return "  " + build(expected)
+
+    name, args, ctor = _expect_tagged(expected, spec)
+    arms = []
+    for c in spec.get("constructors", []):
+        actual = mapping[c["name"]]
+        params = ", ".join(f"@{t}" for t in c.get("args", []))
+        pattern = f"{actual}({params})" if params else actual
+        if c["name"] != name:
+            arms.append(f"{pattern} -> false")
+        elif not args:
+            arms.append(f"{pattern} -> true")
+        else:
+            checks = " && ".join(
+                f"@{t}.0 == {render_value(a, f'@{t}')}" for a, t in zip(args, c["args"])
+            )
+            arms.append(f"{pattern} -> {checks}")
+    type_ref = f"@{spec['type']}.0"
+    return f"  match {type_ref} {{ " + ", ".join(arms) + " }"
+
+
+def _expect_tagged(expected: object, spec: dict) -> tuple[str, list, dict]:
+    if not isinstance(expected, dict) or len(expected) != 1:
+        raise Unsupported(f"expected {expected!r} is not a tagged constructor")
+    name, args = next(iter(expected.items()))
+    if not isinstance(args, list):
+        raise Unsupported(f"arguments for {name} must be a list")
+    for ctor in spec.get("constructors", []):
+        if ctor["name"] == name:
+            return name, args, ctor
+    raise Unsupported(f"unknown constructor {name!r}")
 
 
 def can_wrap(signature: str, adt: dict | None = None) -> bool:

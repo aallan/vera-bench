@@ -26,4 +26,5 @@ fn main() -> Unit
     ! [Console.print]
     Console.print("{list_reverse([1, 2, 3])}")
     Console.print("{list_reverse([])}")
-    Console.print("{list_reverse([42])}")
+    Console.print("{list_reverse([7])}")
+    Console.print("{list_reverse([1, -2])}")

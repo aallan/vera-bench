@@ -10,4 +10,9 @@ func rev_acc(xs: MyList, acc: MyList) -> MyList =
 
 export func list_reverse(xs: MyList) -> MyList = rev_acc(xs, MyNil)
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(list_reverse(MyCons(1, MyCons(2, MyCons(3, MyNil))))));
+  println(show(list_reverse(MyNil)));
+  println(show(list_reverse(MyCons(7, MyNil))));
+  println(show(list_reverse(MyCons(1, MyCons(-2, MyNil)))))
+}
