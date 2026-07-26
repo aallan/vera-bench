@@ -2,11 +2,19 @@ module benchmark/solution
 
 func join_helper(xs: [string], sep: string) -> string =
   match xs {
-    [] => "";
-    [x] => x;
+    -- Arms separate with commas; the semicolons this file shipped with
+    -- never parsed, and nothing noticed because the problem had no test
+    -- cases, so this canonical had never been run.
+    [] => "",
+    [x] => x,
     [x, ...rest] => "${x}${sep}${join_helper(rest, sep)}"
   }
 
 export func join_strings(xs: [string], sep: string) -> string = join_helper(xs, sep)
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(join_strings(["a", "b", "c"], "-")));
+  println(show(join_strings(["solo"], ",")));
+  println(show(join_strings([], ",")));
+  println(show(join_strings(["x", "y"], "")))
+}

@@ -6,4 +6,8 @@ func dbl(x: int) -> int = x * 2
 
 export func double_elements(xs: [int]) -> [int] = map(dbl, xs)
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(double_elements([1, 2, 3])));
+  println(show(double_elements([])));
+  println(show(double_elements([-3, 0])))
+}

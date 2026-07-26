@@ -15,6 +15,6 @@ verify double_elements
 
 fn main() -> Unit
     ! [Console.print]
-    Console.print("{double_elements([])}")
     Console.print("{double_elements([1, 2, 3])}")
-    Console.print("{double_elements([0, -1, 5])}")
+    Console.print("{double_elements([])}")
+    Console.print("{double_elements([-3, 0])}")

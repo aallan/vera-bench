@@ -4,4 +4,9 @@ import std/string (toUpper)
 
 export func to_upper(s: string) -> string = toUpper(s)
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(to_upper("abc")));
+  println(show(to_upper("")));
+  println(show(to_upper("MiXeD 42!")));
+  println(show(to_upper("ALREADY")))
+}

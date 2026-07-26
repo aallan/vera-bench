@@ -14,6 +14,7 @@ verify join_strings
 
 fn main() -> Unit
     ! [Console.print]
-    Console.print("{join_strings(["a", "b", "c"], ", ")}")
-    Console.print("{join_strings(["hello"], "-")}")
+    Console.print("{join_strings(["a", "b", "c"], "-")}")
+    Console.print("{join_strings(["solo"], ",")}")
     Console.print("{join_strings([], ",")}")
+    Console.print("{join_strings(["x", "y"], "")}")

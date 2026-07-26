@@ -2,4 +2,8 @@ module benchmark/solution
 
 export func greet(name: string) -> string = "Hello, ${name}!"
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(greet("world")));
+  println(show(greet("Ada")));
+  println(show(greet("x")))
+}

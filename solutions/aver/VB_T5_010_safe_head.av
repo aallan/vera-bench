@@ -17,6 +17,6 @@ verify safe_head
 
 fn main() -> Unit
     ! [Console.print]
-    Console.print("{safe_head([10, 20, 30])}")
-    Console.print("{safe_head([42])}")
+    Console.print("{safe_head([7, 8])}")
     Console.print("{safe_head([])}")
+    Console.print("{safe_head([42])}")
