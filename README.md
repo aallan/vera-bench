@@ -83,8 +83,9 @@ started or below.
 
 Only the second step is controlled. The first spans a compiler, a standard
 library and a revision of the teaching document, so it measures the Vera
-ecosystem improving as much as the models. The controlled step moves the same
-way, which is suggestive rather than conclusive on a sample of one transition.
+ecosystem improving alongside the models, in unknown proportion. The controlled
+step moves the same way, which is suggestive rather than conclusive on a sample
+of one transition.
 
 ### Reasoning mode
 

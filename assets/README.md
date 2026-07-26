@@ -43,7 +43,7 @@ problems in Vera than in Python; Claude Opus 5 reverses that. Both Vera modes
 rise at every step, while Python and TypeScript end where they started or
 below. Only the last step is controlled; the earlier one spans a compiler, a
 standard library and a revision of the teaching document, so it measures the
-ecosystem improving as much as the models.
+ecosystem improving alongside the models, in unknown proportion.
 
 ### `fig-reasoning.png`: reasoning mode
 
