@@ -198,15 +198,17 @@ _DECL = {
 def declared_names(source: str, language: str) -> list[str]:
     """Constructor-ish names the solution declares, best effort per language."""
     if language == "ailang":
-        m = _DECL["ailang"].search(source)
-        if not m:
-            return []
-        return re.findall(r"(\w+)", re.sub(r"\([^)]*\)", "", m.group(1)))
+        names: list[str] = []
+        for m in _DECL["ailang"].finditer(source):
+            names += re.findall(r"(\w+)", re.sub(r"\([^)]*\)", "", m.group(1)))
+        return names
     if language == "aver":
-        block = re.search(r"^type\s+\w+[ \t]*\n((?:[ \t]+\w+.*\n)+)", source, re.M)
-        if not block:
-            return []
-        return re.findall(r"^\s+(\w+)", block.group(1), re.M)
+        names = []
+        for block in re.finditer(
+            r"^type\s+\w+[ \t]*\n((?:[ \t]+\w+.*\n)+)", source, re.M
+        ):
+            names += re.findall(r"^\s+(\w+)", block.group(1), re.M)
+        return names
     return list(dict.fromkeys(_DECL[language].findall(source)))
 
 
@@ -223,7 +225,15 @@ def uses_native_collection(source: str, spec: dict) -> bool:
 
 
 def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
-    """Map canonical constructor names onto the ones the solution declares."""
+    """Map canonical constructor names onto the ones the solution declares.
+
+    A built-in carries its own constructors under the canonical names —
+    Aver's `Option<Int>` is `Option.Some` / `Option.None` — so a type the
+    language already provides needs no declaration to be matched.
+    """
+    type_name = spec.get("type", "")
+    if language == "aver" and re.search(rf"\b{re.escape(type_name)}<", source):
+        return {}
     declared = declared_names(source, language)
     lowered = {d.lower(): d for d in declared}
     mapping: dict[str, str] = {}
@@ -258,16 +268,47 @@ def declared_type(source: str, language: str, spec: dict) -> str:
     """
     if language != "aver":
         return ""
+    type_name = spec.get("type", "")
+    # A built-in is qualified by its own name: Option.Some.
+    if re.search(rf"\b{re.escape(type_name)}<", source):
+        return type_name
+    wanted = {c["name"].lower() for c in spec.get("constructors", [])}
+    for block in re.finditer(
+        r"^type\s+(\w+)[ \t]*\n((?:[ \t]+\w+.*\n)+)", source, re.M
+    ):
+        ctors = {n.lower() for n in re.findall(r"^\s+(\w+)", block.group(2), re.M)}
+        # The declaration whose constructors this spec actually names.
+        if wanted & ctors or any(
+            c.endswith(w) or w.endswith(c) for c in ctors for w in wanted
+        ):
+            return block.group(1)
     m = re.search(r"^type\s+(\w+)", source, re.M)
-    if m:
-        return m.group(1)
-    builtin = re.search(r"\b(List|Option)<", source)
-    return builtin.group(1) if builtin else ""
+    return m.group(1) if m else ""
+
+
+def return_spec(problem: dict) -> dict | None:
+    """The ADT spec describing the RETURN type, if it is an ADT.
+
+    Usually the same block as the arguments. VB-T3-010 takes a @List and
+    returns an @Option, so a problem may carry `return_adt` for a second,
+    different type.
+    """
+    spec = problem.get("return_adt") or problem.get("adt")
+    if not spec:
+        return None
+    from vera_bench.vera_wrapper import Unsupported as _U
+    from vera_bench.vera_wrapper import parse_signature
+
+    try:
+        _, ret = parse_signature(problem.get("signature", ""))
+    except _U:
+        return None
+    return spec if ret == f"@{spec.get('type')}" else None
 
 
 def returns_adt(problem: dict) -> bool:
-    """Whether the entry point returns the problem's ADT."""
-    spec = problem.get("adt")
+    """Whether the entry point returns an ADT this harness can compare."""
+    spec = problem.get("return_adt") or problem.get("adt")
     if not spec:
         return False
     from vera_bench.vera_wrapper import Unsupported as _U
@@ -286,6 +327,7 @@ def printed_form(
     language: str,
     names: dict[str, str] | None = None,
     native: bool = False,
+    qualifier: str = "",
 ) -> str:
     """The string a language prints for this ADT value.
 
@@ -295,4 +337,4 @@ def printed_form(
     the type qualifier it requires on the way in, so the printed form is
     the unqualified rendering.
     """
-    return render(value, spec, language, names, native, qualifier="")
+    return render(value, spec, language, names, native, qualifier)

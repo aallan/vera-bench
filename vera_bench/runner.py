@@ -22,7 +22,7 @@ from vera_bench.adt_render import (
     render,
     render_args,
     resolve_names,
-    returns_adt,
+    return_spec,
     uses_native_collection,
 )
 from vera_bench.models import AuthError, LLMClient
@@ -161,9 +161,9 @@ def _adt_expected(
     literal built with the solution's own constructors, so both sides of
     the comparison are the same shape.
     """
-    if not returns_adt(problem):
+    spec = return_spec(problem)
+    if spec is None:
         return None
-    spec = problem["adt"]
     native = language == "aver" and uses_native_collection(source, spec)
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
@@ -270,7 +270,13 @@ def _evaluate_code(
         if wrapped:
             try:
                 wrapper, expected = build_wrapper(
-                    code, entry_point, signature, args, expected, adt_spec
+                    code,
+                    entry_point,
+                    signature,
+                    args,
+                    expected,
+                    adt_spec,
+                    return_spec(problem),
                 )
             except Unsupported as e:
                 # Leave the problem ungraded rather than score it on a

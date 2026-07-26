@@ -10,4 +10,9 @@ export func list_last(xs: MyList) -> MyOption =
     MyCons(_, t) => list_last(t)
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(list_last(MyCons(1, MyCons(2, MyCons(3, MyNil))))));
+  println(show(list_last(MyNil)));
+  println(show(list_last(MyCons(7, MyNil))));
+  println(show(list_last(MyCons(-1, MyCons(-9, MyNil)))))
+}

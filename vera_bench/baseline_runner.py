@@ -22,11 +22,11 @@ from vera_bench.adt_render import (
     render,
     render_args,
     resolve_names,
-    returns_adt,
+    return_spec,
     uses_native_collection,
 )
 from vera_bench.runner import ProblemResult
-from vera_bench.vera_wrapper import parse_signature
+from vera_bench.vera_wrapper import Unsupported, parse_signature
 
 console = Console()
 
@@ -61,12 +61,19 @@ def _adt_printed(
     problem: dict, source: str, language: str, expected: object
 ) -> str | None:
     """The expected ADT return as the language prints it, or None."""
-    if not returns_adt(problem):
+    spec = return_spec(problem)
+    if spec is None:
         return None
-    spec = problem["adt"]
     native = language == "aver" and uses_native_collection(source, spec)
     names = {} if native else resolve_names(source, spec, language)
-    return printed_form(expected, spec, language, names, native)
+    # Aver prints a built-in qualified (`Option.Some(3)`) and a declared
+    # type bare (`Cons(1, Nil)`).
+    import re as _re
+
+    type_name = spec.get("type", "")
+    builtin = language == "aver" and _re.search(rf"\b{_re.escape(type_name)}<", source)
+    qualifier = type_name if builtin else ""
+    return printed_form(expected, spec, language, names, native, qualifier)
 
 
 def _adt_expected(
@@ -78,9 +85,9 @@ def _adt_expected(
     the comparison are then built from the same constructors, so they are
     the same shape and can be compared structurally.
     """
-    if not returns_adt(problem):
+    spec = return_spec(problem)
+    if spec is None:
         return None
-    spec = problem["adt"]
     native = language == "aver" and uses_native_collection(source, spec)
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
@@ -612,6 +619,7 @@ def run_aver_baseline(
     tests_passed = 0
 
     src_text = baseline_path.read_text(encoding="utf-8")
+    unmappable = False
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
         # An ADT return prints as `Cons(1, Nil)` in both Aver and AILANG,
@@ -619,7 +627,15 @@ def run_aver_baseline(
         # form IS the comparison, no equality instance required (#107
         # step 2b). AILANG has no derived Eq for user types, so this is
         # the only route there.
-        printed = _adt_printed(problem, src_text, "aver", expected)
+        try:
+            printed = _adt_printed(problem, src_text, "aver", expected)
+        except Unsupported:
+            # This solution's constructors could not be mapped. Leave the
+            # problem ungraded rather than abort every remaining one — an
+            # instrumentation gap must not look like a wrong answer, and
+            # must never take the run down with it.
+            printed = None
+            unmappable = True
         if i < len(output_lines):
             actual = output_lines[i].strip()
             if printed is not None:
@@ -633,7 +649,7 @@ def run_aver_baseline(
         language="aver",
         attempt=1,
         check_pass=True,
-        run_correct=(tests_passed == len(test_cases)),
+        run_correct=(None if unmappable else tests_passed == len(test_cases)),
         tests_total=len(test_cases),
         tests_passed=tests_passed,
         wall_time_s=elapsed,
@@ -856,12 +872,21 @@ def run_ailang_baseline(
     tests_passed = 0
 
     ail_src = baseline_path.read_text(encoding="utf-8")
+    unmappable = False
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
         # `show` renders an AILANG ADT in the same syntax the renderer
         # emits, which is the only comparison available: AILANG has no
         # derived Eq for user types (#107 step 2b).
-        printed = _adt_printed(problem, ail_src, "ailang", expected)
+        try:
+            printed = _adt_printed(problem, ail_src, "ailang", expected)
+        except Unsupported:
+            # This solution's constructors could not be mapped. Leave the
+            # problem ungraded rather than abort every remaining one — an
+            # instrumentation gap must not look like a wrong answer, and
+            # must never take the run down with it.
+            printed = None
+            unmappable = True
         if i < len(output_lines):
             actual = output_lines[i].strip()
             if printed is not None:
@@ -875,7 +900,7 @@ def run_ailang_baseline(
         language="ailang",
         attempt=1,
         check_pass=True,
-        run_correct=(tests_passed == len(test_cases)),
+        run_correct=(None if unmappable else tests_passed == len(test_cases)),
         tests_total=len(test_cases),
         tests_passed=tests_passed,
         wall_time_s=elapsed,

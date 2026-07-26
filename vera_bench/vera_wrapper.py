@@ -180,6 +180,7 @@ def build_wrapper(
     args: list,
     expected: object,
     adt: dict | None = None,
+    ret_adt: dict | None = None,
 ) -> tuple[str, object]:
     """Return (wrapper source to append, expected value to compare against).
 
@@ -243,10 +244,16 @@ def build_wrapper(
         # `vera run` prints a Bool as 1/0.
         return eq + "\n" + main, 1
 
-    if adt is not None and ret == f"@{adt['type']}":
-        if not mapping:
-            mapping = match_constructors(source, adt)
-        eq_body = adt_eq_body(expected, adt, mapping)
+    if ret_adt is not None:
+        # The return type may be a DIFFERENT ADT from the arguments'
+        # (VB-T3-010 takes a @List and returns an @Option), so its
+        # constructors are matched separately.
+        ret_mapping = (
+            mapping
+            if adt is not None and ret_adt is adt and mapping
+            else match_constructors(source, ret_adt)
+        )
+        eq_body = adt_eq_body(expected, ret_adt, ret_mapping)
         eq = _fn(_EQ_FN, ret, "@Bool", "effects(pure)", eq_body, public=False)
         main = _fn(
             PROBE_FN, "@Unit", "@Bool", effects, f"  {_EQ_FN}({call})", public=True
