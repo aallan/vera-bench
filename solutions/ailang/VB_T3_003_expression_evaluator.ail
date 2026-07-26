@@ -9,4 +9,9 @@ export func eval_expr(e: Expr) -> int =
     Neg(x) => -eval_expr(x)
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(eval_expr(Lit(42))));
+  println(show(eval_expr(Add(Lit(2), Lit(3)))));
+  println(show(eval_expr(Neg(Lit(7)))));
+  println(show(eval_expr(Add(Neg(Lit(4)), Lit(10)))))
+}

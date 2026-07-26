@@ -30,9 +30,6 @@ verify tree_depth
 
 fn main() -> Unit
     ! [Console.print]
-    leaf = Tree.Leaf(42)
-    shallow = Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))
-    deep = Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))
-    Console.print("{tree_depth(leaf)}")
-    Console.print("{tree_depth(shallow)}")
-    Console.print("{tree_depth(deep)}")
+    Console.print("{tree_depth(Tree.Leaf(5))}")
+    Console.print("{tree_depth(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)))}")
+    Console.print("{tree_depth(Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3)))}")

@@ -8,4 +8,10 @@ export func list_contains(xs: MyList, target: int) -> bool =
     MyCons(h, t) => if h == target then true else list_contains(t, target)
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(list_contains(MyNil, 1)));
+  println(show(list_contains(MyCons(1, MyCons(2, MyCons(3, MyNil))), 2)));
+  println(show(list_contains(MyCons(1, MyCons(2, MyCons(3, MyNil))), 9)));
+  println(show(list_contains(MyCons(5, MyNil), 5)));
+  println(show(list_contains(MyCons(-4, MyCons(0, MyCons(4, MyNil))), -4)))
+}

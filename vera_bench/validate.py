@@ -156,7 +156,8 @@ def validate_problem(
     # Both paths must agree, or the canonical solutions would be validated
     # differently from the code being graded against them.
     signature = problem.get("signature", "")
-    wrapped = can_wrap(signature)
+    adt_spec = problem.get("adt")
+    wrapped = can_wrap(signature, adt_spec)
     source = Path(vera_file).read_text(encoding="utf-8") if wrapped else ""
     probe_dir: tempfile.TemporaryDirectory | None = (
         tempfile.TemporaryDirectory() if wrapped else None
@@ -172,7 +173,7 @@ def validate_problem(
         if wrapped:
             try:
                 wrapper, expected = build_wrapper(
-                    source, entry_point, signature, args, expected
+                    source, entry_point, signature, args, expected, adt_spec
                 )
             except Unsupported as e:
                 result["errors"].append(f"run({args}): no wrapper: {e}")

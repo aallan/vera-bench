@@ -19,9 +19,6 @@ verify tree_sum
 
 fn main() -> Unit
     ! [Console.print]
-    leaf = Tree.Leaf(5)
-    pair = Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))
-    nested = Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))
-    Console.print("{tree_sum(leaf)}")
-    Console.print("{tree_sum(pair)}")
-    Console.print("{tree_sum(nested)}")
+    Console.print("{tree_sum(Tree.Leaf(5))}")
+    Console.print("{tree_sum(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)))}")
+    Console.print("{tree_sum(Tree.Branch(Tree.Branch(Tree.Leaf(4), Tree.Leaf(-4)), Tree.Leaf(9)))}")

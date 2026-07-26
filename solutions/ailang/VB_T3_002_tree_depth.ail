@@ -1,13 +1,17 @@
 module benchmark/solution
 
-type MyTree = MyLeaf | MyBranch(MyTree, MyTree)
+type MyTree = MyLeaf(int) | MyBranch(MyTree, MyTree)
 
 func max_of(a: int, b: int) -> int = if a > b then a else b
 
 export func tree_depth(t: MyTree) -> int =
   match t {
-    MyLeaf => 1,
+    MyLeaf(_) => 1,
     MyBranch(l, r) => 1 + max_of(tree_depth(l), tree_depth(r))
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(tree_depth(MyLeaf(5))));
+  println(show(tree_depth(MyBranch(MyLeaf(1), MyLeaf(2)))));
+  println(show(tree_depth(MyBranch(MyBranch(MyLeaf(1), MyLeaf(2)), MyLeaf(3)))))
+}

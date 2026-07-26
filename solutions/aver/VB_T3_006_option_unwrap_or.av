@@ -16,6 +16,7 @@ verify option_unwrap_or
 
 fn main() -> Unit
     ! [Console.print]
-    Console.print("{option_unwrap_or(Option.Some(42), 0)}")
-    Console.print("{option_unwrap_or(Option.None, 0)}")
-    Console.print("{option_unwrap_or(Option.Some(7), 99)}")
+    Console.print("{option_unwrap_or(Option.Some(5), 0)}")
+    Console.print("{option_unwrap_or(Option.None, 99)}")
+    Console.print("{option_unwrap_or(Option.Some(-3), 7)}")
+    Console.print("{option_unwrap_or(Option.None, -1)}")

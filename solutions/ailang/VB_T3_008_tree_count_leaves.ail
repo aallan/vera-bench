@@ -1,11 +1,15 @@
 module benchmark/solution
 
-type MyTree = MyLeaf | MyBranch(MyTree, MyTree)
+type MyTree = MyLeaf(int) | MyBranch(MyTree, MyTree)
 
 export func tree_count_leaves(t: MyTree) -> int =
   match t {
-    MyLeaf => 1,
+    MyLeaf(_) => 1,
     MyBranch(l, r) => tree_count_leaves(l) + tree_count_leaves(r)
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(tree_count_leaves(MyLeaf(5))));
+  println(show(tree_count_leaves(MyBranch(MyLeaf(1), MyLeaf(2)))));
+  println(show(tree_count_leaves(MyBranch(MyBranch(MyLeaf(1), MyLeaf(2)), MyLeaf(3)))))
+}

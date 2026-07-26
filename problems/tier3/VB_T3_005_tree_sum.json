@@ -23,8 +23,92 @@
     "data-definition",
     "tree"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        {
+          "Leaf": [
+            5
+          ]
+        }
+      ],
+      "expected": 5
+    },
+    {
+      "args": [
+        {
+          "Branch": [
+            {
+              "Leaf": [
+                1
+              ]
+            },
+            {
+              "Leaf": [
+                2
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": 3
+    },
+    {
+      "args": [
+        {
+          "Branch": [
+            {
+              "Branch": [
+                {
+                  "Leaf": [
+                    4
+                  ]
+                },
+                {
+                  "Leaf": [
+                    -4
+                  ]
+                }
+              ]
+            },
+            {
+              "Leaf": [
+                9
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": 9
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Inside Branch(@Tree, @Tree), @Tree.0 is the right subtree, @Tree.1 is the left. Both must be summed recursively."
+  "notes": "Inside Branch(@Tree, @Tree), @Tree.0 is the right subtree, @Tree.1 is the left. Both must be summed recursively.",
+  "adt": {
+    "type": "Tree",
+    "form": "tagged",
+    "constructors": [
+      {
+        "name": "Leaf",
+        "args": [
+          "Int"
+        ],
+        "fields": [
+          "value"
+        ]
+      },
+      {
+        "name": "Branch",
+        "args": [
+          "Tree",
+          "Tree"
+        ],
+        "fields": [
+          "left",
+          "right"
+        ]
+      }
+    ]
+  }
 }

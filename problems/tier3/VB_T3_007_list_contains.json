@@ -6,14 +6,100 @@
   "description_neutral": "Define a linked list type with nil and cons constructors. Write a function that returns true if the list contains a given target integer.",
   "signature": "public fn list_contains(@List, @Int -> @Bool)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "list_contains",
-  "tags": ["adt", "pattern-matching", "recursion", "decreases", "data-definition", "search", "boolean"],
-  "test_cases": [],
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "recursion",
+    "decreases",
+    "data-definition",
+    "search",
+    "boolean"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        [],
+        1
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          1,
+          2,
+          3
+        ],
+        2
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        [
+          1,
+          2,
+          3
+        ],
+        9
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          5
+        ],
+        5
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        [
+          -4,
+          0,
+          4
+        ],
+        -4
+      ],
+      "expected": 1
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
-  "notes": "Parameters: list_contains(lst, target). @Int.0=target, @List.0=lst. Inside Cons(@Int, @List), the matched head is @Int.0 and the target shifts to @Int.1. The agent must correctly reference @Int.1 for the target inside the match arm."
+  "notes": "Parameters: list_contains(lst, target). @Int.0=target, @List.0=lst. Inside Cons(@Int, @List), the matched head is @Int.0 and the target shifts to @Int.1. The agent must correctly reference @Int.1 for the target inside the match arm.",
+  "adt": {
+    "type": "List",
+    "form": "list",
+    "empty": "Nil",
+    "cons": "Cons",
+    "constructors": [
+      {
+        "name": "Nil",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Cons",
+        "args": [
+          "Int",
+          "List"
+        ],
+        "fields": [
+          "head",
+          "tail"
+        ]
+      }
+    ]
+  }
 }

@@ -17,6 +17,12 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress
 
+from vera_bench.adt_render import (
+    declared_type,
+    render_args,
+    resolve_names,
+    uses_native_collection,
+)
 from vera_bench.models import AuthError, LLMClient
 from vera_bench.prompts import (
     build_ailang_fix_prompt,
@@ -35,6 +41,7 @@ from vera_bench.vera_wrapper import (
     Unsupported,
     build_wrapper,
     can_wrap,
+    parse_signature,
 )
 
 console = Console()
@@ -143,6 +150,28 @@ class ProblemResult:
         return json.dumps(d, ensure_ascii=False)
 
 
+def _adt_call(problem: dict, source: str, language: str, args: list) -> str | None:
+    """Render an ADT call for this test case, or None when not applicable.
+
+    Returns the arguments already rendered in the solution's own
+    constructor names, e.g. `Cons(1, Nil()), 5`. None means the problem
+    carries no ADT and the caller's ordinary literal path applies.
+    Unsupported propagates: the problem is left ungraded rather than
+    graded on a call we are not sure of.
+    """
+    spec = problem.get("adt")
+    if not spec:
+        return None
+    params, _ = parse_signature(problem.get("signature", ""))
+    param_types = [p.lstrip("@") for p in params]
+    native = language == "aver" and uses_native_collection(source, spec)
+    names = {} if native else resolve_names(source, spec, language)
+    qualifier = declared_type(source, language, spec)
+    return ", ".join(
+        render_args(args, param_types, spec, language, names, native, qualifier)
+    )
+
+
 def _evaluate_code(
     code: str,
     problem: dict,
@@ -208,7 +237,8 @@ def _evaluate_code(
     # For those, generate a caller with the arguments written into the
     # source, the way the Python and AILANG evaluators already do (#107).
     signature = problem.get("signature", "")
-    wrapped = can_wrap(signature)
+    adt_spec = problem.get("adt")
+    wrapped = can_wrap(signature, adt_spec)
     for i, tc in enumerate(test_cases):
         if not isinstance(tc, dict):
             continue
@@ -220,7 +250,7 @@ def _evaluate_code(
         if wrapped:
             try:
                 wrapper, expected = build_wrapper(
-                    code, entry_point, signature, args, expected
+                    code, entry_point, signature, args, expected, adt_spec
                 )
             except Unsupported as e:
                 # Leave the problem ungraded rather than score it on a
@@ -316,6 +346,9 @@ def _evaluate_python_code(
         "import json",
         "import sys",
         f"sys.path.insert(0, {str(work_dir)!r})",
+        # Star-import so an ADT problem's constructors come with the
+        # entry point; the wrapper builds values with them.
+        f"from {code_path.stem} import *  # noqa: F403",
         f"from {code_path.stem} import {entry_point}",
         "",
         "results = []",
@@ -330,6 +363,10 @@ def _evaluate_python_code(
             expected = expected == "true"
         args_repr = repr(args)
         expected_repr = repr(expected)
+        # An ADT argument cannot be a plain literal: it has to be built
+        # with the solution's own constructors (#107 step 2).
+        adt_args = _adt_call(problem, code, "python", args)
+        call_expr = adt_args if adt_args is not None else f"*{args_repr}"
         wrapper_lines.extend(
             [
                 "try:",
@@ -339,7 +376,7 @@ def _evaluate_python_code(
                 # text is discarded for now; grading @Unit problems ON
                 # that text is #107 step 5.
                 "    with contextlib.redirect_stdout(io.StringIO()):",
-                f"        actual_{i} = {entry_point}(*{args_repr})",
+                f"        actual_{i} = {entry_point}({call_expr})",
                 f"    passed_{i} = actual_{i} == {expected_repr}",
                 f'    results.append({{"passed": passed_{i},'
                 f' "actual": repr(actual_{i})}})',
@@ -457,6 +494,8 @@ def _evaluate_typescript_code(
             expected = expected == "true"
         args_json = json.dumps(args)
         expected_json = json.dumps(expected)
+        adt_args = _adt_call(problem, code, "typescript", args)
+        ts_call = adt_args if adt_args is not None else f"...{args_json}"
         # Loose == (not ===) so a Vera-style 1/0 expected matches a native
         # boolean (VB-T1-006's original false failure). Arrays are the
         # exception: == on arrays is reference equality and always false
@@ -465,7 +504,7 @@ def _evaluate_typescript_code(
         wrapper_lines.extend(
             [
                 "try {",
-                f"  const actual_{i} = {ts_fn}(...{args_json});",
+                f"  const actual_{i} = {ts_fn}({ts_call});",
                 f"  const passed_{i} = Array.isArray(actual_{i}) || "
                 f"Array.isArray({expected_json}) "
                 f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "

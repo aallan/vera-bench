@@ -19,9 +19,7 @@ verify list_length
 
 fn main() -> Unit
     ! [Console.print]
-    empty = MyList.Nil
-    one = MyList.Cons(1, MyList.Nil)
-    three = MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))
-    Console.print("{list_length(empty)}")
-    Console.print("{list_length(one)}")
-    Console.print("{list_length(three)}")
+    Console.print("{list_length(MyList.Nil)}")
+    Console.print("{list_length(MyList.Cons(42, MyList.Nil))}")
+    Console.print("{list_length(MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil))))}")
+    Console.print("{list_length(MyList.Cons(-1, MyList.Cons(-2, MyList.Cons(-3, MyList.Cons(-4, MyList.Cons(-5, MyList.Nil))))))}")

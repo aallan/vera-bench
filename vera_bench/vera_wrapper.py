@@ -28,6 +28,27 @@ The generator declines rather than guesses. `Unsupported` means the caller
 should leave the problem ungraded, exactly as today. Grading it on a
 wrapper we are not sure of would turn a correct solution into a recorded
 failure, which is worse than not grading it.
+
+ADT arguments are the harder half, because the *model* defines the type.
+The problem says "define a linked list ADT with Nil and Cons
+constructors", so the full-spec prompt names them — but the neutral
+description used for spec-from-NL only says "nil and cons", and nothing
+stops a model writing `Empty` and `Node`. So a test-case value is written
+against the problem's *canonical* constructor names, and the wrapper maps
+those onto whatever the model actually declared:
+
+  1. by name, case-insensitively — the overwhelmingly common case;
+  2. failing that, by structure — a canonical constructor matches a model
+     constructor with the same argument signature, but only when that
+     signature is unique within the declaration. `Add(Expr, Expr)` and a
+     hypothetical `Mul(Expr, Expr)` are indistinguishable by shape, so an
+     ambiguous match declines rather than guessing wrong;
+  3. failing that, decline.
+
+That ordering matters for what a decline means. A decline is a *harness*
+outcome, not a model failure: the model may well have written a perfect
+solution under names we could not map. It is recorded as ungraded with a
+reason, and never as a wrong answer.
 """
 
 from __future__ import annotations
@@ -56,12 +77,17 @@ class Unsupported(Exception):
 
 
 def _split_types(text: str) -> list[str]:
-    """Split a parameter list on commas that are not inside angle brackets."""
+    """Split on commas that are not nested inside brackets.
+
+    Both angle brackets and parentheses count: a signature carries
+    `@Map<Int, Int>` and a data declaration carries `Cons(Int, List)`,
+    and splitting either down the middle silently loses a constructor.
+    """
     parts, depth, current = [], 0, ""
     for ch in text:
-        if ch == "<":
+        if ch in "<(":
             depth += 1
-        elif ch == ">":
+        elif ch in ">)":
             depth -= 1
         if ch == "," and depth == 0:
             parts.append(current.strip())
@@ -153,6 +179,7 @@ def build_wrapper(
     signature: str,
     args: list,
     expected: object,
+    adt: dict | None = None,
 ) -> tuple[str, object]:
     """Return (wrapper source to append, expected value to compare against).
 
@@ -168,11 +195,19 @@ def build_wrapper(
         )
 
     effects = entry_effects(source, entry_point)
-    call = (
-        f"{entry_point}("
-        + ", ".join(render_value(a, t) for a, t in zip(args, params))
-        + ")"
-    )
+    # An ADT argument is rendered with the MODEL's constructor names, so
+    # the mapping is resolved once against its own declaration.
+    mapping: dict[str, str] = {}
+    adt_type = f"@{adt['type']}" if adt else None
+    if adt is not None and adt_type in params:
+        mapping = match_constructors(source, adt)
+
+    def _arg(value: object, vera_type: str) -> str:
+        if adt is not None and vera_type == adt_type:
+            return render_adt(value, adt, mapping)
+        return render_value(value, vera_type)
+
+    call = f"{entry_point}(" + ", ".join(_arg(a, t) for a, t in zip(args, params)) + ")"
 
     if ret in SCALARS:
         body = f"  {call}"
@@ -211,8 +246,140 @@ def build_wrapper(
     raise Unsupported(f"no comparison strategy for return type {ret}")
 
 
-def can_wrap(signature: str) -> bool:
-    """Whether this signature needs, and can have, a generated wrapper."""
+# A Vera ADT declaration: `private data List { Nil, Cons(Int, List) }`.
+_DATA = re.compile(r"\bdata\s+(\w+)\s*\{(.*?)\}", re.S)
+_CTOR = re.compile(r"^(\w+)\s*(?:\((.*)\))?$", re.S)
+
+#: Stands in for the declared type inside a constructor signature, so
+#: `Cons(Int, List)` and `Node(Int, Stack)` compare equal by shape.
+SELF = "SELF"
+
+
+def parse_data_decls(source: str) -> dict[str, list[tuple[str, tuple[str, ...]]]]:
+    """Every `data` declaration in the source, as {type: [(ctor, args)]}.
+
+    Argument types are normalised so a self-reference reads as SELF,
+    which is what makes structural matching work across a model's own
+    choice of type name.
+    """
+    out: dict[str, list[tuple[str, tuple[str, ...]]]] = {}
+    for match in _DATA.finditer(source):
+        type_name, body = match.group(1), match.group(2)
+        ctors: list[tuple[str, tuple[str, ...]]] = []
+        for raw in _split_types(body):
+            m = _CTOR.match(raw.strip())
+            if not m:
+                continue
+            args = tuple(
+                SELF if a.strip() == type_name else a.strip()
+                for a in _split_types(m.group(2) or "")
+                if a.strip()
+            )
+            ctors.append((m.group(1), args))
+        if ctors:
+            out[type_name] = ctors
+    return out
+
+
+def _canonical_args(args: list[str], type_name: str) -> tuple[str, ...]:
+    return tuple(SELF if a == type_name else a for a in args)
+
+
+def match_constructors(source: str, spec: dict) -> dict[str, str]:
+    """Map the problem's canonical constructor names onto the model's own.
+
+    `spec` is the problem JSON's `adt` block: a type name and the
+    constructors the problem asked for. Raises Unsupported when the
+    model's declaration cannot be mapped with confidence.
+    """
+    type_name = spec.get("type", "")
+    decls = parse_data_decls(source)
+    if not decls:
+        raise Unsupported("no data declaration found")
+    if type_name in decls:
+        model_ctors = decls[type_name]
+    elif len(decls) == 1:
+        # The model named the type something else. Harmless when it is
+        # the only one; ambiguous when it is not.
+        model_ctors = next(iter(decls.values()))
+    else:
+        raise Unsupported(
+            f"no declaration named {type_name!r} and {len(decls)} candidates"
+        )
+
+    by_name = {name.lower(): name for name, _ in model_ctors}
+    sig_count: dict[tuple[str, ...], int] = {}
+    for _, args in model_ctors:
+        sig_count[args] = sig_count.get(args, 0) + 1
+    by_sig = {args: name for name, args in model_ctors}
+
+    mapping: dict[str, str] = {}
+    for want in spec.get("constructors", []):
+        cname = want["name"]
+        want_args = _canonical_args(list(want.get("args", [])), type_name)
+        if cname.lower() in by_name:
+            mapping[cname] = by_name[cname.lower()]
+            continue
+        if sig_count.get(want_args) == 1:
+            mapping[cname] = by_sig[want_args]
+            continue
+        if want_args in sig_count:
+            raise Unsupported(
+                f"constructor {cname} is ambiguous: {sig_count[want_args]} "
+                f"declared constructors share its shape"
+            )
+        raise Unsupported(f"no constructor matches {cname}{want_args or ''}")
+    return mapping
+
+
+def render_adt(value: object, spec: dict, mapping: dict[str, str]) -> str:
+    """Render a test-case value as a Vera literal using the model's names.
+
+    Two forms, because a linked list written in tagged form is unreadable
+    past three elements and most of these problems are lists:
+
+    - ``list``   — a JSON array, folded right onto the empty/cons pair.
+    - ``tagged`` — ``{"Ctor": [arg, ...]}``, general enough for trees,
+      expressions and options.
+    """
+    form = spec.get("form", "tagged")
+    if form == "list":
+        if not isinstance(value, list):
+            raise Unsupported(f"{value!r} is not a list for {spec.get('type')}")
+        empty, cons = spec["empty"], spec["cons"]
+        out = mapping[empty]
+        for item in reversed(value):
+            out = f"{mapping[cons]}({render_value(item, '@Int')}, {out})"
+        return out
+    if not isinstance(value, dict) or len(value) != 1:
+        raise Unsupported(f"{value!r} is not a single-key tagged constructor")
+    ctor, args = next(iter(value.items()))
+    if ctor not in mapping:
+        raise Unsupported(f"unknown constructor {ctor!r} in test case")
+    if not isinstance(args, list):
+        raise Unsupported(f"arguments for {ctor} must be a list")
+    want = next(c for c in spec["constructors"] if c["name"] == ctor)
+    if len(args) != len(want.get("args", [])):
+        raise Unsupported(f"{ctor} takes {len(want.get('args', []))} argument(s)")
+    if not args:
+        return mapping[ctor]
+    rendered = [
+        render_adt(a, spec, mapping)
+        if t not in ("Int", "Nat", "Bool", "String", "Float64")
+        else render_value(a, f"@{t}")
+        for a, t in zip(args, want["args"])
+    ]
+    return f"{mapping[ctor]}({', '.join(rendered)})"
+
+
+def can_wrap(signature: str, adt: dict | None = None) -> bool:
+    """Whether this signature needs, and can have, a generated wrapper.
+
+    Scalars still go on the command line unwrapped. Arrays always wrap.
+    An ADT parameter wraps only when the problem carries an `adt` spec
+    to map the model's declaration onto — without one there is nothing
+    to match against, and guessing is the one thing this must not do.
+    """
     try:
         params, ret = parse_signature(signature)
     except Unsupported:
@@ -220,4 +387,4 @@ def can_wrap(signature: str) -> bool:
     structured = [p for p in params if p not in SCALARS]
     if not structured:
         return False  # scalars go on the command line as before
-    return all(_ARRAY.match(p) for p in structured)
+    return all(_ARRAY.match(p) or adt is not None for p in structured)

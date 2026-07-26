@@ -23,8 +23,67 @@
     "data-definition",
     "arithmetic"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        []
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          7
+        ]
+      ],
+      "expected": 7
+    },
+    {
+      "args": [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "expected": 6
+    },
+    {
+      "args": [
+        [
+          10,
+          -3,
+          -7
+        ]
+      ],
+      "expected": 0
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Inside Cons(@Int, @List), @Int.0 is the matched head, @List.0 is the matched tail. The agent must define the List ADT and use decreases(@List.0)."
+  "notes": "Inside Cons(@Int, @List), @Int.0 is the matched head, @List.0 is the matched tail. The agent must define the List ADT and use decreases(@List.0).",
+  "adt": {
+    "type": "List",
+    "form": "list",
+    "empty": "Nil",
+    "cons": "Cons",
+    "constructors": [
+      {
+        "name": "Nil",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Cons",
+        "args": [
+          "Int",
+          "List"
+        ],
+        "fields": [
+          "head",
+          "tail"
+        ]
+      }
+    ]
+  }
 }

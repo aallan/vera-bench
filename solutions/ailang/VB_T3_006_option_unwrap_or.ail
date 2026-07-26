@@ -8,4 +8,9 @@ export func option_unwrap_or(o: MyOption, default: int) -> int =
     MySome(v) => v
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(option_unwrap_or(MySome(5), 0)));
+  println(show(option_unwrap_or(MyNone, 99)));
+  println(show(option_unwrap_or(MySome(-3), 7)));
+  println(show(option_unwrap_or(MyNone, -1)))
+}
