@@ -452,6 +452,47 @@ class TestIdiomsThatUsedToDecline:
         with pytest.raises(Unsupported):
             resolve_names(extra, LIST, "python")
 
+    def test_reordered_kw_only_binds_values_to_the_right_fields(self):
+        # Accepting a reordered declaration is only half of it: the
+        # rendered VALUES are in canonical order while the names come
+        # from the declaration, so zipping them produced
+        # `Cons(tail=1, head=Nil())` — a mis-grade, strictly worse than
+        # the false decline it replaced (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\n"
+            "class List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    tail: List\n    head: int\n"
+        )
+        aligned = align_kwonly(python_kwonly_fields(src), src, LIST)
+        assert aligned["Cons"] == ["head", "tail"]
+        out = render([1], LIST, "python", py_kwonly=aligned)
+        assert out == "Cons(head=1, tail=Nil())"
+
+    def test_only_a_real_dataclass_decorator_means_kw_only(self):
+        # An unrelated decorator taking a kw_only keyword would
+        # otherwise have its class built by keyword against a positional
+        # signature (CR on #114).
+        from vera_bench.adt_render import python_kwonly_fields
+
+        bogus = (
+            "def register(kw_only=True):\n    return lambda c: c\n"
+            "class List: pass\n"
+            "@register(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(bogus) == {}
+        aliased = (
+            "from dataclasses import dataclass as dc\n"
+            "class List: pass\n"
+            "@dc(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(aliased)["Cons"] == ["head", "tail"]
+
     def test_kw_only_dataclass_is_constructed_by_keyword(self):
         from vera_bench.adt_render import python_kwonly_fields
 

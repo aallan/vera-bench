@@ -160,6 +160,39 @@ def _elem_type(spec: dict) -> str:
     return "Int"
 
 
+def _dataclass_aliases(tree: object) -> set[str]:
+    """Names in this module that actually refer to dataclasses.dataclass."""
+    import ast
+
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "dataclasses":
+            for a in node.names:
+                if a.name == "dataclass":
+                    names.add(a.asname or a.name)
+        elif isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name == "dataclasses":
+                    names.add((a.asname or a.name) + ".dataclass")
+    return names
+
+
+def _is_dataclass_decorator(func: object, aliases: set[str]) -> bool:
+    """Whether a decorator expression resolves to dataclasses.dataclass.
+
+    An unrelated decorator that happens to take a `kw_only` keyword would
+    otherwise be read as one, and the constructor built by keyword
+    against a positional signature.
+    """
+    import ast
+
+    if isinstance(func, ast.Name):
+        return func.id in aliases
+    if isinstance(func, ast.Attribute):
+        return ast.unparse(func) in aliases
+    return False
+
+
 def python_kwonly_fields(source: str) -> dict[str, list[str]]:
     """Keyword-only parameter names per class, for kw_only dataclasses.
 
@@ -176,6 +209,7 @@ def python_kwonly_fields(source: str) -> dict[str, list[str]]:
         tree = ast.parse(strip_comments(source, "python"))
     except SyntaxError:
         return out
+    aliases = _dataclass_aliases(tree)
     for node in ast.walk(tree):
         if not isinstance(node, ast.ClassDef):
             continue
@@ -193,6 +227,7 @@ def python_kwonly_fields(source: str) -> dict[str, list[str]]:
             continue
         kw_only = any(
             isinstance(d, ast.Call)
+            and _is_dataclass_decorator(d.func, aliases)
             and any(
                 k.arg == "kw_only" and getattr(k.value, "value", False) is True
                 for k in d.keywords
@@ -203,6 +238,56 @@ def python_kwonly_fields(source: str) -> dict[str, list[str]]:
             out[node.name] = [
                 n.target.id for n in node.body if isinstance(n, ast.AnnAssign)
             ]
+    return out
+
+
+def align_kwonly(
+    fields: dict[str, list[str]],
+    source: str,
+    spec: dict,
+) -> dict[str, list[str]]:
+    """Reorder keyword-only field names into CANONICAL argument order.
+
+    `rendered` values are built in the spec's argument order while the
+    names come from the declaration, so zipping them directly bound each
+    value to the wrong field — `Cons(tail=1, head=Nil())` — which is a
+    mis-grade, strictly worse than the false decline this ordering
+    tolerance replaced. Fields are matched to arguments by declared
+    type, exactly as the TypeScript path aligns its own. A constructor
+    that cannot be aligned is dropped, so it renders positionally and
+    any real mismatch surfaces as an honest failure rather than a
+    silently scrambled call.
+    """
+    shapes = declared_shape(source, "python")
+    type_name = spec.get("type", "")
+    out: dict[str, list[str]] = {}
+    for ctor in spec.get("constructors", []):
+        for actual, names in fields.items():
+            declared = shapes.get(actual)
+            if declared is None or len(declared) != len(names):
+                continue
+            wanted = [
+                "SELF" if a.lower() == type_name.lower() else a.lower()
+                for a in ctor.get("args", [])
+            ]
+            if len(wanted) != len(names):
+                continue
+            remaining = list(zip(names, declared))
+            ordered: list[str] = []
+            for want in wanted:
+                match = next(
+                    (i for i, (_, t) in enumerate(remaining) if t == want), None
+                )
+                if match is None:
+                    ordered = []
+                    break
+                ordered.append(remaining.pop(match)[0])
+            if ordered or not wanted:
+                out[actual] = ordered
+    # Nullary constructors carry no fields and need no alignment.
+    for actual, names in fields.items():
+        if not names:
+            out.setdefault(actual, [])
     return out
 
 
@@ -838,7 +923,11 @@ def adt_call(problem: dict, source: str, language: str, args: list) -> str | Non
     qualifier = declared_type(source, language, spec)
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
     ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
-    py_kwonly = python_kwonly_fields(source) if language == "python" else None
+    py_kwonly = (
+        align_kwonly(python_kwonly_fields(source), source, spec)
+        if language == "python"
+        else None
+    )
     return ", ".join(
         render_args(
             args,
@@ -872,7 +961,11 @@ def adt_expected(
     qualifier = declared_type(source, language, spec)
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
     ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
-    py_kwonly = python_kwonly_fields(source) if language == "python" else None
+    py_kwonly = (
+        align_kwonly(python_kwonly_fields(source), source, spec)
+        if language == "python"
+        else None
+    )
     return render(
         expected,
         spec,
