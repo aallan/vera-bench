@@ -340,8 +340,10 @@ class TestCommentBlindness:
 
     def test_typescript_jsdoc_example_does_not_override_the_declaration(self):
         src = (
-            '/** @example listLength({ tag: "Cons", head: 1, tail: { tag: "Nil" } }) */\n'
-            'type List = { kind: "Nil" } | { kind: "Cons"; head: number; tail: List };'
+            "/** @example listLength("
+            '{ tag: "Cons", head: 1, tail: { tag: "Nil" } }) */\n'
+            'type List = { kind: "Nil" } | '
+            '{ kind: "Cons"; head: number; tail: List };'
         )
         assert infer_ts_discriminant(src) == "kind"
         assert [n for n, _ in infer_ts_fields(src)["Cons"]] == ["head", "tail"]
