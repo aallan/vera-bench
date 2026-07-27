@@ -43,8 +43,10 @@ VV=$(vera version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | tr
 # looked for a file `vera-bench run` would never write, so every target
 # read as dirty after a perfectly good run and was retried to the limit
 # — paying twice for the whole matrix and reporting total failure.
-BV=$(vera-bench --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | tr . -)
-if [ -z "$BV" ]; then
+BENCH_VER=$(vera-bench --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+VERA_VER=$(vera version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+BV=${BENCH_VER//./-}
+if [ -z "$BENCH_VER" ]; then
   echo "FATAL: could not determine vera-bench version" >&2
   exit 1
 fi
@@ -136,15 +138,33 @@ do_target () {  # MODEL LABEL GLOB [run args...]
   echo "dirty $M/$LBL" >> "$STATUS_FILE"
 }
 
+# The filename `vera-bench run` will write, asked of the one function
+# that builds it (vera_bench/results_path.py) rather than spelled out
+# again here. Re-deriving it is what broke: this script waited on a
+# name the CLI never wrote, so every finished target read as dirty.
+# A subprocess per target is free against an LLM call.
+result_file () {  # MODEL [--language L] [--mode M] ...
+  local M=$1; shift
+  python -m vera_bench.results_path --model "$M" --bench-version "$BENCH_VER" "$@"
+}
+
 core () {  # MODEL
-  local M=$1 S=${1//\//-}
-  do_target "$M" vera    "results/${S}-bench-${BV}-vera-${VV}.jsonl"
-  do_target "$M" vera-nl "results/${S}-spec-from-nl-bench-${BV}-vera-${VV}.jsonl" --mode spec-from-nl
-  do_target "$M" python  "results/${S}-python-bench-${BV}.jsonl"      --language python
-  do_target "$M" ts      "results/${S}-typescript-bench-${BV}.jsonl"  --language typescript
+  local M=$1
+  do_target "$M" vera \
+    "results/$(result_file "$M" --vera-version "$VERA_VER")"
+  do_target "$M" vera-nl \
+    "results/$(result_file "$M" --mode spec-from-nl --vera-version "$VERA_VER")" \
+    --mode spec-from-nl
+  do_target "$M" python \
+    "results/$(result_file "$M" --language python)"      --language python
+  do_target "$M" ts \
+    "results/$(result_file "$M" --language typescript)"  --language typescript
 }
 ztd () {  # MODEL
   local M=$1 S=${1//\//-}
+  # aver/ailang carry their own compiler version, which the sweep does
+  # not know up front, so these stay globs — but the bench segment is
+  # still derived, never written down.
   do_target "$M" aver   "results/${S}-aver-bench-${BV}-aver-*.jsonl"      --language aver
   do_target "$M" ailang "results/${S}-ailang-bench-${BV}-ailang-*.jsonl"  --language ailang
 }
@@ -178,7 +198,7 @@ run_provider () {  # PROVIDER
 MODELS_TSV=$(models_tsv)
 [ -z "$MODELS_TSV" ] && { echo "matrix produced no models"; exit 1; }
 
-echo "== sweep vs vera $VV (bench 0-0-16) — anthropic/$PAR_ANTHROPIC openai/$PAR_OPENAI moonshot/$PAR_MOONSHOT, ${RETRIES} attempts/target, pro=$INCLUDE_PRO =="
+echo "== sweep vs vera $VV (bench $BV) — anthropic/$PAR_ANTHROPIC openai/$PAR_OPENAI moonshot/$PAR_MOONSHOT, ${RETRIES} attempts/target, pro=$INCLUDE_PRO =="
 
 # Provider streams concurrent; models within a provider serial.
 for prov in $(printf '%s\n' "$MODELS_TSV" | cut -f1 | sort -u); do

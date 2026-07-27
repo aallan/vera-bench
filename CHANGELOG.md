@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The sweep runner waited on a filename it would never see, and paid
+  twice for every target.** `scripts/run_sweep.sh` spelled the bench
+  version into its own copy of the result-filename pattern, while
+  `vera-bench run` derives that segment from the installed version. On
+  0.0.18 the two disagreed, so `is_clean` failed after every successful
+  run: each target was declared dirty, retried to the `SWEEP_RETRIES`
+  limit, and finally logged `STILL DIRTY`. Caught live during the first
+  0.0.18 sweep — Claude Fable 5 reached 60 rows, was judged dirty, and
+  restarted from scratch. Unattended it would have run the whole matrix
+  twice, pro tier included, and reported total failure over good data.
+  `scripts/sweep_status.py` carried the same literal as its default
+  `--glob`, so the monitor surveyed the *previous* release's finished
+  files and reported "45 complete, 46/46 present" while the new sweep
+  was three targets in — the more dangerous half, because it reads as
+  success.
+- **The filename is now built in one place.** `vera_bench/results_path.py`
+  owns the construction; `cli.py` calls it and `run_sweep.sh` asks for it
+  through `python -m vera_bench.results_path`, so the two programs cannot
+  drift again. Which compiler version appears is decided there too, by
+  language — a Python target can no longer pick up whichever other
+  compiler happened to be installed on the sweep machine.
+- **Chart scripts defaulted to superseded releases**: `plot_narrative.py`
+  to 0.0.16 and `plot_slide.py` to 0.0.7, so running either with no
+  arguments plotted old data as though it were current. Both now derive
+  the default from the installed version, as `plot_results.py` already
+  did.
+- **`preflight.sh` referred four times to `run_full_benchmark.py`**,
+  deleted in v0.0.16, including in the models line it prints. The gate
+  reads `vera_bench/matrix.py` and always did; only the labelling was
+  wrong.
+
+
 ## [0.0.18] - 2026-07-27
 
 ### Added

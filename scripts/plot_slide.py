@@ -75,7 +75,7 @@ except ModuleNotFoundError:  # pragma: no cover - only where matplotlib absent
     Axes = Patch = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from scripts.plot_results import (  # noqa: E402
+from scripts.plot_results import (
     BROWN_300,
     BROWN_500,
     BROWN_700,
@@ -90,6 +90,7 @@ from scripts.plot_results import (  # noqa: E402
     ZERO_STUB,
     ZTD_DISPLAYS,
     ModelSpec,
+    _default_version,  # noqa: E402
     _require_mpl,
     complete_models,
     extract_data,
@@ -950,7 +951,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--version",
-        default="0.0.7",
+        default=_default_version(),
         help=(
             "Bench version to plot. '0.0.7' renders against the frozen "
             "MODELS_V_0_0_7 talk lineup; any other version renders "

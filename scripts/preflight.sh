@@ -32,7 +32,7 @@
 #   SMOKE_SKIP_MODELS="claude-fable-5" bash scripts/preflight.sh
 #
 # The model list is NOT duplicated here — it is read from
-# run_full_benchmark.py, so the gate always checks the matrix that is
+# run_sweep.sh, so the gate always checks the matrix that is
 # actually configured. Targets bash 3.2 (macOS system bash): no
 # mapfile, no associative arrays.
 #
@@ -134,7 +134,7 @@ oai=$(curl -s https://api.openai.com/v1/models \
         -H "Authorization: Bearer $OPENAI_API_KEY" | jq -r '.data[].id' 2>/dev/null)
 msh=$(curl -s https://api.moonshot.ai/v1/models \
         -H "Authorization: Bearer $MOONSHOT_API_KEY" | jq -r '.data[].id' 2>/dev/null)
-# Derived from the same MODELS table as S1, via run_full_benchmark's own
+# Derived from the same MODELS table as S1, via the matrix's own
 # _detect_provider, so a model added to the sweep is gated here too.
 # Routing prefixes are stripped: the provider lists bare ids, and both
 # Sol entries collapse to the same one. Only OpenAI and Moonshot are
@@ -186,7 +186,7 @@ for m in MODELS:
 if [ "${#MODELS[@]}" -eq 0 ]; then
   bad "could not read MODELS from vera_bench/matrix.py"
 else
-  echo "  (${#MODELS[@]} models from run_full_benchmark.py)"
+  echo "  (${#MODELS[@]} models from vera_bench/matrix.py)"
 fi
 for m in ${MODELS[@]+"${MODELS[@]}"}; do
   if [[ " $SKIP_MODELS " == *" $m "* ]]; then skip "$m"; continue; fi
@@ -375,5 +375,5 @@ echo "Paste from '== S0' downwards. It contains no credentials."
 # Exit status must reflect the verdict. Without this the gate could
 # print "pro may be SILENTLY IGNORED" — the one finding that
 # invalidates the headline slide — and still exit 0, so a chained
-# `preflight.sh && run_full_benchmark.py` would sail straight past it.
+# `preflight.sh && run_sweep.sh` would sail straight past it.
 exit $([ "$fail" -eq 0 ] && echo 0 || echo 1)

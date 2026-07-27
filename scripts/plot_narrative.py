@@ -80,6 +80,7 @@ from scripts.plot_results import (  # noqa: E402
     LANG_MARKER,
     MODELS,
     RED,
+    _default_version,
     _find_result_file,
     _gradeable_ids,
     extract_data,
@@ -192,7 +193,7 @@ def solved(row: dict | None, problem_id: str, version: str | None = None) -> boo
     """Did this attempt succeed, by the strongest verdict available?
 
     Gradeability decides which verdict applies. Problems without test
-    cases (14 of 60 as of v0.0.17; version-pinned) carry `run_correct`
+    cases (none as of v0.0.18; version-pinned) carry `run_correct`
     None by construction — never because anything failed. Testing `run_correct is
     True` alone therefore reports a problem the model compiled and
     verified everywhere as solved NOWHERE, which on the refusal slide
@@ -1106,7 +1107,11 @@ def main() -> None:
         default="all",
         help="Which slide to render (default: all four).",
     )
-    parser.add_argument("--version", default="0.0.16", help="Bench version to plot.")
+    parser.add_argument(
+        "--version",
+        default=_default_version(),
+        help="Bench version to plot (default: the installed vera-bench).",
+    )
     parser.add_argument(
         "--results-dir", default="results", help="Directory of JSONL result files."
     )
