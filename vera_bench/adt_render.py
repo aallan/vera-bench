@@ -330,16 +330,42 @@ _TS_DISC = re.compile(r"""\b(?:readonly\s+)?(tag|kind)\s*:\s*["'](\w+)["']""")
 _TS_FIELD = re.compile(r"\b(?:readonly\s+)?(\w+)\s*:\s*([A-Za-z_][\w\[\]<>. ]*)")
 
 
-#: `type X = …` up to its terminating semicolon, and `interface X { … }`.
-_TS_DECL_REGION = re.compile(
-    r"\btype\s+\w+[^=;]*=\s*[^;]*;|\binterface\s+\w+[^{]*\{[^}]*(?:\{[^}]*\}[^}]*)*\}",
-    re.S,
-)
+_TS_DECL_START = re.compile(r"\b(type|interface)\s+\w+")
 
 
 def _ts_declaration_regions(source: str) -> list[str]:
-    """The type/interface declarations in a TypeScript source."""
-    return [m.group(0) for m in _TS_DECL_REGION.finditer(source)]
+    """The type/interface declarations in a TypeScript source.
+
+    Scanned with brace depth rather than matched by regex: `;` is also
+    the field separator INSIDE a union member, so a pattern ending at
+    the first semicolon truncated `type List = { tag: "Cons";` — no
+    complete block remained in the region, inference fell through to the
+    whole-source scan, and an object literal could pick the discriminant
+    again. That is the very failure the declaration-first rule exists to
+    prevent.
+
+    A `type` runs to its terminating semicolon at depth 0 (or to the end
+    of the source); an `interface` runs to its closing brace.
+    """
+    regions: list[str] = []
+    for m in _TS_DECL_START.finditer(source):
+        kind, i, depth, started = m.group(1), m.end(), 0, False
+        while i < len(source):
+            ch = source[i]
+            if ch in "{([":
+                depth += 1
+                started = True
+            elif ch in "})]":
+                depth -= 1
+                if kind == "interface" and started and depth == 0:
+                    i += 1
+                    break
+            elif ch == ";" and depth == 0:
+                i += 1
+                break
+            i += 1
+        regions.append(source[m.start() : i])
+    return regions
 
 
 def infer_ts_discriminant(source: str) -> str:
@@ -401,10 +427,14 @@ def infer_ts_fields(source: str) -> dict[str, list[tuple[str, str | None]]]:
         # is a DECLARATION: its value is a string literal, never a type,
         # so counting it would make every declaration look untyped and
         # silently disable type-based field alignment.
+        # Only the key this block actually discriminates on is dropped:
+        # excluding both spellings deleted a payload field legitimately
+        # named `kind` under a `tag` union, leaving the constructor an
+        # argument short.
         names = [
             n
             for n in re.findall(r"\b(?:readonly\s+)?(\w+)\s*:", body)
-            if n not in ("tag", "kind")
+            if n != disc.group(1)
         ]
         types = {n: t.strip() for n, t in _TS_FIELD.findall(body)}
         is_decl = bool(names) and all(n in types for n in names)

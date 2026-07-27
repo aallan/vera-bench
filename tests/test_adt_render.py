@@ -551,6 +551,39 @@ class TestIdiomsThatUsedToDecline:
         kind = "type List = { kind: 'Nil' } | { kind: 'Cons'; head: number };"
         assert infer_ts_discriminant(kind) == "kind"
 
+    def test_declaration_region_spans_semicolons_inside_braces(self):
+        # `;` is also the field separator INSIDE a union member, so a
+        # pattern ending at the first semicolon truncated the region,
+        # left no complete block in it, and fell through to the
+        # whole-source scan — where a literal could pick the
+        # discriminant again, defeating the declaration-first rule
+        # (CR on #114).
+        src = (
+            'const seed = { kind: "Nil" };\n'
+            'type List = { tag: "Cons"; head: number; tail: List } '
+            '| { tag: "Nil" };'
+        )
+        assert infer_ts_discriminant(src) == "tag"
+        out = render(
+            [1],
+            LIST,
+            "typescript",
+            ts_fields=infer_ts_fields(src),
+            ts_disc=infer_ts_discriminant(src),
+        )
+        assert out == '{ tag: "Cons", head: 1, tail: { tag: "Nil" } }'
+
+    def test_declaration_without_a_trailing_semicolon(self):
+        assert (
+            infer_ts_discriminant('type List = { tag: "Cons"; head: number }') == "tag"
+        )
+
+    def test_a_payload_field_named_kind_survives_a_tag_union(self):
+        # Excluding both spellings deleted a legitimate payload field,
+        # leaving the constructor an argument short (CR on #114).
+        src = 'type T = { tag: "Item"; kind: number; label: string };'
+        assert [n for n, _ in infer_ts_fields(src)["Item"]] == ["kind", "label"]
+
     def test_kw_only_dataclass_is_constructed_by_keyword(self):
         from vera_bench.adt_render import python_kwonly_fields
 
