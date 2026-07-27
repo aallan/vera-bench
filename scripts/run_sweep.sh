@@ -38,6 +38,16 @@ fi
 mkdir -p results/logs
 
 VV=$(vera version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | tr . -)
+# The bench version is part of every result filename, so it must be
+# derived, never written down: hardcoding it meant the completion check
+# looked for a file `vera-bench run` would never write, so every target
+# read as dirty after a perfectly good run and was retried to the limit
+# — paying twice for the whole matrix and reporting total failure.
+BV=$(vera-bench --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | tr . -)
+if [ -z "$BV" ]; then
+  echo "FATAL: could not determine vera-bench version" >&2
+  exit 1
+fi
 [ -z "$VV" ] && { echo "cannot read 'vera version'"; exit 1; }
 
 PAR_ANTHROPIC=${PAR_ANTHROPIC:-4}
@@ -128,15 +138,15 @@ do_target () {  # MODEL LABEL GLOB [run args...]
 
 core () {  # MODEL
   local M=$1 S=${1//\//-}
-  do_target "$M" vera    "results/${S}-bench-0-0-16-vera-${VV}.jsonl"
-  do_target "$M" vera-nl "results/${S}-spec-from-nl-bench-0-0-16-vera-${VV}.jsonl" --mode spec-from-nl
-  do_target "$M" python  "results/${S}-python-bench-0-0-16.jsonl"      --language python
-  do_target "$M" ts      "results/${S}-typescript-bench-0-0-16.jsonl"  --language typescript
+  do_target "$M" vera    "results/${S}-bench-${BV}-vera-${VV}.jsonl"
+  do_target "$M" vera-nl "results/${S}-spec-from-nl-bench-${BV}-vera-${VV}.jsonl" --mode spec-from-nl
+  do_target "$M" python  "results/${S}-python-bench-${BV}.jsonl"      --language python
+  do_target "$M" ts      "results/${S}-typescript-bench-${BV}.jsonl"  --language typescript
 }
 ztd () {  # MODEL
   local M=$1 S=${1//\//-}
-  do_target "$M" aver   "results/${S}-aver-bench-0-0-16-aver-*.jsonl"      --language aver
-  do_target "$M" ailang "results/${S}-ailang-bench-0-0-16-ailang-*.jsonl"  --language ailang
+  do_target "$M" aver   "results/${S}-aver-bench-${BV}-aver-*.jsonl"      --language aver
+  do_target "$M" ailang "results/${S}-ailang-bench-${BV}-ailang-*.jsonl"  --language ailang
 }
 
 # Canonical lineup, straight from the registry: "provider<TAB>id<TAB>ztd", with
