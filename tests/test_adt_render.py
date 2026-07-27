@@ -436,6 +436,22 @@ class TestIdiomsThatUsedToDecline:
         src = "export func f(x: int) -> Option[int] = Some(x)\nlet y = None"
         assert resolve_names(src, OPTION, "ailang") == {}
 
+    def test_kw_only_dataclass_may_declare_fields_in_any_order(self):
+        # Built by name, so declaration order carries no meaning;
+        # comparing positionally declined a correct solution (CR on
+        # #114). A genuine arity mismatch must still decline.
+        src = (
+            "from dataclasses import dataclass\n"
+            "class List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    tail: List\n    head: int\n"
+        )
+        assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+        extra = src.replace("    head: int\n", "    head: int\n    x: int\n")
+        with pytest.raises(Unsupported):
+            resolve_names(extra, LIST, "python")
+
     def test_kw_only_dataclass_is_constructed_by_keyword(self):
         from vera_bench.adt_render import python_kwonly_fields
 
@@ -453,6 +469,18 @@ class TestIdiomsThatUsedToDecline:
 
 class TestInterpolationSafety:
     """A test-case string the target language would re-evaluate declines."""
+
+    def test_nested_strings_are_checked_too(self):
+        # Arguments are compound — VB-T2-006 passes a list of strings —
+        # so a top-level-only check missed the values that actually
+        # reach the interpolator (CR on #114).
+        from vera_bench.runner import _interpolation_safe
+
+        with pytest.raises(Unsupported):
+            _interpolation_safe(["a{b}"], "aver")
+        with pytest.raises(Unsupported):
+            _interpolation_safe({"Some": ["x${y}"]}, "ailang")
+        _interpolation_safe([["a", "b"], "-"], "aver")  # legal, must pass
 
     def test_aver_braces_and_ailang_dollar_brace(self):
         from vera_bench.runner import _interpolation_safe

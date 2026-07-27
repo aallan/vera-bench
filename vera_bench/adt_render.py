@@ -677,12 +677,29 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
     # order and graded WRONG. A mapping we cannot build a correct call
     # for is a decline, not the model's failure.
     shapes = declared_shape(source, language)
+    kwonly = python_kwonly_fields(source) if language == "python" else {}
     type_name = spec.get("type", "")
     for want in spec.get("constructors", []):
         actual = mapping.get(want["name"])
         declared = shapes.get(actual)
         if declared is None:
             continue  # unverifiable in this language, not a mismatch
+        if actual in kwonly:
+            # A keyword-only constructor is built by NAME, so the order
+            # it declares its fields in carries no meaning — comparing
+            # positionally would decline a correct solution that simply
+            # listed them differently. Compare as multisets: a genuine
+            # arity or type mismatch is still caught.
+            wanted_set = sorted(
+                "SELF" if a.lower() == type_name.lower() else a.lower()
+                for a in want.get("args", [])
+            )
+            if sorted(declared) != wanted_set:
+                raise Unsupported(
+                    f"constructor {want['name']} is declared as {declared}, "
+                    f"expected {tuple(wanted_set)} in some order"
+                )
+            continue
         wanted = tuple(
             "SELF" if a.lower() == type_name.lower() else a.lower()
             for a in want.get("args", [])

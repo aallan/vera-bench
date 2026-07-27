@@ -1279,6 +1279,11 @@ def _strip_module_effects(code: str) -> str:
 def _interpolation_safe(value: object, language: str) -> None:
     """Refuse a string the target language would re-interpolate.
 
+    Recurses: a test-case argument is often a list or a tagged
+    constructor, and VB-T2-006 passes a list of strings today, so a
+    top-level-only check missed the values that actually reach the
+    interpolator.
+
     The Aver call is built inside `Console.print("{fn(...)}")` and
     AILANG's strings interpolate `${...}`, so a test-case string
     containing those markers is EVALUATED rather than passed — the
@@ -1286,6 +1291,14 @@ def _interpolation_safe(value: object, language: str) -> None:
     specifies. Declining beats grading against an argument we did not
     send.
     """
+    if isinstance(value, dict):  # a tagged constructor: {"Some": [...]}
+        for nested in value.values():
+            _interpolation_safe(nested, language)
+        return
+    if isinstance(value, (list, tuple)):
+        for nested in value:
+            _interpolation_safe(nested, language)
+        return
     if not isinstance(value, str):
         return
     if language == "aver" and ("{" in value or "}" in value):
