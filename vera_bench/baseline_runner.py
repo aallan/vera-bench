@@ -24,6 +24,7 @@ from vera_bench.adt_render import adt_call as _adt_call
 from vera_bench.adt_render import adt_expected as _adt_expected
 from vera_bench.adt_render import adt_printed as _adt_printed
 from vera_bench.runner import ProblemResult
+from vera_bench.ts_wrapper import build_ts_wrapper, snake_to_camel
 from vera_bench.vera_wrapper import Unsupported
 
 console = Console()
@@ -31,10 +32,7 @@ console = Console()
 _EXT = {"python": ".py", "typescript": ".ts", "aver": ".av", "ailang": ".ail"}
 
 
-def _snake_to_camel(name: str) -> str:
-    """Convert snake_case to camelCase."""
-    parts = name.split("_")
-    return parts[0] + "".join(w.capitalize() for w in parts[1:])
+_snake_to_camel = snake_to_camel
 
 
 def _find_baseline_file(
@@ -135,91 +133,12 @@ def _build_typescript_wrapper(
     problem: dict,
     baseline_path: Path,
 ) -> str:
-    """Build a TypeScript wrapper script that runs test cases."""
-    entry_point = problem["entry_point"]
-    ts_fn = _snake_to_camel(entry_point)
-    test_cases = problem.get("test_cases", [])
-
-    # Use relative import path for the baseline
-    rel_path = f"./{baseline_path.name}"
-
-    lines = [
-        f'import {{ {ts_fn} }} from "{rel_path}";',
-        "",
-        "let _out: string[] = [];",
-        "const _log = console.log;",
-        "const _cap = (...a: any[]) => { _out.push(a.join(' ') + '\\n'); };",
-        # A solution may print with either; capture both.
-        "const _w = process.stdout.write.bind(process.stdout);",
-        "const _capw = (c: any) => { _out.push(String(c)); return true; };",
-        "const _norm = (v: any): any => (v && typeof v === 'object')",
-        "  ? (Array.isArray(v) ? v.map(_norm)",
-        "     : Object.keys(v).sort().reduce("
-        "        (o: any,k)=>{o[k]=_norm(v[k]);return o;},{}))",
-        "  : v;",
-        "const results: Array<"
-        "{passed: boolean, actual?: string, error?: string}> = [];",
-        "",
-    ]
-
-    ts_src = baseline_path.read_text(encoding="utf-8")
-    for i, tc in enumerate(test_cases):
-        args = tc.get("args", [])
-        expected = tc.get("expected")
-        # Normalize vera-style bools: "true"/"false" strings or 1/0 ints
-        if isinstance(expected, str) and expected in ("true", "false"):
-            expected = expected == "true"
-        elif isinstance(expected, int) and expected in (0, 1):
-            # Could be a bool — use loose comparison to handle both
-            pass  # keep as int, use == below
-        args_json = json.dumps(args)
-        expected_json = json.dumps(expected)
-        adt_args = _adt_call(problem, ts_src, "typescript", args)
-        ts_call = adt_args if adt_args is not None else f"...{args_json}"
-        adt_ret_ts = _adt_expected(problem, ts_src, "typescript", expected)
-        # Loose == (not ===) so a Vera-style 1/0 expected matches a native
-        # boolean (VB-T1-006's original false failure). Arrays are the
-        # exception: == on arrays is reference equality and always false
-        # for a fresh return value, so they compare by JSON — which is
-        # value equality for the int/string arrays the problems use.
-        lines.extend(
-            [
-                "try {",
-                "  _out = []; console.log = _cap;",
-                "  (process.stdout as any).write = _capw;",
-                f"  let actual_{i}: any;",
-                # The invocation sits in try/finally so the console is
-                # restored on every path — success, throw, anything. A
-                # restore that lives on the success path and again in the
-                # catch is the same behaviour but invites the next editor
-                # to add a path that forgets it.
-                "  try {",
-                f"    actual_{i} = {ts_fn}({ts_call});",
-                "  } finally {",
-                "    console.log = _log; (process.stdout as any).write = _w;",
-                "  }",
-                f"  const passed_{i} = "
-                + (
-                    # @Unit: compare what was printed (#107 step 5).
-                    f"_out.join('').trim() === {expected_json}.trim();"
-                    if grades_on_stdout(problem)
-                    else f"JSON.stringify(_norm(actual_{i})) === "
-                    f"JSON.stringify(_norm({adt_ret_ts}));"
-                    if adt_ret_ts is not None
-                    else f"Array.isArray(actual_{i}) || Array.isArray({expected_json}) "
-                    f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
-                    f": actual_{i} == {expected_json};"
-                ),
-                f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
-                "} catch (e: any) {",
-                "  results.push({passed: false, error: String(e)});",
-                "}",
-                "",
-            ]
-        )
-
-    lines.append("console.log(JSON.stringify(results));")
-    return "\n".join(lines)
+    """Build the TypeScript wrapper — one shared implementation."""
+    return build_ts_wrapper(
+        problem,
+        baseline_path.read_text(encoding="utf-8"),
+        f"./{baseline_path.name}",
+    )
 
 
 def _tsx_bin() -> str | None:

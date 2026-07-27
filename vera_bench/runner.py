@@ -459,10 +459,10 @@ def _evaluate_typescript_code(
     attempt: int,
 ) -> dict:
     """Write TypeScript code to a file and run test cases via npx tsx."""
-    from vera_bench.baseline_runner import _snake_to_camel
+    from vera_bench.ts_wrapper import build_ts_wrapper, snake_to_camel
 
     entry_point = problem.get("entry_point", "")
-    ts_fn = _snake_to_camel(entry_point)
+    ts_fn = snake_to_camel(entry_point)
     test_cases = problem.get("test_cases", [])
 
     result: dict = {
@@ -488,90 +488,19 @@ def _evaluate_typescript_code(
         export_code = code.replace(f"function {ts_fn}(", f"export function {ts_fn}(")
     code_path.write_text(export_code, encoding="utf-8")
 
-    # Build test wrapper
-    wrapper_lines = [
-        f'import {{ {ts_fn} }} from "./{code_path.name}";',
-        "",
-        "let _out: string[] = [];",
-        "const _log = console.log;",
-        "const _cap = (...a: any[]) => { _out.push(a.join(' ') + '\\n'); };",
-        # A solution may print with either; capture both.
-        "const _w = process.stdout.write.bind(process.stdout);",
-        "const _capw = (c: any) => { _out.push(String(c)); return true; };",
-        "const _norm = (v: any): any => (v && typeof v === 'object')",
-        "  ? (Array.isArray(v) ? v.map(_norm)",
-        "     : Object.keys(v).sort().reduce("
-        "        (o: any,k)=>{o[k]=_norm(v[k]);return o;},{}))",
-        "  : v;",
-        "const results: Array<{passed: boolean,"
-        " actual?: string, error?: string}> = [];",
-        "",
-    ]
-
-    for i, tc in enumerate(test_cases):
-        if not isinstance(tc, dict):
-            continue
-        args = tc.get("args", [])
-        expected = tc.get("expected")
-        if isinstance(expected, str) and expected in ("true", "false"):
-            expected = expected == "true"
-        args_json = json.dumps(args)
-        expected_json = json.dumps(expected)
-        # Same decline semantics as the Python evaluator above.
-        try:
-            adt_args = _adt_call(problem, code, "typescript", args)
-            adt_ret_ts = _adt_expected(problem, code, "typescript", expected)
-        except Unsupported as e:
-            result["run_correct"] = None
-            result["tests_total"] = 0
-            result["tests_passed"] = 0
-            result["error_message"] = f"test wrapper unavailable: {e}"
-            return result
-        ts_call = adt_args if adt_args is not None else f"...{args_json}"
-        # Loose == (not ===) so a Vera-style 1/0 expected matches a native
-        # boolean (VB-T1-006's original false failure). Arrays are the
-        # exception: == on arrays is reference equality and always false
-        # for a fresh return value, so they compare by JSON — which is
-        # value equality for the int/string arrays the problems use.
-        wrapper_lines.extend(
-            [
-                "try {",
-                "  _out = []; console.log = _cap;",
-                "  (process.stdout as any).write = _capw;",
-                f"  let actual_{i}: any;",
-                # The invocation sits in try/finally so the console is
-                # restored on every path — success, throw, anything. A
-                # restore that lives on the success path and again in the
-                # catch is the same behaviour but invites the next editor
-                # to add a path that forgets it.
-                "  try {",
-                f"    actual_{i} = {ts_fn}({ts_call});",
-                "  } finally {",
-                "    console.log = _log; (process.stdout as any).write = _w;",
-                "  }",
-                f"  const passed_{i} = "
-                + (
-                    # @Unit: compare what was printed (#107 step 5).
-                    f"_out.join('').trim() === {expected_json}.trim();"
-                    if grades_on_stdout(problem)
-                    else f"JSON.stringify(_norm(actual_{i})) === "
-                    f"JSON.stringify(_norm({adt_ret_ts}));"
-                    if adt_ret_ts is not None
-                    else f"Array.isArray(actual_{i}) || Array.isArray({expected_json}) "
-                    f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
-                    f": actual_{i} == {expected_json};"
-                ),
-                f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
-                "} catch (e: any) {",
-                "  results.push({passed: false, error: String(e)});",
-                "}",
-                "",
-            ]
-        )
-
-    wrapper_lines.append("console.log(JSON.stringify(results));")
+    # Build test wrapper — the shared implementation (ts_wrapper.py);
+    # Unsupported means the model's declaration could not be mapped, and
+    # the problem is left ungraded exactly like the Python and Vera paths.
+    try:
+        wrapper_text = build_ts_wrapper(problem, code, f"./{code_path.name}")
+    except Unsupported as e:
+        result["run_correct"] = None
+        result["tests_total"] = 0
+        result["tests_passed"] = 0
+        result["error_message"] = f"test wrapper unavailable: {e}"
+        return result
     wrapper_path = work_dir / f"{safe_id}_test{attempt}.ts"
-    wrapper_path.write_text("\n".join(wrapper_lines), encoding="utf-8")
+    wrapper_path.write_text(wrapper_text, encoding="utf-8")
 
     # Find tsx
     tsx = shutil.which("tsx")

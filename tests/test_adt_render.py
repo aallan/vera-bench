@@ -154,3 +154,41 @@ class TestSpecQueries:
         assert return_spec(problem) is problem["return_adt"]
         # And the arguments' spec does not masquerade as the return's.
         assert return_spec({"signature": "fn f(@List -> @Int)", "adt": LIST}) is None
+
+
+class TestSharedTsWrapper:
+    """One builder, two callers — the property that ends the double-patch."""
+
+    PROBLEM = {
+        "id": "VB-TEST-TS",
+        "entry_point": "absolute_value",
+        "signature": "public fn absolute_value(@Int -> @Int)",
+        "test_cases": [{"args": [-5], "expected": 5}],
+    }
+
+    def test_wrapper_restores_console_in_a_finally(self):
+        from vera_bench.ts_wrapper import build_ts_wrapper
+
+        text = build_ts_wrapper(self.PROBLEM, "", "./sol.ts")
+        assert "} finally {" in text
+        assert "console.log = _log" in text
+        assert text.count("console.log(JSON.stringify(results));") == 1
+
+    def test_both_callers_emit_identical_wrappers(self):
+        # Import path is the only legitimate difference between the LLM
+        # evaluator's wrapper and the baseline runner's.
+        from vera_bench.ts_wrapper import build_ts_wrapper
+
+        a = build_ts_wrapper(self.PROBLEM, "", "./a.ts")
+        b = build_ts_wrapper(self.PROBLEM, "", "./b.ts")
+
+        def strip(text: str) -> list[str]:
+            return [ln for ln in text.splitlines() if "import" not in ln]
+
+        assert strip(a) == strip(b)
+
+    def test_snake_to_camel(self):
+        from vera_bench.ts_wrapper import snake_to_camel
+
+        assert snake_to_camel("list_length") == "listLength"
+        assert snake_to_camel("greet") == "greet"
