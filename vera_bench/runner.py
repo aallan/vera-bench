@@ -20,6 +20,7 @@ from rich.progress import Progress
 from vera_bench.adt_render import (
     declared_type,
     grades_on_stdout,
+    infer_ts_fields,
     render,
     render_args,
     resolve_names,
@@ -168,7 +169,8 @@ def _adt_expected(
     native = language == "aver" and uses_native_collection(source, spec)
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
-    return render(expected, spec, language, names, native, qualifier)
+    ts_fields = infer_ts_fields(source) if language == "typescript" else None
+    return render(expected, spec, language, names, native, qualifier, ts_fields)
 
 
 def _adt_call(problem: dict, source: str, language: str, args: list) -> str | None:
@@ -188,8 +190,11 @@ def _adt_call(problem: dict, source: str, language: str, args: list) -> str | No
     native = language == "aver" and uses_native_collection(source, spec)
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
+    ts_fields = infer_ts_fields(source) if language == "typescript" else None
     return ", ".join(
-        render_args(args, param_types, spec, language, names, native, qualifier)
+        render_args(
+            args, param_types, spec, language, names, native, qualifier, ts_fields
+        )
     )
 
 
@@ -398,10 +403,21 @@ def _evaluate_python_code(
         args_repr = repr(args)
         expected_repr = repr(expected)
         # An ADT argument cannot be a plain literal: it has to be built
-        # with the solution's own constructors (#107 step 2).
-        adt_args = _adt_call(problem, code, "python", args)
+        # with the solution's own constructors (#107 step 2). Unsupported
+        # means WE could not map the model's declaration — the problem is
+        # left ungraded, exactly like the Vera path, because grading it
+        # on a call we are not sure of would record a correct solution as
+        # a wrong answer (and letting it raise would record a crash).
+        try:
+            adt_args = _adt_call(problem, code, "python", args)
+            adt_ret = _adt_expected(problem, code, "python", expected)
+        except Unsupported as e:
+            result["run_correct"] = None
+            result["tests_total"] = 0
+            result["tests_passed"] = 0
+            result["error_message"] = f"test wrapper unavailable: {e}"
+            return result
         call_expr = adt_args if adt_args is not None else f"*{args_repr}"
-        adt_ret = _adt_expected(problem, code, "python", expected)
         cmp_py = (
             # An @Unit problem is graded on what it PRINTED, not on the
             # None it returned (#107 step 5).
@@ -550,9 +566,17 @@ def _evaluate_typescript_code(
             expected = expected == "true"
         args_json = json.dumps(args)
         expected_json = json.dumps(expected)
-        adt_args = _adt_call(problem, code, "typescript", args)
+        # Same decline semantics as the Python evaluator above.
+        try:
+            adt_args = _adt_call(problem, code, "typescript", args)
+            adt_ret_ts = _adt_expected(problem, code, "typescript", expected)
+        except Unsupported as e:
+            result["run_correct"] = None
+            result["tests_total"] = 0
+            result["tests_passed"] = 0
+            result["error_message"] = f"test wrapper unavailable: {e}"
+            return result
         ts_call = adt_args if adt_args is not None else f"...{args_json}"
-        adt_ret_ts = _adt_expected(problem, code, "typescript", expected)
         # Loose == (not ===) so a Vera-style 1/0 expected matches a native
         # boolean (VB-T1-006's original false failure). Arrays are the
         # exception: == on arrays is reference equality and always false

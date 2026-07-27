@@ -14,9 +14,11 @@ different ways. This module owns that translation. The Vera side lives in
 `vera_wrapper.py`, because it additionally has to match against the
 model's own declaration to build the literal.
 
-Names are matched case-insensitively and, failing that, structurally
-(`match_constructors`), so a model that writes `Empty`/`Node` is graded
-rather than penalised. Where a language's solution uses a native
+Names are matched case-insensitively and, failing that, by a near-name
+heuristic — a unique declared name that extends the canonical one, which
+is how AILANG's `MyNil` and Python's `NoneOpt` resolve (`resolve_names`;
+the Vera side's `match_constructors` adds true structural matching).
+Where a language's solution uses a native
 collection instead of a declared type, the native literal is emitted
 instead — that is a legitimate reading of "define a linked list", not a
 wrong answer.
@@ -74,6 +76,16 @@ def _tagged(value: object, spec: dict) -> tuple[str, list, dict]:
     raise Unsupported(f"unknown constructor {name!r} in test case")
 
 
+def _elem_type(spec: dict) -> str:
+    """The element type a `form: list` spec's cons constructor declares."""
+    for ctor in spec.get("constructors", []):
+        if ctor["name"] == spec.get("cons"):
+            args = ctor.get("args", [])
+            if args:
+                return args[0]
+    return "Int"
+
+
 def _ctor_call(name: str, rendered: list[str], language: str) -> str:
     """Apply a constructor, respecting each language's nullary form."""
     if not rendered:
@@ -83,17 +95,66 @@ def _ctor_call(name: str, rendered: list[str], language: str) -> str:
     return f"{name}({', '.join(rendered)})"
 
 
-def _fields_for(spec: dict, ctor_name: str) -> list[str]:
-    """TypeScript field names for a constructor, or decline."""
+#: A `{ tag: "Name"; field: T; field: T }` member of a TypeScript tagged
+#: union — in a type alias, an interface, or a value literal, all of which
+#: carry the same field names in consistent code.
+_TS_TAGGED = re.compile(r"""\{\s*tag\s*:\s*["'](\w+)["']([^}]*)\}""")
+
+
+def infer_ts_fields(source: str) -> dict[str, list[str]]:
+    """Field names per tag, read from the TypeScript solution itself.
+
+    The problem's `adt` block records the canonical field names, but a
+    model is free to write `{ tag: "Cons"; value: number; rest: List }` —
+    and constructing arguments with the canonical `head`/`tail` against
+    that declaration would hand its correct code objects whose fields
+    read as undefined, recording a correct solution as wrong. So the
+    names come from the source: the first occurrence of each tag that
+    carries fields wins (a nullary occurrence like the value literal
+    `{ tag: "Nil" }` never shadows a field-bearing one).
+    """
+    fields: dict[str, list[str]] = {}
+    for match in _TS_TAGGED.finditer(source):
+        tag, body = match.group(1), match.group(2)
+        names = re.findall(r"(\w+)\s*:", body)
+        if tag not in fields or (names and not fields[tag]):
+            fields[tag] = names
+    return fields
+
+
+def _fields_for(
+    spec: dict,
+    ctor_name: str,
+    actual_tag: str,
+    ts_fields: dict[str, list[str]] | None,
+) -> list[str]:
+    """Field names for one constructor, from the solution when known.
+
+    Declines rather than guessing: emitting the canonical names against a
+    declaration we could not read would produce objects whose fields the
+    solution cannot see.
+    """
+    arity = 0
     for ctor in spec.get("constructors", []):
         if ctor["name"] == ctor_name:
-            fields = ctor.get("fields", [])
-            if len(fields) != len(ctor.get("args", [])):
-                raise Unsupported(
-                    f"{ctor_name} has no TypeScript field names in the adt spec"
-                )
-            return fields
-    raise Unsupported(f"unknown constructor {ctor_name!r}")
+            arity = len(ctor.get("args", []))
+            break
+    else:
+        raise Unsupported(f"unknown constructor {ctor_name!r}")
+    if ts_fields is not None:
+        inferred = ts_fields.get(actual_tag, [])
+        if len(inferred) == arity:
+            return inferred
+        raise Unsupported(
+            f"cannot infer TypeScript field names for {actual_tag!r} "
+            f"(need {arity}, found {len(inferred)})"
+        )
+    fields = next(
+        c.get("fields", []) for c in spec["constructors"] if c["name"] == ctor_name
+    )
+    if len(fields) != arity:
+        raise Unsupported(f"{ctor_name} has no TypeScript field names in the adt spec")
+    return fields
 
 
 def render(
@@ -103,6 +164,7 @@ def render(
     names: dict[str, str] | None = None,
     native: bool = False,
     qualifier: str = "",
+    ts_fields: dict[str, list[str]] | None = None,
 ) -> str:
     """Render `value` as a literal of the problem's ADT in `language`.
 
@@ -121,14 +183,15 @@ def render(
 
     if spec.get("form") == "list":
         items = _as_list(value, spec)
+        elem = _elem_type(spec)
         if native:
-            return "[" + ", ".join(_scalar(i, "Int", language) for i in items) + "]"
+            return "[" + ", ".join(_scalar(i, elem, language) for i in items) + "]"
         if language == "typescript":
             # A tagged union all the way down, same as any other shape.
-            fields = _fields_for(spec, spec["cons"])
+            fields = _fields_for(spec, spec["cons"], actual(spec["cons"]), ts_fields)
             out = f'{{ tag: "{actual(spec["empty"])}" }}'
             for item in reversed(items):
-                head = _scalar(item, "Int", language)
+                head = _scalar(item, elem, language)
                 out = (
                     f'{{ tag: "{actual(spec["cons"])}", '
                     f"{fields[0]}: {head}, {fields[1]}: {out} }}"
@@ -137,7 +200,7 @@ def render(
         out = _ctor_call(actual(spec["empty"]), [], language)
         for item in reversed(items):
             out = _ctor_call(
-                actual(spec["cons"]), [_scalar(item, "Int", language), out], language
+                actual(spec["cons"]), [_scalar(item, elem, language), out], language
             )
         return out
 
@@ -145,12 +208,12 @@ def render(
     rendered = [
         _scalar(a, t, language)
         if t in _SCALARS
-        else render(a, spec, language, names, native, qualifier)
+        else render(a, spec, language, names, native, qualifier, ts_fields)
         for a, t in zip(args, ctor["args"])
     ]
     if language == "typescript":
         # A tagged union carries named fields rather than positions.
-        fields = _fields_for(spec, name)
+        fields = _fields_for(spec, name, actual(name), ts_fields)
         parts = [f'tag: "{actual(name)}"'] + [
             f"{f}: {v}" for f, v in zip(fields, rendered)
         ]
@@ -166,15 +229,24 @@ def render_args(
     names: dict[str, str] | None = None,
     native: bool = False,
     qualifier: str = "",
+    ts_fields: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """Render a whole argument list, ADT parameters included."""
     if spec is None:
         raise Unsupported("no adt spec for this problem")
+    if len(args) != len(param_types):
+        # zip would silently truncate, and a wrapper calling the entry
+        # point with the wrong arity records a correct solution as wrong.
+        raise Unsupported(
+            f"test case has {len(args)} argument(s), signature takes {len(param_types)}"
+        )
     adt_type = spec.get("type")
     out = []
     for value, type_name in zip(args, param_types):
         if type_name == adt_type:
-            out.append(render(value, spec, language, names, native, qualifier))
+            out.append(
+                render(value, spec, language, names, native, qualifier, ts_fields)
+            )
         elif type_name in _SCALARS:
             out.append(_scalar(value, type_name, language))
         else:

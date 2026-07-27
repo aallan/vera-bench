@@ -20,6 +20,7 @@ from vera_bench.adt_render import (
     STDOUT_SENTINEL,
     declared_type,
     grades_on_stdout,
+    infer_ts_fields,
     printed_form,
     render,
     render_args,
@@ -93,7 +94,8 @@ def _adt_expected(
     native = language == "aver" and uses_native_collection(source, spec)
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
-    return render(expected, spec, language, names, native, qualifier)
+    ts_fields = infer_ts_fields(source) if language == "typescript" else None
+    return render(expected, spec, language, names, native, qualifier, ts_fields)
 
 
 def _adt_call(problem: dict, source: str, language: str, args: list) -> str | None:
@@ -113,8 +115,11 @@ def _adt_call(problem: dict, source: str, language: str, args: list) -> str | No
     native = language == "aver" and uses_native_collection(source, spec)
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
+    ts_fields = infer_ts_fields(source) if language == "typescript" else None
     return ", ".join(
-        render_args(args, param_types, spec, language, names, native, qualifier)
+        render_args(
+            args, param_types, spec, language, names, native, qualifier, ts_fields
+        )
     )
 
 
@@ -147,6 +152,7 @@ def _build_python_wrapper(
         "results = []",
     ]
 
+    src_text = baseline_path.read_text(encoding="utf-8")
     for i, tc in enumerate(test_cases):
         args = tc.get("args", [])
         expected = tc.get("expected")
@@ -156,7 +162,6 @@ def _build_python_wrapper(
         expected_repr = repr(expected)
         # An ADT argument cannot be a plain literal: it has to be built
         # with the solution's own constructors (#107 step 2).
-        src_text = baseline_path.read_text(encoding="utf-8")
         adt_args = _adt_call(problem, src_text, "python", args)
         call_expr = adt_args if adt_args is not None else f"*{args_repr}"
         # A returned ADT has no structural equality in Python, so both
@@ -225,6 +230,7 @@ def _build_typescript_wrapper(
         "",
     ]
 
+    ts_src = baseline_path.read_text(encoding="utf-8")
     for i, tc in enumerate(test_cases):
         args = tc.get("args", [])
         expected = tc.get("expected")
@@ -236,13 +242,9 @@ def _build_typescript_wrapper(
             pass  # keep as int, use == below
         args_json = json.dumps(args)
         expected_json = json.dumps(expected)
-        adt_args = _adt_call(
-            problem, baseline_path.read_text(encoding="utf-8"), "typescript", args
-        )
+        adt_args = _adt_call(problem, ts_src, "typescript", args)
         ts_call = adt_args if adt_args is not None else f"...{args_json}"
-        adt_ret_ts = _adt_expected(
-            problem, baseline_path.read_text(encoding="utf-8"), "typescript", expected
-        )
+        adt_ret_ts = _adt_expected(problem, ts_src, "typescript", expected)
         # Loose == (not ===) so a Vera-style 1/0 expected matches a native
         # boolean (VB-T1-006's original false failure). Arrays are the
         # exception: == on arrays is reference equality and always false
@@ -318,7 +320,21 @@ def run_python_baseline(
             timestamp=_now(),
         )
 
-    wrapper_code = _build_python_wrapper(problem, baseline_path)
+    try:
+        wrapper_code = _build_python_wrapper(problem, baseline_path)
+    except Unsupported as e:
+        # Same contract as the aver/ailang unmappable path: one problem
+        # ungraded, never the whole run aborted.
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="python",
+            attempt=1,
+            check_pass=True,
+            run_correct=None,
+            error_message=f"test wrapper unavailable: {e}",
+            timestamp=_now(),
+        )
     wrapper_path = work_dir / f"{problem_id}_wrapper.py"
     wrapper_path.write_text(wrapper_code, encoding="utf-8")
 
@@ -388,7 +404,19 @@ def run_typescript_baseline(
     # The TS files don't export — add export wrapper
     _add_ts_export(work_baseline, problem)
 
-    wrapper_code = _build_typescript_wrapper(problem, work_baseline)
+    try:
+        wrapper_code = _build_typescript_wrapper(problem, work_baseline)
+    except Unsupported as e:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="typescript",
+            attempt=1,
+            check_pass=True,
+            run_correct=None,
+            error_message=f"test wrapper unavailable: {e}",
+            timestamp=_now(),
+        )
     wrapper_path = work_dir / f"{problem_id}_wrapper.ts"
     wrapper_path.write_text(wrapper_code, encoding="utf-8")
 

@@ -325,6 +325,7 @@ def match_constructors(source: str, spec: dict) -> dict[str, str]:
         )
 
     by_name = {name.lower(): name for name, _ in model_ctors}
+    args_by_name = {name.lower(): args for name, args in model_ctors}
     sig_count: dict[tuple[str, ...], int] = {}
     for _, args in model_ctors:
         sig_count[args] = sig_count.get(args, 0) + 1
@@ -335,6 +336,16 @@ def match_constructors(source: str, spec: dict) -> dict[str, str]:
         cname = want["name"]
         want_args = _canonical_args(list(want.get("args", [])), type_name)
         if cname.lower() in by_name:
+            declared = args_by_name[cname.lower()]
+            if declared != want_args:
+                # The name matches but the shape does not — a wrapper
+                # built against this declaration cannot compile, and a
+                # compile failure would be recorded as the model's wrong
+                # answer rather than as our inability to call it.
+                raise Unsupported(
+                    f"constructor {cname} is declared with shape "
+                    f"{declared or '()'}, expected {want_args or '()'}"
+                )
             mapping[cname] = by_name[cname.lower()]
             continue
         if sig_count.get(want_args) == 1:
@@ -364,9 +375,10 @@ def render_adt(value: object, spec: dict, mapping: dict[str, str]) -> str:
         if not isinstance(value, list):
             raise Unsupported(f"{value!r} is not a list for {spec.get('type')}")
         empty, cons = spec["empty"], spec["cons"]
+        elem = "@" + _cons_elem(spec)
         out = mapping[empty]
         for item in reversed(value):
-            out = f"{mapping[cons]}({render_value(item, '@Int')}, {out})"
+            out = f"{mapping[cons]}({render_value(item, elem)}, {out})"
         return out
     if not isinstance(value, dict) or len(value) != 1:
         raise Unsupported(f"{value!r} is not a single-key tagged constructor")
@@ -389,6 +401,14 @@ def render_adt(value: object, spec: dict, mapping: dict[str, str]) -> str:
     return f"{mapping[ctor]}({', '.join(rendered)})"
 
 
+def _cons_elem(spec: dict) -> str:
+    """The element type a `form: list` spec's cons constructor declares."""
+    for ctor in spec.get("constructors", []):
+        if ctor["name"] == spec.get("cons") and ctor.get("args"):
+            return ctor["args"][0]
+    return "Int"
+
+
 def adt_eq_body(expected: object, spec: dict, mapping: dict[str, str]) -> str:
     """An unrolled match that is true exactly for `expected`.
 
@@ -407,17 +427,19 @@ def adt_eq_body(expected: object, spec: dict, mapping: dict[str, str]) -> str:
         if not isinstance(expected, list):
             raise Unsupported(f"expected {expected!r} is not a list")
         empty, cons = mapping[spec["empty"]], mapping[spec["cons"]]
+        t = spec["type"]
+        elem = "@" + _cons_elem(spec)
 
         def build(items: list) -> str:
             if not items:
                 return (
-                    f"match @List.0 {{ {empty} -> true, {cons}(@Int, @List) -> false }}"
+                    f"match @{t}.0 {{ {empty} -> true, {cons}({elem}, @{t}) -> false }}"
                 )
             head, rest = items[0], items[1:]
             inner = build(rest)
             return (
-                f"match @List.0 {{ {empty} -> false, "
-                f"{cons}(@Int, @List) -> if @Int.0 == {render_value(head, '@Int')} "
+                f"match @{t}.0 {{ {empty} -> false, "
+                f"{cons}({elem}, @{t}) -> if {elem}.0 == {render_value(head, elem)} "
                 f"then {{ {inner} }} else {{ false }} }}"
             )
 
@@ -467,6 +489,13 @@ def can_wrap(signature: str, adt: dict | None = None) -> bool:
     except Unsupported:
         return False
     structured = [p for p in params if p not in SCALARS]
-    if not structured:
-        return False  # scalars go on the command line as before
-    return all(_ARRAY.match(p) or adt is not None for p in structured)
+    # A structured RETURN forces a wrapper even with all-scalar
+    # parameters: `vera run` prints it as a WASM address, so the CLI
+    # path records a correct solution as wrong, every time. @Unit is
+    # not structured — those problems are graded on stdout via the CLI.
+    structured_ret = ret != "@Unit" and ret not in SCALARS
+    if not structured and not structured_ret:
+        return False  # scalar in, scalar out: the command line works
+    params_ok = all(_ARRAY.match(p) or adt is not None for p in structured)
+    ret_ok = not structured_ret or bool(_ARRAY.match(ret)) or adt is not None
+    return params_ok and ret_ok
