@@ -14,6 +14,7 @@ import pytest
 
 from vera_bench.adt_render import (
     grades_on_stdout,
+    infer_ts_discriminant,
     infer_ts_fields,
     render,
     render_args,
@@ -87,7 +88,10 @@ class TestRender:
 class TestTypeScriptFields:
     def test_inferred_from_a_type_alias(self):
         src = 'type List = { tag: "Nil" } | { tag: "Cons"; head: number; tail: List };'
-        assert infer_ts_fields(src) == {"Nil": [], "Cons": ["head", "tail"]}
+        assert infer_ts_fields(src) == {
+            "Nil": [],
+            "Cons": [("head", "number"), ("tail", "List")],
+        }
 
     def test_solutions_own_field_names_are_used(self):
         # The canonical fields are head/tail; this solution chose its own.
@@ -102,7 +106,7 @@ class TestTypeScriptFields:
             'const empty = { tag: "Cons" };\n'
             'type List = { tag: "Nil" } | { tag: "Cons"; head: number; tail: List };'
         )
-        assert infer_ts_fields(src)["Cons"] == ["head", "tail"]
+        assert [n for n, _ in infer_ts_fields(src)["Cons"]] == ["head", "tail"]
 
     def test_uninferable_fields_decline_rather_than_guess(self):
         with pytest.raises(Unsupported):
@@ -192,3 +196,97 @@ class TestSharedTsWrapper:
 
         assert snake_to_camel("list_length") == "listLength"
         assert snake_to_camel("greet") == "greet"
+
+
+class TestTsFieldAlignment:
+    """Inferred fields align to canonical argument order by TYPE.
+
+    A declaration listing `tail` before `head` is legal; positional
+    zipping scrambled the constructed value and failed a correct
+    solution at runtime (multi-agent review of #112, verified with real
+    tsx). Same-type fields keep declared order — the only reading the
+    solution's own author could have meant.
+    """
+
+    def test_swapped_declaration_order_still_constructs_correctly(self):
+        src = 'type List = { tag: "Nil" } | { tag: "Cons"; tail: List; head: number };'
+        out = render([1], LIST, "typescript", ts_fields=infer_ts_fields(src))
+        assert out == '{ tag: "Cons", head: 1, tail: { tag: "Nil" } }'
+
+    def test_kind_discriminated_union_uses_kind(self):
+        src = (
+            "type List = { kind: 'Nil' } | { kind: 'Cons'; head: number; tail: List };"
+        )
+        out = render(
+            [1],
+            LIST,
+            "typescript",
+            ts_fields=infer_ts_fields(src),
+            ts_disc=infer_ts_discriminant(src),
+        )
+        assert out == '{ kind: "Cons", head: 1, tail: { kind: "Nil" } }'
+
+    def test_a_value_literal_in_a_comment_does_not_poison_inference(self):
+        src = (
+            '// e.g. { tag: "Cons", head: 1, tail: { tag: "Nil" } }\n'
+            'type List = { tag: "Nil" } | { tag: "Cons"; head: number; tail: List };'
+        )
+        out = render([1], LIST, "typescript", ts_fields=infer_ts_fields(src))
+        assert out == '{ tag: "Cons", head: 1, tail: { tag: "Nil" } }'
+
+
+class TestResolveNamesWidening:
+    """The declaration forms the first regexes missed (review of #112)."""
+
+    def test_bare_and_dataclass_python_classes_resolve(self):
+        src = "class Nil:\n    pass\n\n@dataclass\nclass Cons:\n    head: int\n"
+        assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+    def test_multiline_ailang_type_resolves(self):
+        src = "type MyList =\n  | MyNil\n  | MyCons(int, MyList)"
+        assert resolve_names(src, LIST, "ailang") == {
+            "Nil": "MyNil",
+            "Cons": "MyCons",
+        }
+
+    def test_mapping_must_be_one_to_one(self):
+        # Both canonical names near-match the single declared name; a
+        # confident wrong mapping is the one output this must not have.
+        spec = {
+            "type": "T",
+            "form": "tagged",
+            "constructors": [
+                {"name": "Value", "args": ["Int"], "fields": ["value"]},
+                {"name": "Val", "args": [], "fields": []},
+            ],
+        }
+        with pytest.raises(Unsupported):
+            resolve_names("type T = MyValue(int)", spec, "ailang")
+
+
+class TestAdtPrintedQualifier:
+    """Aver prints built-ins qualified and declared types bare."""
+
+    def test_builtin_prints_qualified(self):
+        from vera_bench.adt_render import adt_printed
+
+        problem = {
+            "signature": "public fn f(@List -> @Option)",
+            "entry_point": "f",
+            "adt": LIST,
+            "return_adt": OPTION,
+        }
+        src = "fn f(xs: List<Int>) -> Option<Int>"
+        assert adt_printed(problem, src, "aver", {"Some": [3]}) == "Option.Some(3)"
+
+    def test_declared_type_prints_bare(self):
+        from vera_bench.adt_render import adt_printed
+
+        problem = {
+            "signature": "public fn f(@List -> @Option)",
+            "entry_point": "f",
+            "adt": LIST,
+            "return_adt": OPTION,
+        }
+        src = "type MyOption\n    MyNone\n    MySome(Int)\n"
+        assert adt_printed(problem, src, "aver", {"Some": [3]}) == "MySome(3)"

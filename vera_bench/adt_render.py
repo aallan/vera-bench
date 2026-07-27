@@ -96,59 +96,125 @@ def _ctor_call(name: str, rendered: list[str], language: str) -> str:
 
 
 #: A `{ tag: "Name"; field: T; field: T }` member of a TypeScript tagged
-#: union — in a type alias, an interface, or a value literal, all of which
-#: carry the same field names in consistent code.
-_TS_TAGGED = re.compile(r"""\{\s*tag\s*:\s*["'](\w+)["']([^}]*)\}""")
+#: union — in a type alias, an interface, or a value literal. `kind` is
+#: accepted alongside `tag`: it is at least as common a discriminant in
+#: the wild, and a model using it is entirely correct.
+_TS_TAGGED = re.compile(r"""\{\s*(tag|kind)\s*:\s*["'](\w+)["']([^}]*)\}""")
+_TS_FIELD = re.compile(r"(\w+)\s*:\s*([A-Za-z_][\w\[\]<>. ]*)")
 
 
-def infer_ts_fields(source: str) -> dict[str, list[str]]:
-    """Field names per tag, read from the TypeScript solution itself.
+def infer_ts_discriminant(source: str) -> str:
+    """The discriminant key the solution uses — `tag` unless it says `kind`.
 
-    The problem's `adt` block records the canonical field names, but a
-    model is free to write `{ tag: "Cons"; value: number; rest: List }` —
-    and constructing arguments with the canonical `head`/`tail` against
-    that declaration would hand its correct code objects whose fields
-    read as undefined, recording a correct solution as wrong. So the
-    names come from the source: the first occurrence of each tag that
-    carries fields wins (a nullary occurrence like the value literal
-    `{ tag: "Nil" }` never shadows a field-bearing one).
+    The constructed literals must use the solution's own key: a
+    `{ tag: … }` object handed to code switching on `.kind` reads
+    undefined and fails a correct solution.
     """
-    fields: dict[str, list[str]] = {}
+    m = _TS_TAGGED.search(source)
+    return m.group(1) if m else "tag"
+
+
+def infer_ts_fields(source: str) -> dict[str, list[tuple[str, str | None]]]:
+    """(field, declared type) pairs per tag, read from the solution.
+
+    The problem's `adt` block records canonical field names, but a model
+    is free to write `{ tag: "Cons"; value: number; rest: List }` — and
+    constructing arguments with the canonical `head`/`tail` against that
+    declaration hands its correct code objects whose fields read as
+    undefined. So names come from the source.
+
+    Types are captured so the caller can align fields to the canonical
+    argument order by type rather than position — a declaration listing
+    `tail` before `head` is legal, and positional zipping would scramble
+    the constructed value. A declaration-grade occurrence (every field
+    carries a type-looking annotation) beats a value literal like
+    `{ tag: "Cons", head: 1, … }`, whose values are not types; value
+    literals contribute names with `None` types as a fallback only.
+    """
+    fields: dict[str, list[tuple[str, str | None]]] = {}
+    typed: dict[str, bool] = {}
     for match in _TS_TAGGED.finditer(source):
-        tag, body = match.group(1), match.group(2)
+        tag, body = match.group(2), match.group(3)
+        pairs: list[tuple[str, str | None]] = []
         names = re.findall(r"(\w+)\s*:", body)
-        if tag not in fields or (names and not fields[tag]):
-            fields[tag] = names
+        types = {n: t.strip() for n, t in _TS_FIELD.findall(body)}
+        is_decl = bool(names) and all(n in types for n in names)
+        for n in names:
+            if n in ("tag", "kind"):  # a nested literal's discriminant
+                continue
+            pairs.append((n, types.get(n) if is_decl else None))
+        if (
+            tag not in fields
+            or (pairs and not fields[tag])
+            or (is_decl and not typed.get(tag))
+        ):
+            fields[tag] = pairs
+            typed[tag] = is_decl
     return fields
+
+
+#: Canonical argument type -> the TypeScript type class it must land in.
+_TS_CLASS = {
+    "Int": "number",
+    "Nat": "number",
+    "Float64": "number",
+    "String": "string",
+    "Bool": "boolean",
+}
 
 
 def _fields_for(
     spec: dict,
     ctor_name: str,
     actual_tag: str,
-    ts_fields: dict[str, list[str]] | None,
+    ts_fields: dict[str, list[tuple[str, str | None]]] | None,
 ) -> list[str]:
-    """Field names for one constructor, from the solution when known.
+    """Field names for one constructor, ordered to match canonical args.
 
-    Declines rather than guessing: emitting the canonical names against a
-    declaration we could not read would produce objects whose fields the
-    solution cannot see.
+    A declaration may list its fields in any order — `tail` before
+    `head` is legal — so the inferred fields are aligned to the
+    canonical argument order by TYPE where types distinguish (a number
+    field can only carry the Int argument). Fields of the same type
+    keep their declared relative order, which is the only reading the
+    solution's own author could have meant. Declines rather than
+    guessing when the counts disagree or the alignment is not possible:
+    emitting a scrambled object records a correct solution as wrong.
     """
-    arity = 0
+    canonical = None
     for ctor in spec.get("constructors", []):
         if ctor["name"] == ctor_name:
-            arity = len(ctor.get("args", []))
+            canonical = ctor.get("args", [])
             break
-    else:
+    if canonical is None:
         raise Unsupported(f"unknown constructor {ctor_name!r}")
+    arity = len(canonical)
     if ts_fields is not None:
         inferred = ts_fields.get(actual_tag, [])
-        if len(inferred) == arity:
-            return inferred
-        raise Unsupported(
-            f"cannot infer TypeScript field names for {actual_tag!r} "
-            f"(need {arity}, found {len(inferred)})"
-        )
+        if len(inferred) != arity:
+            raise Unsupported(
+                f"cannot infer TypeScript field names for {actual_tag!r} "
+                f"(need {arity}, found {len(inferred)})"
+            )
+        if arity <= 1 or any(t is None for _, t in inferred):
+            return [n for n, _ in inferred]
+        remaining = list(inferred)
+        ordered: list[str] = []
+        for arg in canonical:
+            want = _TS_CLASS.get(arg, "object")
+            for idx, (n, t) in enumerate(remaining):
+                have = t.strip().lower()
+                if have not in _TS_CLASS.values():
+                    have = "object"
+                if have == want:
+                    ordered.append(n)
+                    del remaining[idx]
+                    break
+            else:
+                raise Unsupported(
+                    f"cannot align {actual_tag!r} fields "
+                    f"{[n for n, _ in inferred]} to argument types {canonical}"
+                )
+        return ordered
     fields = next(
         c.get("fields", []) for c in spec["constructors"] if c["name"] == ctor_name
     )
@@ -164,7 +230,8 @@ def render(
     names: dict[str, str] | None = None,
     native: bool = False,
     qualifier: str = "",
-    ts_fields: dict[str, list[str]] | None = None,
+    ts_fields: dict[str, list[tuple[str, str | None]]] | None = None,
+    ts_disc: str = "tag",
 ) -> str:
     """Render `value` as a literal of the problem's ADT in `language`.
 
@@ -189,11 +256,11 @@ def render(
         if language == "typescript":
             # A tagged union all the way down, same as any other shape.
             fields = _fields_for(spec, spec["cons"], actual(spec["cons"]), ts_fields)
-            out = f'{{ tag: "{actual(spec["empty"])}" }}'
+            out = f'{{ {ts_disc}: "{actual(spec["empty"])}" }}'
             for item in reversed(items):
                 head = _scalar(item, elem, language)
                 out = (
-                    f'{{ tag: "{actual(spec["cons"])}", '
+                    f'{{ {ts_disc}: "{actual(spec["cons"])}", '
                     f"{fields[0]}: {head}, {fields[1]}: {out} }}"
                 )
             return out
@@ -208,13 +275,13 @@ def render(
     rendered = [
         _scalar(a, t, language)
         if t in _SCALARS
-        else render(a, spec, language, names, native, qualifier, ts_fields)
+        else render(a, spec, language, names, native, qualifier, ts_fields, ts_disc)
         for a, t in zip(args, ctor["args"])
     ]
     if language == "typescript":
         # A tagged union carries named fields rather than positions.
         fields = _fields_for(spec, name, actual(name), ts_fields)
-        parts = [f'tag: "{actual(name)}"'] + [
+        parts = [f'{ts_disc}: "{actual(name)}"'] + [
             f"{f}: {v}" for f, v in zip(fields, rendered)
         ]
         return "{ " + ", ".join(parts) + " }"
@@ -229,7 +296,8 @@ def render_args(
     names: dict[str, str] | None = None,
     native: bool = False,
     qualifier: str = "",
-    ts_fields: dict[str, list[str]] | None = None,
+    ts_fields: dict[str, list[tuple[str, str | None]]] | None = None,
+    ts_disc: str = "tag",
 ) -> list[str]:
     """Render a whole argument list, ADT parameters included."""
     if spec is None:
@@ -245,7 +313,9 @@ def render_args(
     for value, type_name in zip(args, param_types):
         if type_name == adt_type:
             out.append(
-                render(value, spec, language, names, native, qualifier, ts_fields)
+                render(
+                    value, spec, language, names, native, qualifier, ts_fields, ts_disc
+                )
             )
         elif type_name in _SCALARS:
             out.append(_scalar(value, type_name, language))
@@ -255,15 +325,21 @@ def render_args(
 
 
 # --- Resolving the solution's own constructor names ----------------------
-# Same discipline as the Vera side: match by name first, then by shape,
-# then decline. A model that writes MyNil/MyCons, or Python's NoneOpt
-# (because `None` is a keyword), is graded rather than penalised.
+# Match by name, then by NEAR-name (a unique declared name extending the
+# canonical one — MyNil, NoneOpt), then decline; the mapping must also be
+# one-to-one. Unlike the Vera side's match_constructors there is no
+# structural fallback here: these languages' declarations do not carry
+# comparable shapes cheaply, and a wrong confident mapping is the one
+# outcome this module must never produce.
 
 _DECL = {
-    "python": re.compile(r"^class\s+(\w+)\s*\(", re.M),
-    "typescript": re.compile(r'tag:\s*"(\w+)"'),
+    # Bare classes and dataclasses are the idiomatic Python ADT
+    # encodings; requiring a base-class parenthesis declined them all.
+    "python": re.compile(r"^class\s+(\w+)\s*[:(]", re.M),
+    "typescript": re.compile(r"""\b(?:tag|kind)\s*:\s*["'](\w+)["']"""),
     "aver": re.compile(r"^\s{2,}(\w+)\s*(?:\([^)]*\))?\s*$", re.M),
-    "ailang": re.compile(r"^type\s+\w+\s*=\s*(.+)$", re.M),
+    # A type may span lines: `type X =` followed by `| Ctor…` lines.
+    "ailang": re.compile(r"^type\s+\w+\s*=\s*(.+(?:\n[ \t]*\|[^\n]*)*)", re.M),
 }
 
 
@@ -327,6 +403,11 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
         raise Unsupported(
             f"cannot map constructor {want!r} onto {declared or 'no declaration'}"
         )
+    if len(set(mapping.values())) != len(mapping):
+        # Two canonical names resolved onto one declared constructor —
+        # whichever call gets built is wrong for one of them, and it
+        # would fail at runtime on the model's account.
+        raise Unsupported(f"constructor mapping is not one-to-one: {mapping}")
     return mapping
 
 
@@ -395,18 +476,20 @@ def printed_form(
 
     Aver and AILANG both render a constructor application in the same
     syntax this module emits — `Cons(1, Nil)` — which makes an ADT return
-    comparable without any equality instance. Aver additionally strips
-    the type qualifier it requires on the way in, so the printed form is
-    the unqualified rendering.
+    comparable without any equality instance. Aver prints a DECLARED
+    type bare but keeps the qualifier on a built-in (`Option.Some(3)`),
+    so the caller passes `qualifier` for a built-in and leaves it empty
+    otherwise; `adt_printed` makes that call.
     """
     return render(value, spec, language, names, native, qualifier)
 
 
-#: Printed between test cases by the generated Aver/AILANG mains, so a
-#: problem whose output is several lines (or none) can still be split
-#: back into per-case chunks. The one-line-per-case protocol cannot
-#: express that on its own, and restructuring to one subprocess per case
-#: would cost a compile per case in both languages.
+#: Printed between test cases by the CHECKED-IN canonical Aver/AILANG
+#: mains (regenerated from the problem JSON — CLAUDE.md: "canonical
+#: mains are data"), so a baseline case that prints several lines or
+#: none still splits back into per-case chunks. Only the baseline path
+#: uses it: the LLM evaluators run one subprocess per case, where whole
+#: stdout already belongs to one case.
 STDOUT_SENTINEL = "<<VB-CASE>>"
 
 
@@ -446,9 +529,18 @@ def adt_call(problem: dict, source: str, language: str, args: list) -> str | Non
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
+    ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
     return ", ".join(
         render_args(
-            args, param_types, spec, language, names, native, qualifier, ts_fields
+            args,
+            param_types,
+            spec,
+            language,
+            names,
+            native,
+            qualifier,
+            ts_fields,
+            ts_disc,
         )
     )
 
@@ -469,7 +561,10 @@ def adt_expected(
     names = {} if native else resolve_names(source, spec, language)
     qualifier = declared_type(source, language, spec)
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
-    return render(expected, spec, language, names, native, qualifier, ts_fields)
+    ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
+    return render(
+        expected, spec, language, names, native, qualifier, ts_fields, ts_disc
+    )
 
 
 def adt_printed(

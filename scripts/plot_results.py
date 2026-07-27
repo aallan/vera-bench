@@ -252,9 +252,8 @@ _GRADEABLE_IDS: set[str] | None = None
 # TODAY's problem set — but old result files carry rows for problems
 # that were not gradeable when they were swept. Without this pin,
 # regenerating a v0.0.16 chart after #107 landed would divide 36
-# problems' worth of solves by the current 46-problem denominator (the
-# 36 plus the ten this release added) and silently deflate every
-# published number. Same failure class, same
+# problems' worth of solves by the current 60-problem denominator and
+# silently deflate every published number. Same failure class, same
 # remedy, as HISTORICAL_LINEUPS above.
 #
 # Maintenance rule: whenever test cases are added to an EXISTING
@@ -346,6 +345,13 @@ def _gradeable_ids(version: str | None = None) -> set[str]:
     }
 
 
+def _declined(row: dict) -> bool:
+    """A harness decline: ungraded because WE could not build a caller."""
+    return "run_correct" not in row and "test wrapper unavailable" in (
+        row.get("error_message") or ""
+    )
+
+
 def _pass_at_1_pct(rows: list[dict], version: str | None = None) -> int | None:
     """pass@1 as an integer percent: solved / gradeable-problems-present.
 
@@ -354,6 +360,14 @@ def _pass_at_1_pct(rows: list[dict], version: str | None = None) -> int | None:
     did not. This is the honest headline: unlike run_correct-over-eligible
     it does not shrink the denominator when the model refuses or fails to
     compile, so refusing hard problems cannot inflate the bar.
+
+    The one exception is a harness DECLINE — "test wrapper unavailable",
+    written when the harness could not map the model's own type
+    declaration to build a caller. That is the harness abstaining, not
+    the model failing, so the problem leaves the denominator for that
+    target. The distinction is deliberate and narrow: only rows the
+    harness itself labelled are excluded, so a model cannot buy a
+    smaller denominator with anything it writes.
 
     Best attempt per problem (an attempt-2 fix that compiles supersedes
     attempt-1), matching compute_metrics. Returns None when no gradeable
@@ -368,13 +382,18 @@ def _pass_at_1_pct(rows: list[dict], version: str | None = None) -> int | None:
             attempts.setdefault(pid, {})[r.get("attempt")] = r
     if not attempts:
         return None
-    solved = 0
+    solved = eligible = 0
     for a in attempts.values():
         a2, a1 = a.get(2), a.get(1)
         best = a2 if (a2 and a2.get("check_pass")) else a1
+        if best and _declined(best):
+            continue
+        eligible += 1
         if best and best.get("run_correct") is True:
             solved += 1
-    return round(100 * solved / len(attempts))
+    if not eligible:
+        return None
+    return round(100 * solved / eligible)
 
 
 def extract_data(

@@ -156,9 +156,10 @@ class TestCanonicalRegressions:
 
     VB-T5-008's print_loop recursed with its arguments swapped, printing
     "1" for n=3 and diverging for n=1 — and check and verify both passed
-    it. Its test cases were later withdrawn (the aver/ailang baseline
-    protocol cannot host multi-line stdout, #107 step 5), so this test is
-    what stops the bug coming back in the meantime.
+    it. The problem is output-graded again since the sentinel protocol
+    landed, but this remains the only test that runs the canonical
+    DIRECTLY through run_fn, independent of the grading pipeline's own
+    machinery — keep it even though validate now covers the behaviour.
     """
 
     SOL = SOLUTIONS_DIR / "vera" / "VB-T5-008_print_numbers.vera"

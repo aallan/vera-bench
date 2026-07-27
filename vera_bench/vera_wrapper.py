@@ -1,12 +1,13 @@
 """Generate a Vera caller so a problem can be graded on structured input.
 
 `vera run --fn` passes arguments on a command line, so it can only carry
-scalars. That is why 24 of the 60 problems have no test cases: their entry
-point takes a list, a tree or an array, and there is no way to hand one to
-it. Every other language in the harness already avoids this by writing a
-wrapper that calls the solution with the arguments written into the source
-(see `_build_python_wrapper` and the AILANG `main` synthesis in
-`runner.py`); this is Vera catching up.
+scalars. That is why 24 of the 60 problems once had no test cases: their
+entry point takes a list, a tree or an array, and there was no way to hand
+one to it. This module is how Vera caught up — the same
+write-the-arguments-into-the-source treatment the other languages get
+(`_build_python_wrapper` in `baseline_runner.py`; the Python wrapper in
+`runner.py` is built inline in `_evaluate_python_code`). All 60 problems
+are graded through one generated caller or another as of v0.0.18.
 
 Two findings from the Vera 0.1.7 compiler shape the design.
 
@@ -37,7 +38,10 @@ stops a model writing `Empty` and `Node`. So a test-case value is written
 against the problem's *canonical* constructor names, and the wrapper maps
 those onto whatever the model actually declared:
 
-  1. by name, case-insensitively — the overwhelmingly common case;
+  1. by name, case-insensitively — the overwhelmingly common case — and
+     the name match must also carry the canonical argument shape: a
+     declared `Cons(List, Int)` (swapped) declines rather than
+     generating a call that cannot compile on the model's account;
   2. failing that, by structure — a canonical constructor matches a model
      constructor with the same argument signature, but only when that
      signature is unique within the declaration. `Add(Expr, Expr)` and a
@@ -253,8 +257,11 @@ def build_wrapper(
             if adt is not None and ret_adt is adt and mapping
             else match_constructors(source, ret_adt)
         )
-        eq_body = adt_eq_body(expected, ret_adt, ret_mapping)
-        eq = _fn(_EQ_FN, ret, "@Bool", "effects(pure)", eq_body, public=False)
+        declared = declared_type_name(source, ret_adt)
+        eq_body = adt_eq_body(expected, ret_adt, ret_mapping, declared)
+        eq = _fn(
+            _EQ_FN, f"@{declared}", "@Bool", "effects(pure)", eq_body, public=False
+        )
         main = _fn(
             PROBE_FN, "@Unit", "@Bool", effects, f"  {_EQ_FN}({call})", public=True
         )
@@ -317,12 +324,25 @@ def match_constructors(source: str, spec: dict) -> dict[str, str]:
         model_ctors = decls[type_name]
     elif len(decls) == 1:
         # The model named the type something else. Harmless when it is
-        # the only one; ambiguous when it is not.
+        # the only one; among several, the constructors decide.
         model_ctors = next(iter(decls.values()))
     else:
-        raise Unsupported(
-            f"no declaration named {type_name!r} and {len(decls)} candidates"
-        )
+        # Several declarations, none with the spec's name (a model that
+        # renamed both types in a two-type problem). The declaration
+        # whose constructor names cover the spec's is the match — when
+        # exactly one does; otherwise decline rather than pick.
+        wanted = {c["name"].lower() for c in spec.get("constructors", [])}
+        covering = [
+            name
+            for name, ctors in decls.items()
+            if wanted <= {n.lower() for n, _ in ctors}
+        ]
+        if len(covering) != 1:
+            raise Unsupported(
+                f"no declaration named {type_name!r} and "
+                f"{len(covering) or len(decls)} candidates"
+            )
+        model_ctors = decls[covering[0]]
 
     by_name = {name.lower(): name for name, _ in model_ctors}
     args_by_name = {name.lower(): args for name, args in model_ctors}
@@ -409,7 +429,34 @@ def _cons_elem(spec: dict) -> str:
     return "Int"
 
 
-def adt_eq_body(expected: object, spec: dict, mapping: dict[str, str]) -> str:
+def declared_type_name(source: str, spec: dict) -> str:
+    """The type name the solution actually declared for this spec.
+
+    Mirrors match_constructors' resolution: the spec's own name when
+    declared, else the single declaration's name. The generated eq
+    function's parameter and match patterns must use this — a model that
+    renames List to IntList is within its rights, and a wrapper written
+    against @List cannot compile against its code.
+    """
+    decls = parse_data_decls(source)
+    type_name = spec.get("type", "")
+    if type_name in decls or not decls:
+        return type_name
+    if len(decls) == 1:
+        return next(iter(decls))
+    wanted = {c["name"].lower() for c in spec.get("constructors", [])}
+    covering = [
+        name for name, ctors in decls.items() if wanted <= {n.lower() for n, _ in ctors}
+    ]
+    return covering[0] if len(covering) == 1 else type_name
+
+
+def adt_eq_body(
+    expected: object,
+    spec: dict,
+    mapping: dict[str, str],
+    type_name: str | None = None,
+) -> str:
     """An unrolled match that is true exactly for `expected`.
 
     Recursion is deliberately avoided. A generated recursive equality
@@ -427,7 +474,7 @@ def adt_eq_body(expected: object, spec: dict, mapping: dict[str, str]) -> str:
         if not isinstance(expected, list):
             raise Unsupported(f"expected {expected!r} is not a list")
         empty, cons = mapping[spec["empty"]], mapping[spec["cons"]]
-        t = spec["type"]
+        t = type_name or spec["type"]
         elem = "@" + _cons_elem(spec)
 
         def build(items: list) -> str:
@@ -460,7 +507,7 @@ def adt_eq_body(expected: object, spec: dict, mapping: dict[str, str]) -> str:
                 f"@{t}.0 == {render_value(a, f'@{t}')}" for a, t in zip(args, c["args"])
             )
             arms.append(f"{pattern} -> {checks}")
-    type_ref = f"@{spec['type']}.0"
+    type_ref = f"@{type_name or spec['type']}.0"
     return f"  match {type_ref} {{ " + ", ".join(arms) + " }"
 
 

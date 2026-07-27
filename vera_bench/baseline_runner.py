@@ -97,6 +97,8 @@ def _build_python_wrapper(
         # A returned ADT has no structural equality in Python, so both
         # sides are walked into a comparable shape (#107 step 2b).
         adt_ret = _adt_expected(problem, src_text, "python", expected)
+        if grades_on_stdout(problem) and not isinstance(expected, str):
+            expected_repr = repr(str(expected))
         cmp_py = (
             # An @Unit problem is graded on what it PRINTED, not on the
             # None it returned (#107 step 5).
@@ -109,11 +111,11 @@ def _build_python_wrapper(
         lines.extend(
             [
                 "try:",
-                # Solutions that print (the IO problems) would interleave
-                # with the JSON result line and corrupt the protocol, so
-                # every call runs under a stdout redirect. The captured
-                # text is discarded for now; grading @Unit problems ON
-                # that text is #107 step 5.
+                # Solutions that print would interleave with the JSON
+                # result line and corrupt the protocol, so every call
+                # runs under a stdout redirect. For @Unit problems the
+                # captured text IS the graded answer (see cmp_py above,
+                # #107 step 5); for the rest it is discarded.
                 f"    _buf_{i} = io.StringIO()",
                 f"    with contextlib.redirect_stdout(_buf_{i}):",
                 f"        actual_{i} = {entry_point}({call_expr})",
@@ -380,6 +382,17 @@ def _parse_subprocess_result(
         )
 
     tests_passed = sum(1 for r in test_results if r.get("passed"))
+    # A harness-side comparator fault and a model bug used to be
+    # byte-identical in JSONL (issue #72, re-instantiated for the
+    # generated wrappers): surface the first per-case error.
+    first_err = next(
+        (
+            f"test {idx}: {r['error']}"
+            for idx, r in enumerate(test_results)
+            if not r.get("passed") and r.get("error")
+        ),
+        None,
+    )
     tests_total = len(test_cases)
 
     return ProblemResult(
@@ -391,6 +404,7 @@ def _parse_subprocess_result(
         run_correct=(tests_passed == tests_total),
         tests_total=tests_total,
         tests_passed=tests_passed,
+        error_message=first_err,
         wall_time_s=elapsed,
         timestamp=_now(),
     )
@@ -533,6 +547,7 @@ def run_aver_baseline(
 
     src_text = baseline_path.read_text(encoding="utf-8")
     unmappable = False
+    unmappable_reason: str | None = None
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
         # An ADT return prints as `Cons(1, Nil)` in both Aver and AILANG,
@@ -542,13 +557,20 @@ def run_aver_baseline(
         # the only route there.
         try:
             printed = _adt_printed(problem, src_text, "aver", expected)
-        except Unsupported:
+        except Unsupported as e:
             # This solution's constructors could not be mapped. Leave the
             # problem ungraded rather than abort every remaining one — an
             # instrumentation gap must not look like a wrong answer, and
-            # must never take the run down with it.
+            # must never take the run down with it. The reason travels
+            # with the row: an ungraded row with no reason vanishes from
+            # every counter, which is silent coverage loss.
             printed = None
             unmappable = True
+            unmappable_reason = f"test wrapper unavailable: {e}"
+        if unmappable:
+            # Partial counts on an ungraded row invite misreading it as
+            # partially graded; skip comparison outright.
+            continue
         if i < len(output_lines):
             actual = output_lines[i].strip()
             if printed is not None:
@@ -563,6 +585,7 @@ def run_aver_baseline(
         attempt=1,
         check_pass=True,
         run_correct=(None if unmappable else tests_passed == len(test_cases)),
+        error_message=unmappable_reason,
         tests_total=len(test_cases),
         tests_passed=tests_passed,
         wall_time_s=elapsed,
@@ -792,6 +815,7 @@ def run_ailang_baseline(
 
     ail_src = baseline_path.read_text(encoding="utf-8")
     unmappable = False
+    unmappable_reason: str | None = None
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
         # `show` renders an AILANG ADT in the same syntax the renderer
@@ -799,13 +823,20 @@ def run_ailang_baseline(
         # derived Eq for user types (#107 step 2b).
         try:
             printed = _adt_printed(problem, ail_src, "ailang", expected)
-        except Unsupported:
+        except Unsupported as e:
             # This solution's constructors could not be mapped. Leave the
             # problem ungraded rather than abort every remaining one — an
             # instrumentation gap must not look like a wrong answer, and
-            # must never take the run down with it.
+            # must never take the run down with it. The reason travels
+            # with the row: an ungraded row with no reason vanishes from
+            # every counter, which is silent coverage loss.
             printed = None
             unmappable = True
+            unmappable_reason = f"test wrapper unavailable: {e}"
+        if unmappable:
+            # Partial counts on an ungraded row invite misreading it as
+            # partially graded; skip comparison outright.
+            continue
         if i < len(output_lines):
             actual = output_lines[i].strip()
             if printed is not None:
@@ -820,6 +851,7 @@ def run_ailang_baseline(
         attempt=1,
         check_pass=True,
         run_correct=(None if unmappable else tests_passed == len(test_cases)),
+        error_message=unmappable_reason,
         tests_total=len(test_cases),
         tests_passed=tests_passed,
         wall_time_s=elapsed,

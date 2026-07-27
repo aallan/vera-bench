@@ -567,3 +567,32 @@ class TestBaselineAdtDecline:
         assert row.check_pass is True
         assert row.run_correct is None
         assert "test wrapper unavailable" in row.error_message
+
+
+class TestSentinelDataContract:
+    """The canonical IO mains must print one sentinel per test case.
+
+    The mains are data (CLAUDE.md invariant) regenerated from the
+    problem JSON; a regeneration that drops the sentinels, or a drifted
+    constant, silently breaks the baseline splitting for both IO
+    problems. CI carries no aver/ailang binaries, so this string-level
+    contract is the only automated guard there.
+    """
+
+    def test_io_mains_carry_one_sentinel_per_case(self):
+        import json
+        from pathlib import Path
+
+        from vera_bench.adt_render import STDOUT_SENTINEL
+
+        root = Path(__file__).parent.parent
+        for pid_glob in ("*T5_002*", "*T5_008*"):
+            problem = json.loads(
+                next(root.glob(f"problems/tier5/{pid_glob}")).read_text()
+            )
+            n = len(problem["test_cases"])
+            for lang, ext in (("aver", "av"), ("ailang", "ail")):
+                stem = problem["id"].replace("-", "_")
+                sol = next(root.glob(f"solutions/{lang}/{stem}_*.{ext}"))
+                count = sol.read_text().count(STDOUT_SENTINEL)
+                assert count == n, (sol.name, count, n)

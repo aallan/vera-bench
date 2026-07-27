@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Harness declines leave the pass@1 denominator.** "test wrapper
+  unavailable" is the harness abstaining — it could not map the model's
+  own declaration — and counting it as a failed solve broke the decline
+  contract at the only level anyone publishes. Only harness-labelled
+  ungraded rows are excluded, so a model cannot buy a smaller
+  denominator with anything it writes; `sweep_status.py` gives declines
+  their own bucket, because a rising decline rate is a harness gap, not
+  a model score. Ungraded aver/ailang baseline rows now carry the
+  reason, the generated Python/TypeScript wrappers surface their first
+  per-case error (issue #72's fix, extended), and `rerun_failed.py`
+  copies stored code across with the rows it splices.
 - **Every problem is output-graded: 46 of 60 becomes 60 of 60.** The last
   fourteen split three ways, each needing a different answer in all five
   languages. **ADT arguments** (nine problems) ask the *model* to define
@@ -39,6 +50,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([#109](https://github.com/aallan/vera-bench/issues/109)).
 
 ### Fixed
+
+- **The aver and AILANG LLM evaluators could not grade what the
+  baselines grade.** Baselines run the canonical mains; graded code goes
+  through per-language argument synthesis the baselines never touch, and
+  that path rendered an ADT argument as a Python dict repr injected into
+  generated source, failed, and blamed the model. The two IO problems
+  fared no better: AILANG's check step fails any solution calling
+  `println` unless a `main` exists (the implicit prelude hangs off it),
+  and both languages graded printed output against the raw expected
+  value. Found by the multi-agent review running each language's
+  evaluator over its own canonical solutions — known-correct code
+  scoring 0 is a harness bug by definition, and that parity check is now
+  a 59-test suite (`test_evaluator_parity.py`).
+- **A model that renames the ADT type got an uncompilable wrapper.**
+  `match_constructors` deliberately tolerates `List` becoming `IntList`,
+  but the generated `probe_eq` hard-coded the problem's name, so the
+  wrapper could not compile against the model's own code — a correct
+  solution recorded as wrong, worst in spec-from-NL where inventing the
+  name is the point. The declared name now threads through, resolved by
+  constructor coverage when several declarations could match.
+- **TypeScript field order and discriminant now follow the solution.** A
+  declaration listing `tail` before `head` is legal; positional zipping
+  scrambled the constructed value. Fields align to canonical argument
+  order by type, `kind:`-discriminated unions are constructed with
+  `kind`, and a value literal in a comment no longer poisons inference.
+  Python's bare/dataclass classes and AILANG's multi-line type
+  declarations resolve too, and a constructor mapping that is not
+  one-to-one declines.
 
 - **Seven canonical solutions were wrong, across four of the five languages.**
   Every one passed `check` and `verify`; every one was visible the moment

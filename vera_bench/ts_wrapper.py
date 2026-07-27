@@ -72,6 +72,11 @@ def build_ts_wrapper(problem: dict, source: str, import_path: str) -> str:
         if isinstance(expected, str) and expected in ("true", "false"):
             expected = expected == "true"
         args_json = json.dumps(args)
+        if grades_on_stdout(problem) and not isinstance(expected, str):
+            # stdout comparison is textual; a bare `5.trim()` would not
+            # even parse, and the wrapper failing to build is recorded as
+            # the model's failure.
+            expected = str(expected)
         expected_json = json.dumps(expected)
         adt_args = adt_call(problem, source, "typescript", args)
         ts_call = adt_args if adt_args is not None else f"...{args_json}"

@@ -72,7 +72,15 @@ def _expected_targets() -> int:
     return total
 
 
+DECLINED = re.compile(r"test wrapper unavailable", re.I)
+
+
 def classify(msg: str) -> str:
+    if DECLINED.search(msg):
+        # The harness abstained (could not map the model's declaration).
+        # A real result — never re-run — but its own bucket, because a
+        # rising decline rate is a harness gap, not a model score.
+        return "declined"
     if REFUSAL.search(msg):
         return "refusal"
     if LENGTH.search(msg):

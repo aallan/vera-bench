@@ -19,6 +19,7 @@ from rich.progress import Progress
 
 from vera_bench.adt_render import adt_call as _adt_call
 from vera_bench.adt_render import adt_expected as _adt_expected
+from vera_bench.adt_render import adt_printed as _adt_printed
 from vera_bench.adt_render import (
     grades_on_stdout,
     return_spec,
@@ -369,6 +370,8 @@ def _evaluate_python_code(
             result["error_message"] = f"test wrapper unavailable: {e}"
             return result
         call_expr = adt_args if adt_args is not None else f"*{args_repr}"
+        if grades_on_stdout(problem) and not isinstance(expected, str):
+            expected_repr = repr(str(expected))
         cmp_py = (
             # An @Unit problem is graded on what it PRINTED, not on the
             # None it returned (#107 step 5).
@@ -381,11 +384,11 @@ def _evaluate_python_code(
         wrapper_lines.extend(
             [
                 "try:",
-                # Solutions that print (the IO problems) would interleave
-                # with the JSON result line and corrupt the protocol, so
-                # every call runs under a stdout redirect. The captured
-                # text is discarded for now; grading @Unit problems ON
-                # that text is #107 step 5.
+                # Solutions that print would interleave with the JSON
+                # result line and corrupt the protocol, so every call
+                # runs under a stdout redirect. For @Unit problems the
+                # captured text IS the graded answer (see cmp_py above,
+                # #107 step 5); for the rest it is discarded.
                 f"    _buf_{i} = io.StringIO()",
                 f"    with contextlib.redirect_stdout(_buf_{i}):",
                 f"        actual_{i} = {entry_point}({call_expr})",
@@ -446,9 +449,22 @@ def _evaluate_python_code(
         return result
 
     passed = sum(1 for r in test_results if r.get("passed"))
+    # A harness-side comparator fault and a model bug used to be
+    # byte-identical in JSONL (issue #72, re-instantiated for the
+    # generated wrappers): surface the first per-case error.
+    first_err = next(
+        (
+            f"test {idx}: {r['error']}"
+            for idx, r in enumerate(test_results)
+            if not r.get("passed") and r.get("error")
+        ),
+        None,
+    )
     result["tests_total"] = len(test_cases)
     result["tests_passed"] = passed
     result["run_correct"] = passed == len(test_cases)
+    if first_err and not result.get("error_message"):
+        result["error_message"] = first_err
     return result
 
 
@@ -557,9 +573,22 @@ def _evaluate_typescript_code(
         return result
 
     passed = sum(1 for r in test_results if r.get("passed"))
+    # A harness-side comparator fault and a model bug used to be
+    # byte-identical in JSONL (issue #72, re-instantiated for the
+    # generated wrappers): surface the first per-case error.
+    first_err = next(
+        (
+            f"test {idx}: {r['error']}"
+            for idx, r in enumerate(test_results)
+            if not r.get("passed") and r.get("error")
+        ),
+        None,
+    )
     result["tests_total"] = len(test_cases)
     result["tests_passed"] = passed
     result["run_correct"] = passed == len(test_cases)
+    if first_err and not result.get("error_message"):
+        result["error_message"] = first_err
     return result
 
 
@@ -700,18 +729,46 @@ def _evaluate_aver_code(
         expected = tc.get("expected")
         result["tests_total"] += 1
 
-        args_str = ", ".join(_aver_literal(a) for a in args)
+        # An ADT argument is built with the MODEL's own constructors —
+        # the plain-literal path would write a Python dict repr into the
+        # generated main and record the failure as the model's wrong
+        # answer (#107 step 2). An ADT return compares against its
+        # printed form, which is the same syntax the renderer emits.
+        # Unsupported declines the whole problem to ungraded, same
+        # contract as every other evaluator.
+        try:
+            adt_args = _adt_call(problem, code_without_main, "aver", args)
+            printed = _adt_printed(problem, code_without_main, "aver", expected)
+        except Unsupported as e:
+            result["run_correct"] = None
+            result["tests_total"] = 0
+            result["tests_passed"] = 0
+            result["error_message"] = f"test wrapper unavailable: {e}"
+            return result
+        args_str = (
+            adt_args
+            if adt_args is not None
+            else ", ".join(_aver_literal(a) for a in args)
+        )
 
         # If code has no module declaration, wrap it
         has_module = any(
             line.strip().startswith("module ") for line in code_without_main.split("\n")
         )
+        if grades_on_stdout(problem):
+            # @Unit: the call prints for itself; wrapping it in an
+            # interpolated Console.print would append a unit repr to the
+            # real output (#107 step 5). One subprocess per case, so the
+            # whole stdout belongs to this case.
+            main_body = f"    {entry_point}({args_str})\n"
+        else:
+            main_body = f'    Console.print("{{{entry_point}({args_str})}}")\n'
         if has_module:
             test_file = (
                 f"{code_without_main}\n\n"
                 f"fn main() -> Unit\n"
                 f"    ! [Console.print]\n"
-                f'    Console.print("{{{entry_point}({args_str})}}")\n'
+                f"{main_body}"
             )
         else:
             test_file = (
@@ -720,7 +777,7 @@ def _evaluate_aver_code(
                 f"{code_without_main}\n\n"
                 f"fn main() -> Unit\n"
                 f"    ! [Console.print]\n"
-                f'    Console.print("{{{entry_point}({args_str})}}")\n'
+                f"{main_body}"
             )
 
         test_path = work_dir / f"{safe_id}_test{i}_attempt{attempt}.av"
@@ -749,7 +806,12 @@ def _evaluate_aver_code(
 
         actual_output = run_proc.stdout.strip()
 
-        if _aver_output_matches(actual_output, expected):
+        matched = (
+            actual_output == printed
+            if printed is not None
+            else _aver_output_matches(actual_output, expected)
+        )
+        if matched:
             result["tests_passed"] += 1
         else:
             all_pass = False
@@ -921,10 +983,16 @@ def _evaluate_ailang_code(
         result["run_correct"] = False
         return result
 
-    # First, type-check the bare module (without any main) — failures here
-    # are compile errors and we don't need to attempt test cases.
+    # First, type-check the module — failures here are compile errors and
+    # we don't need to attempt test cases. A stub main is appended because
+    # ailang resolves the implicit prelude only when a main exists: a bare
+    # module calling println fails check with "undefined variable:
+    # println" while the identical code with any main checks clean
+    # (probed against ailang v0.4). Without the stub, every IO solution
+    # was recorded as a compile failure.
     check_path = work_dir / f"{safe_id}_check_attempt{attempt}.ail"
-    check_path.write_text(code_without_main, encoding="utf-8")
+    check_stub = "\n\nexport func main() -> () ! {IO} {\n  ()\n}\n"
+    check_path.write_text(code_without_main + check_stub, encoding="utf-8")
     try:
         check_proc = subprocess.run(  # noqa: S603
             [  # noqa: S607
@@ -984,13 +1052,27 @@ def _evaluate_ailang_code(
             continue
         args = tc.get("args", [])
         expected = tc.get("expected")
-        args_str = ", ".join(_ailang_literal(a) for a in args)
-
-        test_main = (
-            f"\n\nexport func main() -> () ! {{IO}} {{\n"
-            f"  println(show({entry_point}({args_str})))\n"
-            f"}}\n"
+        # Same ADT and @Unit handling as the Aver evaluator above.
+        try:
+            adt_args = _adt_call(problem, code_without_main, "ailang", args)
+            printed = _adt_printed(problem, code_without_main, "ailang", expected)
+        except Unsupported as e:
+            result["run_correct"] = None
+            result["tests_total"] = 0
+            result["tests_passed"] = 0
+            result["error_message"] = f"test wrapper unavailable: {e}"
+            return result
+        args_str = (
+            adt_args
+            if adt_args is not None
+            else ", ".join(_ailang_literal(a) for a in args)
         )
+
+        call = f"{entry_point}({args_str})"
+        body = (
+            f"  {call}\n" if grades_on_stdout(problem) else f"  println(show({call}))\n"
+        )
+        test_main = f"\n\nexport func main() -> () ! {{IO}} {{\n{body}}}\n"
         test_file = code_without_main + test_main
         test_path = work_dir / f"{safe_id}_test{i}_attempt{attempt}.ail"
         test_path.write_text(test_file, encoding="utf-8")
@@ -1025,7 +1107,12 @@ def _evaluate_ailang_code(
             continue
 
         actual = run_proc.stdout.strip()
-        if _aver_output_matches(actual, expected):
+        matched = (
+            actual == printed
+            if printed is not None
+            else _aver_output_matches(actual, expected)
+        )
+        if matched:
             tests_passed += 1
 
     result["tests_passed"] = tests_passed

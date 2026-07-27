@@ -16,6 +16,7 @@ import pytest
 from vera_bench.vera_wrapper import (
     PROBE_FN,
     Unsupported,
+    adt_eq_body,
     build_wrapper,
     can_wrap,
     entry_effects,
@@ -215,3 +216,52 @@ class TestCanWrapStructuredReturn:
     def test_unit_return_stays_on_the_cli(self):
         # The IO problems are graded on stdout through the CLI path.
         assert can_wrap("public fn f(@Nat -> @Unit)") is False
+
+
+class TestAdtEqBodyDiscrimination:
+    """The generated equality must be false for everything else.
+
+    validate proves only the true direction (canonicals are correct), so
+    a vacuous-true regression — an arm reading true where it should read
+    false — would inflate Vera scores invisibly. Pin the emitted arms.
+    """
+
+    LIST = {
+        "type": "List",
+        "form": "list",
+        "empty": "Nil",
+        "cons": "Cons",
+        "constructors": [
+            {"name": "Nil", "args": []},
+            {"name": "Cons", "args": ["Int", "List"]},
+        ],
+    }
+    OPTION = {
+        "type": "Option",
+        "form": "tagged",
+        "constructors": [
+            {"name": "None", "args": []},
+            {"name": "Some", "args": ["Int"]},
+        ],
+    }
+    IDENT = {"Nil": "Nil", "Cons": "Cons", "None": "None", "Some": "Some"}
+
+    def test_tagged_non_matching_arms_are_false(self):
+        body = adt_eq_body({"Some": [3]}, self.OPTION, self.IDENT)
+        assert "None -> false" in body
+        assert "@Int.0 == 3" in body
+        assert "true" not in body.replace("-> false", "")
+        # the matching arm compares, never blanket-trues
+
+    def test_list_terminal_nil_is_the_only_true(self):
+        body = adt_eq_body([1], self.LIST, self.IDENT)
+        # outer level: a Nil where Cons(1, …) is expected -> false
+        assert body.count("Nil -> false") == 1
+        # inner level: the terminal Nil -> true, exactly once
+        assert body.count("Nil -> true") == 1
+        assert "@Int.0 == 1" in body
+
+    def test_renamed_type_threads_into_patterns(self):
+        body = adt_eq_body([1], self.LIST, self.IDENT, "IntList")
+        assert "@IntList.0" in body
+        assert "@List.0" not in body
