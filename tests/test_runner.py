@@ -3371,3 +3371,50 @@ class TestEvaluatorAdtDeclines:
         assert r["run_correct"] is None
         assert r["tests_total"] == 0
         assert "test wrapper unavailable" in r["error_message"]
+
+
+class TestNonAnswersAreFailuresNotDeclines:
+    """A refusal must score as a failure, never leave the denominator.
+
+    Both evaluators reached the ADT mapper before the model's code was
+    parsed, so a prose refusal declined — and since declines now leave
+    the pass@1 denominator, a non-answer outscored a wrong answer.
+    """
+
+    PROBLEM = {
+        "id": "VB-TEST-REFUSE",
+        "signature": "public fn list_length(@List -> @Nat)",
+        "entry_point": "list_length",
+        "adt": {
+            "type": "List",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": [], "fields": []},
+                {"name": "Cons", "args": ["Int", "List"], "fields": ["head", "tail"]},
+            ],
+        },
+        "test_cases": [{"args": [[1, 2]], "expected": 2}],
+    }
+
+    def test_python_refusal_is_a_failure(self, tmp_path):
+        r = _evaluate_python_code(
+            "I cannot help with that request.\n", self.PROBLEM, tmp_path, attempt=1
+        )
+        assert r["run_correct"] is False
+        assert "test wrapper unavailable" not in (r["error_message"] or "")
+
+    def test_typescript_refusal_is_a_failure(self, tmp_path):
+        r = _evaluate_typescript_code(
+            "I cannot help with that request.\n", self.PROBLEM, tmp_path, attempt=1
+        )
+        assert r["run_correct"] is False
+        assert "test wrapper unavailable" not in (r["error_message"] or "")
+
+    def test_a_real_mapping_gap_still_declines(self, tmp_path):
+        # Genuine code, unmappable declaration: this one may abstain.
+        code = "def list_length(x):\n    return 0\n"
+        r = _evaluate_python_code(code, self.PROBLEM, tmp_path, attempt=1)
+        assert r["run_correct"] is None
+        assert "test wrapper unavailable" in r["error_message"]

@@ -158,7 +158,7 @@ def main() -> None:
     tally: dict[str, int] = {}
     for f in files:
         rows = load_rows(f)
-        buckets = {"refusal": 0, "length": 0, "transient": 0, "other": 0}
+        buckets = {"refusal": 0, "declined": 0, "length": 0, "transient": 0, "other": 0}
         for r in rows:
             msg = r.get("error_message")
             if msg:

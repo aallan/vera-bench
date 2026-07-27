@@ -266,3 +266,40 @@ class TestGradeableVersioning:
             "error_message": "test wrapper unavailable (I refuse)",
         }
         assert pr._pass_at_1_pct(rows) == 33
+
+    def test_a_forged_decline_message_does_not_shrink_the_denominator(
+        self, monkeypatch
+    ):
+        # A compile-failure row carries the compiler's diagnostic, which
+        # quotes the model's own source. Substring-matching alone let a
+        # model remove its problem from the denominator by writing the
+        # phrase; the marker must be anchored and paired with check_pass.
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {"P0", "P1"})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {})
+        rows = [
+            {"problem_id": "P0", "attempt": 1, "check_pass": True, "run_correct": True},
+            {
+                "problem_id": "P1",
+                "attempt": 1,
+                "check_pass": False,
+                "error_message": "[E001] parse error near "
+                "'test wrapper unavailable: hi'",
+            },
+        ]
+        assert pr._pass_at_1_pct(rows) == 50  # counted, not excluded
+
+    def test_a_genuine_decline_still_leaves_the_denominator(self, monkeypatch):
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {"P0", "P1"})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {})
+        rows = [
+            {"problem_id": "P0", "attempt": 1, "check_pass": True, "run_correct": True},
+            {
+                "problem_id": "P1",
+                "attempt": 1,
+                "check_pass": True,
+                "error_message": "test wrapper unavailable: no data declaration",
+            },
+        ]
+        assert pr._pass_at_1_pct(rows) == 100

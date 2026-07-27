@@ -244,8 +244,11 @@ def _evaluate_code(
                 result["run_correct"] = None
                 result["tests_total"] = 0
                 result["tests_passed"] = 0
-                if not result.get("error_message"):
-                    result["error_message"] = f"test wrapper unavailable: {e}"
+                # Overwrite unconditionally: a preceding "verify error"
+                # (vera verify can raise on a Z3 timeout) would otherwise
+                # mask the decline label, and every consumer then scores
+                # the harness's abstention as the model's wrong answer.
+                result["error_message"] = f"test wrapper unavailable: {e}"
                 return result
             run_path = work_dir / f"{problem['id']}_attempt{attempt}_probe{i}.vera"
             run_path.write_text(code + "\n" + wrapper, encoding="utf-8")
@@ -294,6 +297,29 @@ def _evaluate_code(
     return result
 
 
+def _is_an_answer(code: str, language: str, entry_point: str) -> bool:
+    """Whether this looks like code at all, rather than a non-answer.
+
+    Gates the decline path. A refusal, an apology or a truncated stub
+    must be scored as a failure to answer; only genuine
+    could-not-map-this-declaration cases may leave the denominator.
+    """
+    if language == "python":
+        import ast
+
+        try:
+            ast.parse(code)
+        except SyntaxError:
+            return False
+        return bool(re.search(rf"\bdef\s+{re.escape(entry_point)}\b", code))
+    if language == "typescript":
+        from vera_bench.ts_wrapper import snake_to_camel
+
+        fn = snake_to_camel(entry_point)
+        return bool(re.search(rf"\b{re.escape(fn)}\b", code))
+    return True
+
+
 def _evaluate_python_code(
     code: str,
     problem: dict,
@@ -334,7 +360,15 @@ def _evaluate_python_code(
         "def _norm(v):",
         "    if isinstance(v, (bool, int, float, str)) or v is None: return v",
         "    if isinstance(v, (list, tuple)): return [_norm(x) for x in v]",
-        "    return [type(v).__name__] + [_norm(x) for x in vars(v).values()]",
+        # getattr-based, because vars() raises TypeError on a
+        # __slots__ / @dataclass(slots=True) class — idiomatic modern
+        # Python whose correct solutions were graded 0/N.
+        "    _f = getattr(v, '__dict__', None)",
+        "    if _f is None:",
+        "        _s = getattr(type(v), '__slots__', ())",
+        "        _s = (_s,) if isinstance(_s, str) else _s",
+        "        _f = {k: getattr(v, k, None) for k in _s}",
+        "    return [type(v).__name__] + [_norm(x) for x in _f.values()]",
         "import sys",
         f"sys.path.insert(0, {str(work_dir)!r})",
         # Star-import so an ADT problem's constructors come with the
@@ -364,6 +398,13 @@ def _evaluate_python_code(
             adt_args = _adt_call(problem, code, "python", args)
             adt_ret = _adt_expected(problem, code, "python", expected)
         except Unsupported as e:
+            if not _is_an_answer(code, "python", entry_point):
+                # Not a mapping gap — the model did not answer.
+                result["check_pass"] = False
+                result["run_correct"] = False
+                result["tests_total"] = len(test_cases)
+                result["error_message"] = f"no usable {entry_point}: {e}"
+                return result
             result["run_correct"] = None
             result["tests_total"] = 0
             result["tests_passed"] = 0
@@ -441,7 +482,7 @@ def _evaluate_python_code(
         return result
 
     try:
-        test_results = json.loads(proc.stdout)
+        test_results = json.loads((proc.stdout or "").strip().splitlines()[-1])
     except json.JSONDecodeError:
         result["tests_total"] = len(test_cases)
         result["run_correct"] = False
@@ -500,7 +541,16 @@ def _evaluate_typescript_code(
     code_path = work_dir / f"{safe_id}_attempt{attempt}.ts"
     # Ensure function is exported
     export_code = code
-    if f"export function {ts_fn}" not in code:
+    # A solution exporting at the bottom (`export { sumArray };`) is
+    # already exported; splicing `export` onto the declaration too makes
+    # esbuild refuse the whole file.
+    already_exported = (
+        f"export function {ts_fn}" in code
+        or f"export const {ts_fn}" in code
+        or "export {" in code
+        and ts_fn in code.split("export {", 1)[-1].split("}", 1)[0]
+    )
+    if not already_exported:
         export_code = code.replace(f"function {ts_fn}(", f"export function {ts_fn}(")
     code_path.write_text(export_code, encoding="utf-8")
 
@@ -510,6 +560,12 @@ def _evaluate_typescript_code(
     try:
         wrapper_text = build_ts_wrapper(problem, code, f"./{code_path.name}")
     except Unsupported as e:
+        if not _is_an_answer(code, "typescript", entry_point):
+            result["check_pass"] = False
+            result["run_correct"] = False
+            result["tests_total"] = len(test_cases)
+            result["error_message"] = f"no usable {ts_fn}: {e}"
+            return result
         result["run_correct"] = None
         result["tests_total"] = 0
         result["tests_passed"] = 0
@@ -565,7 +621,7 @@ def _evaluate_typescript_code(
         return result
 
     try:
-        test_results = json.loads(proc.stdout)
+        test_results = json.loads((proc.stdout or "").strip().splitlines()[-1])
     except json.JSONDecodeError:
         result["tests_total"] = len(test_cases)
         result["run_correct"] = False

@@ -71,7 +71,15 @@ def _build_python_wrapper(
         "def _norm(v):",
         "    if isinstance(v, (bool, int, float, str)) or v is None: return v",
         "    if isinstance(v, (list, tuple)): return [_norm(x) for x in v]",
-        "    return [type(v).__name__] + [_norm(x) for x in vars(v).values()]",
+        # getattr-based, because vars() raises TypeError on a
+        # __slots__ / @dataclass(slots=True) class — idiomatic modern
+        # Python whose correct solutions were graded 0/N.
+        "    _f = getattr(v, '__dict__', None)",
+        "    if _f is None:",
+        "        _s = getattr(type(v), '__slots__', ())",
+        "        _s = (_s,) if isinstance(_s, str) else _s",
+        "        _f = {k: getattr(v, k, None) for k in _s}",
+        "    return [type(v).__name__] + [_norm(x) for x in _f.values()]",
         "import sys",
         f"sys.path.insert(0, {str(baseline_path.parent)!r})",
         # Star-import so an ADT problem's constructors come with the
@@ -366,7 +374,7 @@ def _parse_subprocess_result(
         )
 
     try:
-        test_results = json.loads(result.stdout)
+        test_results = json.loads((result.stdout or "").strip().splitlines()[-1])
     except json.JSONDecodeError:
         return ProblemResult(
             problem_id=problem_id,

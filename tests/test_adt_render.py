@@ -290,3 +290,63 @@ class TestAdtPrintedQualifier:
         }
         src = "type MyOption\n    MyNone\n    MySome(Int)\n"
         assert adt_printed(problem, src, "aver", {"Some": [3]}) == "MySome(3)"
+
+
+class TestCommentBlindness:
+    """Comments must never reach a declaration scanner.
+
+    Adversarial review of #112 found every scanner regex-matching raw
+    source: a comment inside a Vera data block dropped a constructor, an
+    echoed canonical declaration in a comment shadowed the model's real
+    one, an Aver doc comment mentioning List<Int> flipped a declared-type
+    solution onto nonexistent builtin members, and a TypeScript JSDoc
+    example overrode the real field names. Each mis-graded a correct
+    solution. All five reproductions are pinned here.
+    """
+
+    def test_vera_comment_inside_a_data_block_keeps_constructors(self):
+        from vera_bench.vera_wrapper import parse_data_decls
+
+        src = "private data List {\n  Nil,   -- head and tail\n  Cons(Int, List)\n}\n"
+        assert parse_data_decls(src) == {
+            "List": [("Nil", ()), ("Cons", ("Int", "SELF"))]
+        }
+
+    def test_a_commented_out_declaration_does_not_shadow_the_real_one(self):
+        from vera_bench.vera_wrapper import parse_data_decls
+
+        src = (
+            "-- Canonical: data List { Nil, Cons(Int, List) }\n"
+            "private data L2 {\n  Empty,\n  Node(Int, L2)\n}\n"
+        )
+        assert list(parse_data_decls(src)) == ["L2"]
+
+    def test_effects_quoted_in_a_comment_is_not_mirrored(self):
+        from vera_bench.vera_wrapper import entry_effects
+
+        src = (
+            "public fn f(@Int -> @Int)\n"
+            "  -- every function needs requires(), ensures(), effects()\n"
+            "  requires(true)\n  ensures(true)\n  effects(pure)\n{\n  @Int.0\n}\n"
+        )
+        assert entry_effects(src, "f") == "effects(pure)"
+
+    def test_aver_builtin_mentioned_in_a_comment_is_not_a_builtin(self):
+        src = (
+            "-- uses its own type rather than the builtin List<Int>.\n"
+            "type MyList\n    Nil\n    Cons(Int, MyList)\n"
+        )
+        assert uses_native_collection(src, LIST) is False
+
+    def test_typescript_jsdoc_example_does_not_override_the_declaration(self):
+        src = (
+            '/** @example listLength({ tag: "Cons", head: 1, tail: { tag: "Nil" } }) */\n'
+            'type List = { kind: "Nil" } | { kind: "Cons"; head: number; tail: List };'
+        )
+        assert infer_ts_discriminant(src) == "kind"
+        assert [n for n, _ in infer_ts_fields(src)["Cons"]] == ["head", "tail"]
+
+    def test_a_marker_inside_a_string_literal_is_code_not_a_comment(self):
+        from vera_bench.adt_render import strip_comments
+
+        assert '"a -- b"' in strip_comments('let x = "a -- b"  -- gone', "vera")

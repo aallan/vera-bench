@@ -51,6 +51,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Comments could silently flip a grading outcome, in all five
+  languages.** Every declaration scanner was a regex over raw source, so
+  comment text was indistinguishable from code: a comment inside a Vera
+  `data` block dropped a constructor, a commented-out canonical
+  declaration shadowed the model's real one, a comment quoting the
+  "requires(), ensures(), effects()" rule was mirrored into the wrapper
+  as invalid `effects()`, an Aver doc comment merely mentioning
+  `List<Int>` flipped a declared-type solution onto builtin members that
+  do not exist, and a TypeScript JSDoc `@example` overrode the real
+  declaration's field names. Each recorded a correct solution as a wrong
+  answer, and models comment their code constantly. Scanners now strip
+  comments first, string-literal-aware so a `--` inside a string stays
+  code.
+- **A refusal scored better than a wrong answer.** Both the Python and
+  TypeScript evaluators reached the ADT mapper before the model's code
+  was parsed at all, so a prose refusal took the decline path — and
+  since declines leave the pass@1 denominator, not answering beat
+  answering wrongly. Declining now requires the code to be an answer:
+  parseable, with the entry point present.
+- **The decline label was forgeable.** `_declined` substring-matched
+  "test wrapper unavailable" anywhere in `error_message`, and a
+  compile-failure row carries the compiler's diagnostic — which quotes
+  the model's own source. A model that wrote the phrase had its problem
+  removed from the denominator. The marker is now anchored at the start
+  and paired with `check_pass`, two conditions only the harness can
+  satisfy together.
+- **`sweep_status.py` crashed on the first decline row** — the new
+  bucket was added to `classify()` but not to the counter dict, so the
+  sweep's only live monitor died with a KeyError.
+- **Generated Python `_norm` called `vars()`**, which raises on a
+  `__slots__` or `@dataclass(slots=True)` class — idiomatic modern
+  Python, graded 0/N. It reads `__slots__` when there is no `__dict__`.
+- **Legal-but-unlucky solutions were mis-graded**: a Vera `@String` test
+  case containing non-ASCII emitted `\uXXXX` where Vera spells escapes
+  `\u{...}`; a TypeScript solution exporting at the bottom
+  (`export { fn };`) had `export` spliced onto its declaration too, and
+  esbuild refused the file; any legal print outside the capture window
+  corrupted the whole-stdout JSON protocol (the result line is now
+  parsed as the last line, not the whole stream); and a `verify error`
+  masked the Vera decline label so an abstention read as a wrong answer.
+
 - **The aver and AILANG LLM evaluators could not grade what the
   baselines grade.** Baselines run the canonical mains; graded code goes
   through per-language argument synthesis the baselines never touch, and

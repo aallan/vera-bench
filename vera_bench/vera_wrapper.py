@@ -137,7 +137,10 @@ def render_value(value: object, vera_type: str) -> str:
     if vera_type == "@String":
         if not isinstance(value, str):
             raise Unsupported(f"{value!r} is not a string")
-        return json.dumps(value)
+        # ensure_ascii=False: Vera spells escapes \u{...}, so json's
+        # default \uXXXX for non-ASCII is a parse error and a legal
+        # unicode test case failed a correct solution.
+        return json.dumps(value, ensure_ascii=False)
     if vera_type == "@Float64":
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise Unsupported(f"{value!r} is not a number")
@@ -152,9 +155,11 @@ def entry_effects(source: str, entry_point: str) -> str:
     entry point does not compile, and the entry point's effects are the
     model's choice, not ours.
     """
+    from vera_bench.adt_render import strip_comments
+
     match = re.search(
         rf"\bfn\s+{re.escape(entry_point)}\s*\(.*?\)(.*?)\{{",
-        source,
+        strip_comments(source, "vera"),
         re.S,
     )
     if match:
@@ -286,8 +291,10 @@ def parse_data_decls(source: str) -> dict[str, list[tuple[str, tuple[str, ...]]]
     which is what makes structural matching work across a model's own
     choice of type name.
     """
+    from vera_bench.adt_render import strip_comments
+
     out: dict[str, list[tuple[str, tuple[str, ...]]]] = {}
-    for match in _DATA.finditer(source):
+    for match in _DATA.finditer(strip_comments(source, "vera")):
         type_name, body = match.group(1), match.group(2)
         ctors: list[tuple[str, tuple[str, ...]]] = []
         for raw in _split_types(body):

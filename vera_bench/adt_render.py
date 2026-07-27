@@ -39,6 +39,80 @@ from vera_bench.vera_wrapper import Unsupported, parse_signature
 _SCALARS = frozenset({"Int", "Nat", "Bool", "String", "Float64"})
 
 
+#: Line-comment markers per language. Vera and AILANG use `--`, Aver
+#: accepts both, TypeScript `//` (plus block comments), Python `#`.
+_LINE_COMMENT = {
+    "vera": ("--",),
+    "aver": ("--", "//"),
+    "ailang": ("--",),
+    "typescript": ("//",),
+    "python": ("#",),
+}
+
+
+def strip_comments(source: str, language: str) -> str:
+    """Blank out comments, preserving line/column structure.
+
+    Every declaration scanner in this harness is a regex over raw
+    source, so a comment is indistinguishable from code to them. That is
+    not academic: a comment inside a Vera `data` block drops a
+    constructor, a commented-out canonical declaration shadows the
+    model's real one, a doc comment mentioning `List<Int>` flips an Aver
+    solution onto nonexistent builtin members, and a JSDoc `@example`
+    overrides a TypeScript declaration's field names — each recording a
+    correct solution as a wrong answer.
+
+    Comment bodies are replaced with spaces rather than removed so that
+    any offset a caller derives still lines up. String literals are
+    honoured: a `--` or `//` inside a string is code, not a comment.
+    """
+    markers = _LINE_COMMENT.get(language, ("--", "//", "#"))
+    out = []
+    in_str: str | None = None
+    block = False
+    i = 0
+    n = len(source)
+    while i < n:
+        ch = source[i]
+        if block:
+            if source.startswith("*/", i):
+                out.append("  ")
+                i += 2
+                block = False
+            else:
+                out.append(" " if ch != "\n" else "\n")
+                i += 1
+            continue
+        if in_str:
+            out.append(ch)
+            if ch == "\\" and i + 1 < n:
+                out.append(source[i + 1])
+                i += 2
+                continue
+            if ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch in "\"'":
+            in_str = ch
+            out.append(ch)
+            i += 1
+            continue
+        if language == "typescript" and source.startswith("/*", i):
+            out.append("  ")
+            i += 2
+            block = True
+            continue
+        if any(source.startswith(m, i) for m in markers):
+            while i < n and source[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _scalar(value: object, type_name: str, language: str) -> str:
     if type_name == "Bool":
         truthy = bool(value) if not isinstance(value, str) else value == "true"
@@ -110,7 +184,7 @@ def infer_ts_discriminant(source: str) -> str:
     `{ tag: … }` object handed to code switching on `.kind` reads
     undefined and fails a correct solution.
     """
-    m = _TS_TAGGED.search(source)
+    m = _TS_TAGGED.search(strip_comments(source, "typescript"))
     return m.group(1) if m else "tag"
 
 
@@ -131,6 +205,7 @@ def infer_ts_fields(source: str) -> dict[str, list[tuple[str, str | None]]]:
     `{ tag: "Cons", head: 1, … }`, whose values are not types; value
     literals contribute names with `None` types as a fallback only.
     """
+    source = strip_comments(source, "typescript")
     fields: dict[str, list[tuple[str, str | None]]] = {}
     typed: dict[str, bool] = {}
     for match in _TS_TAGGED.finditer(source):
@@ -345,6 +420,7 @@ _DECL = {
 
 def declared_names(source: str, language: str) -> list[str]:
     """Constructor-ish names the solution declares, best effort per language."""
+    source = strip_comments(source, language)
     if language == "ailang":
         names: list[str] = []
         for m in _DECL["ailang"].finditer(source):
@@ -367,9 +443,17 @@ def uses_native_collection(source: str, spec: dict) -> bool:
     a linked list", so it is rendered as a native literal rather than
     counted against the solution.
     """
-    return bool(re.search(r"\b(List|Option)<", source)) and not declared_names(
-        source, "aver"
-    )
+    # Per-TYPE, and comment-blind no longer: a doc comment merely
+    # mentioning List<Int>, or an unrelated declared type elsewhere in
+    # the file, used to flip a correct solution onto builtin members
+    # that do not exist.
+    src = strip_comments(source, "aver")
+    type_name = spec.get("type", "")
+    if not re.search(rf"\b{re.escape(type_name)}<", src):
+        return False
+    wanted = {c["name"].lower() for c in spec.get("constructors", [])}
+    declared = {n.lower() for n in declared_names(src, "aver")}
+    return not (wanted <= declared)
 
 
 def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
@@ -380,6 +464,7 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
     language already provides needs no declaration to be matched.
     """
     type_name = spec.get("type", "")
+    source = strip_comments(source, language)
     if language == "aver" and re.search(rf"\b{re.escape(type_name)}<", source):
         return {}
     declared = declared_names(source, language)

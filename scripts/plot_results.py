@@ -345,10 +345,28 @@ def _gradeable_ids(version: str | None = None) -> set[str]:
     }
 
 
+#: The harness writes this prefix itself when it cannot build a caller.
+#: Anchored at the start and paired with check_pass, because a
+#: compile-failure row carries the compiler's diagnostic — which quotes
+#: the model's own source. A model that wrote the phrase could otherwise
+#: have its problem removed from the denominator instead of counted as
+#: a failure, which is precisely what this exclusion must not allow.
+_DECLINE_PREFIX = "test wrapper unavailable:"
+
+
 def _declined(row: dict) -> bool:
-    """A harness decline: ungraded because WE could not build a caller."""
-    return "run_correct" not in row and "test wrapper unavailable" in (
-        row.get("error_message") or ""
+    """A harness decline: ungraded because WE could not build a caller.
+
+    Three conditions, all harness-controlled: no run_correct verdict,
+    the code compiled (so this is not a compile failure whose diagnostic
+    merely quotes the model), and the message STARTS with the marker the
+    harness writes. A model cannot satisfy the second and third at once
+    with anything it writes.
+    """
+    return (
+        "run_correct" not in row
+        and row.get("check_pass") is True
+        and (row.get("error_message") or "").startswith(_DECLINE_PREFIX)
     )
 
 
