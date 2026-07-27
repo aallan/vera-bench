@@ -116,7 +116,35 @@ class TestNoHardcodedVersions:
         ]
         assert not offenders, offenders
 
-    def test_the_chart_scripts_default_to_the_installed_version(self):
+    def test_run_sweep_does_not_re_derive_a_version_with_a_regex(self):
+        # A `[0-9]+\.[0-9]+\.[0-9]+` match keeps only the numeric head, so
+        # a prerelease (`0.0.19rc1`) becomes `0.0.19` — a name the CLI
+        # never writes, which is this bug wearing a different hat. Both
+        # versions must be read from the code that writes them.
+        text = (SCRIPTS / "run_sweep.sh").read_text()
+        offenders = [
+            ln
+            for ln in text.splitlines()
+            if r"[0-9]+\.[0-9]+" in ln and not ln.lstrip().startswith("#")
+        ]
+        assert not offenders, offenders
+
+    def test_run_sweep_builds_every_result_name_through_results_path(self):
+        # A hand-assembled name is a second construction, free to drift
+        # from the one `vera-bench run` uses. The aver/ailang globs were
+        # the last two; their compiler segment is a wildcard, but the name
+        # around it still comes from results_path.
+        text = (SCRIPTS / "run_sweep.sh").read_text()
+        offenders = [
+            ln
+            for ln in text.splitlines()
+            if ".jsonl" in ln
+            and "result_file" not in ln
+            and not ln.lstrip().startswith("#")
+        ]
+        assert not offenders, offenders
+
+    def test_the_chart_scripts_default_to_the_repo_version(self):
         # Running a chart script with no arguments must plot THIS
         # release, not whichever one was current when it was written.
         for script in ("plot_results.py", "plot_slide.py", "plot_narrative.py"):
@@ -124,7 +152,11 @@ class TestNoHardcodedVersions:
             block = text[text.index('"--version"') :][:400]
             assert "_default_version()" in block, script
 
-    def test_default_version_tracks_the_package(self):
+    def test_default_version_agrees_with_the_package(self):
+        # The charts read the repo's pyproject.toml; the sweep scripts read
+        # the installed `vera_bench.__version__`. Two sources, so they are
+        # pinned to agree — a release that bumped one and not the other
+        # would have charts and sweeps naming different eras.
         sys.path.insert(0, str(REPO_ROOT))
         from scripts.plot_results import _default_version
 

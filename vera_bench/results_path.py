@@ -69,7 +69,16 @@ def result_filename(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Print one target's filename, for the shell to consume."""
+    """Print one target's filename, for the shell to consume.
+
+    Deliberately argparse and a bare `print`, not the repo's click + rich
+    house style. This is a machine interface: its single line of output is
+    captured by `$(...)` in run_sweep.sh. `rich` wraps at 80 columns when
+    stdout is not a terminal — precisely the case here — so a long enough
+    name comes back with a newline through the middle of it, and square
+    brackets in a model id would be eaten as console markup. click and
+    rich remain right for `vera-bench` itself, which a person types.
+    """
     ap = argparse.ArgumentParser(
         prog="python -m vera_bench.results_path",
         description="Print the result filename vera-bench run would write.",

@@ -80,13 +80,16 @@ def _bench_version() -> str:
 
     Derived, never hardcoded: a literal here silently surveyed the
     PREVIOUS release's files, reporting a finished older sweep as though
-    it were the current one.
+    it were the current one. The dash spelling is borrowed from
+    `results_path` rather than repeated, so this survey cannot drift from
+    the construction it is meant to be looking at.
     """
     try:
         from vera_bench import __version__
+        from vera_bench.results_path import version_slug
     except Exception:  # pragma: no cover - packaging edge
         return "0-0-0"
-    return __version__.replace(".", "-")
+    return version_slug(__version__)
 
 
 def classify(msg: str) -> str:

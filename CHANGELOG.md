@@ -33,8 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Chart scripts defaulted to superseded releases**: `plot_narrative.py`
   to 0.0.16 and `plot_slide.py` to 0.0.7, so running either with no
   arguments plotted old data as though it were current. Both now derive
-  the default from the installed version, as `plot_results.py` already
-  did.
+  the default from the repo's `pyproject.toml`, as `plot_results.py`
+  already did.
 - **`preflight.sh` referred four times to `run_full_benchmark.py`**,
   deleted in v0.0.16, including in the models line it prints. The gate
   reads `vera_bench/matrix.py` and always did; only the labelling was
