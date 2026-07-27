@@ -272,10 +272,15 @@ def align_kwonly(
     value to the wrong field — `Cons(tail=1, head=Nil())` — which is a
     mis-grade, strictly worse than the false decline this ordering
     tolerance replaced. Fields are matched to arguments by declared
-    type, exactly as the TypeScript path aligns its own. A constructor
-    that cannot be aligned is dropped, so it renders positionally and
-    any real mismatch surfaces as an honest failure rather than a
-    silently scrambled call.
+    type, exactly as the TypeScript path aligns its own.
+
+    A constructor that cannot be aligned raises `Unsupported`, leaving
+    the problem ungraded. It is deliberately NOT dropped: dropping falls
+    back to positional rendering, which a keyword-only class rejects
+    with `TypeError` — published as the model's wrong answer. Where
+    types are unreadable the canonical field names are used instead,
+    when they biject with the declared ones, so that case is still
+    graded rather than declined.
     """
     shapes = declared_shape(source, "python")
     type_name = spec.get("type", "")
@@ -300,7 +305,7 @@ def align_kwonly(
                 # use them when they biject, and decline otherwise.
                 if canonical and set(canonical) == set(field_names):
                     out[actual] = list(canonical)
-                elif not field_names:
+                elif not field_names and not canonical:
                     out[actual] = []
                 else:
                     raise Unsupported(

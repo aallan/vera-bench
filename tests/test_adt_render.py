@@ -755,6 +755,45 @@ class TestIdiomsThatUsedToDecline:
         assert shapes.get("Lit") == ("int",)
         assert "Add" not in shapes
 
+    def test_a_fieldless_kwonly_class_declines_against_a_non_nullary_ctor(self):
+        # `[]` is only alignable against a NULLARY canonical
+        # constructor. Accepting it for `Branch(Tree, Tree)` produced an
+        # empty kwargs list, which falls back to positional rendering —
+        # rejected by a keyword-only class with TypeError and published
+        # as the model's wrong answer (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass Tree: pass\n"
+            "@dataclass(kw_only=True)\nclass Leaf(Tree):\n    value: int\n"
+            "@dataclass(kw_only=True)\nclass Branch(Tree): pass\n"
+        )
+        with pytest.raises(Unsupported):
+            align_kwonly(
+                python_kwonly_fields(src),
+                src,
+                TREE,
+                {"Leaf": "Leaf", "Branch": "Branch"},
+            )
+
+    def test_a_genuinely_nullary_constructor_still_aligns_to_empty(self):
+        # The guard must not break the case it looks like: a nullary
+        # canonical constructor legitimately has no fields.
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass Option: pass\n"
+            "@dataclass(kw_only=True)\nclass NoneOpt(Option): pass\n"
+            "@dataclass(kw_only=True)\nclass Some(Option):\n    value: int\n"
+        )
+        aligned = align_kwonly(
+            python_kwonly_fields(src),
+            src,
+            OPTION,
+            {"None": "NoneOpt", "Some": "Some"},
+        )
+        assert aligned == {"NoneOpt": [], "Some": ["value"]}
+
     def test_kw_only_dataclass_is_constructed_by_keyword(self):
         from vera_bench.adt_render import python_kwonly_fields
 
