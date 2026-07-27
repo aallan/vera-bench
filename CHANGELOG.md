@@ -51,6 +51,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A legal-but-unconventional declaration was graded wrong instead of
+  declining.** `resolve_names` — serving Python, TypeScript, Aver and
+  AILANG — matched constructors by name and never checked the declared
+  shape, so a solution writing `Cons(List, Int)` (a swap, internally
+  consistent and permitted by the problem statement) had canonical-order
+  arguments rendered into it and failed at runtime as the model's wrong
+  answer. The Vera path has declined that since v0.0.18's first cut;
+  the other four now read declared argument types where the language
+  shows them (Aver, AILANG, annotated Python) and decline on mismatch.
+  Unannotated Python stays permissive — unreadable is not the same as
+  wrong.
+- **Idioms each language's own documentation teaches were declined.**
+  TypeScript `readonly` members and declarations whose discriminant is
+  not the first field were invisible to field inference; AILANG's
+  generic `type MyList[a] = …` never matched, and its auto-imported
+  prelude `Option`/`Some`/`None` has no declaration to match at all;
+  `@dataclass(kw_only=True)` was constructed positionally and raised
+  `TypeError`. Each ungraded or failed a correct solution.
+- **A test-case string containing `{…}` or `${…}` was silently
+  re-evaluated** by Aver's and AILANG's string interpolation, calling
+  the function with a different value than the case specifies. Those
+  decline now rather than grade against an argument we did not send.
+- **`rerun_failed.py` lost re-run code under version drift** — it looked
+  for the canonical file's stem in the scratch tree, which names its
+  output with current versions, so a repaired row kept pointing at the
+  original failed attempt's stored code.
+
 - **Comments could silently flip a grading outcome, in all five
   languages.** Every declaration scanner was a regex over raw source, so
   comment text was indistinguishable from code: a comment inside a Vera

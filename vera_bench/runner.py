@@ -793,6 +793,8 @@ def _evaluate_aver_code(
         # Unsupported declines the whole problem to ungraded, same
         # contract as every other evaluator.
         try:
+            for _a in args:
+                _interpolation_safe(_a, "aver")
             adt_args = _adt_call(problem, code_without_main, "aver", args)
             printed = _adt_printed(problem, code_without_main, "aver", expected)
         except Unsupported as e:
@@ -1110,6 +1112,8 @@ def _evaluate_ailang_code(
         expected = tc.get("expected")
         # Same ADT and @Unit handling as the Aver evaluator above.
         try:
+            for _a in args:
+                _interpolation_safe(_a, "ailang")
             adt_args = _adt_call(problem, code_without_main, "ailang", args)
             printed = _adt_printed(problem, code_without_main, "ailang", expected)
         except Unsupported as e:
@@ -1270,6 +1274,37 @@ def _strip_module_effects(code: str) -> str:
             continue
         out.append(line)
     return "\n".join(out)
+
+
+def _interpolation_safe(value: object, language: str) -> None:
+    """Refuse a string the target language would re-interpolate.
+
+    Recurses: a test-case argument is often a list or a tagged
+    constructor, and VB-T2-006 passes a list of strings today, so a
+    top-level-only check missed the values that actually reach the
+    interpolator.
+
+    The Aver call is built inside `Console.print("{fn(...)}")` and
+    AILANG's strings interpolate `${...}`, so a test-case string
+    containing those markers is EVALUATED rather than passed — the
+    function is silently called with a different value than the case
+    specifies. Declining beats grading against an argument we did not
+    send.
+    """
+    if isinstance(value, dict):  # a tagged constructor: {"Some": [...]}
+        for nested in value.values():
+            _interpolation_safe(nested, language)
+        return
+    if isinstance(value, (list, tuple)):
+        for nested in value:
+            _interpolation_safe(nested, language)
+        return
+    if not isinstance(value, str):
+        return
+    if language == "aver" and ("{" in value or "}" in value):
+        raise Unsupported(f"aver would re-interpolate {value!r}")
+    if language == "ailang" and "${" in value:
+        raise Unsupported(f"ailang would re-interpolate {value!r}")
 
 
 def _aver_literal(value) -> str:

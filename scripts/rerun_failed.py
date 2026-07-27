@@ -139,10 +139,21 @@ def copy_code(scratch: str, canonical: str, pid: str) -> None:
     fresh rows, stale code, under identical names. Runs inside the
     per-pid scratch's lifetime; splice() happens after it is deleted.
     """
+    # The scratch run names its output with the CURRENT bench and
+    # compiler versions, which need not match the canonical file being
+    # repaired. Deriving the stem from the canonical name silently found
+    # nothing and left the spliced row pointing at the original failed
+    # attempt's code, so read whatever stem the scratch actually wrote.
     stem = os.path.splitext(os.path.basename(canonical))[0]
-    src = os.path.join(scratch, "code", stem)
-    if not os.path.isdir(src):
+    code_root = os.path.join(scratch, "code")
+    if not os.path.isdir(code_root):
         return
+    scratch_stems = os.listdir(code_root)
+    src = os.path.join(code_root, stem)
+    if not os.path.isdir(src):
+        if len(scratch_stems) != 1:
+            return
+        src = os.path.join(code_root, scratch_stems[0])
     dest = os.path.join(os.path.dirname(canonical), "code", stem)
     os.makedirs(dest, exist_ok=True)
     for name in os.listdir(src):

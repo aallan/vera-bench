@@ -34,6 +34,14 @@ LIST = {
         {"name": "Cons", "args": ["Int", "List"], "fields": ["head", "tail"]},
     ],
 }
+TREE = {
+    "type": "Tree",
+    "form": "tagged",
+    "constructors": [
+        {"name": "Leaf", "args": ["Int"], "fields": ["value"]},
+        {"name": "Branch", "args": ["Tree", "Tree"], "fields": ["left", "right"]},
+    ],
+}
 OPTION = {
     "type": "Option",
     "form": "tagged",
@@ -239,7 +247,11 @@ class TestResolveNamesWidening:
     """The declaration forms the first regexes missed (review of #112)."""
 
     def test_bare_and_dataclass_python_classes_resolve(self):
-        src = "class Nil:\n    pass\n\n@dataclass\nclass Cons:\n    head: int\n"
+        src = (
+            "class List: pass\n"
+            "class Nil(List):\n    pass\n\n"
+            "@dataclass\nclass Cons(List):\n    head: int\n    tail: List\n"
+        )
         assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
 
     def test_multiline_ailang_type_resolves(self):
@@ -352,3 +364,518 @@ class TestCommentBlindness:
         from vera_bench.adt_render import strip_comments
 
         assert '"a -- b"' in strip_comments('let x = "a -- b"  -- gone', "vera")
+
+
+class TestDeclaredShapeGuard:
+    """A swapped-but-legal declaration declines instead of grading wrong.
+
+    The Vera path has validated declared shape since #112; the other four
+    matched by name alone, so a spec-compliant `Cons(List, Int)` was
+    rendered in canonical order and failed at runtime — the model's
+    "wrong answer". Adversarial review of #112, filed as #113.
+    """
+
+    def test_swapped_shape_declines_in_every_readable_language(self):
+        cases = [
+            ("ailang", "type MyList = MyNil | MyCons(MyList, int)"),
+            ("aver", "type MyList\n    Nil\n    Cons(MyList, Int)\n"),
+            (
+                "python",
+                "class List: pass\nclass Nil(List): pass\n"
+                "class Cons(List):\n"
+                "    def __init__(self, tail: List, head: int): pass\n",
+            ),
+        ]
+        for language, src in cases:
+            with pytest.raises(Unsupported):
+                resolve_names(src, LIST, language)
+
+    def test_correct_shapes_still_map(self):
+        cases = [
+            ("ailang", "type MyList = MyNil | MyCons(int, MyList)"),
+            ("aver", "type MyList\n    Nil\n    Cons(Int, MyList)\n"),
+            (
+                "python",
+                "class List: pass\nclass Nil(List): pass\n"
+                "class Cons(List):\n"
+                "    def __init__(self, head: int, tail: List): pass\n",
+            ),
+        ]
+        for language, src in cases:
+            assert resolve_names(src, LIST, language)
+
+    def test_unannotated_python_is_unverifiable_not_a_mismatch(self):
+        # No annotations means we cannot read the shape; declining would
+        # ungrade correct solutions wholesale.
+        src = (
+            "class List: pass\nclass Nil(List): pass\n"
+            "class Cons(List):\n    def __init__(self, head, tail): pass\n"
+        )
+        assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+
+class TestIdiomsThatUsedToDecline:
+    """Legal idioms each language's own docs teach (#113)."""
+
+    def test_readonly_typescript_declaration(self):
+        src = (
+            'type List = { readonly tag: "Nil" } | '
+            '{ readonly tag: "Cons"; readonly head: number; '
+            "readonly tail: List };"
+        )
+        fields = infer_ts_fields(src)
+        assert [n for n, _ in fields["Cons"]] == ["head", "tail"]
+        # types survive, so order alignment still works
+        assert all(t is not None for _, t in fields["Cons"])
+
+    def test_discriminant_need_not_come_first(self):
+        src = 'type List = { head: number; tail: List; tag: "Cons" };'
+        assert [n for n, _ in infer_ts_fields(src)["Cons"]] == ["head", "tail"]
+
+    def test_ailang_generic_type_parameters(self):
+        src = "type MyList[a] = MyNil | MyCons(a, MyList[a])"
+        assert resolve_names(src, LIST, "ailang") == {
+            "Nil": "MyNil",
+            "Cons": "MyCons",
+        }
+
+    def test_ailang_prelude_type_needs_no_declaration(self):
+        # Option/Some/None are auto-imported; there is nothing to match.
+        src = "export func f(x: int) -> Option[int] = Some(x)\nlet y = None"
+        assert resolve_names(src, OPTION, "ailang") == {}
+
+    def test_kw_only_dataclass_may_declare_fields_in_any_order(self):
+        # Built by name, so declaration order carries no meaning;
+        # comparing positionally declined a correct solution (CR on
+        # #114). A genuine arity mismatch must still decline.
+        src = (
+            "from dataclasses import dataclass\n"
+            "class List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    tail: List\n    head: int\n"
+        )
+        assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+        extra = src.replace("    head: int\n", "    head: int\n    x: int\n")
+        with pytest.raises(Unsupported):
+            resolve_names(extra, LIST, "python")
+
+    def test_reordered_kw_only_binds_values_to_the_right_fields(self):
+        # Accepting a reordered declaration is only half of it: the
+        # rendered VALUES are in canonical order while the names come
+        # from the declaration, so zipping them produced
+        # `Cons(tail=1, head=Nil())` — a mis-grade, strictly worse than
+        # the false decline it replaced (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\n"
+            "class List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    tail: List\n    head: int\n"
+        )
+        aligned = align_kwonly(python_kwonly_fields(src), src, LIST)
+        assert aligned["Cons"] == ["head", "tail"]
+        out = render([1], LIST, "python", py_kwonly=aligned)
+        assert out == "Cons(head=1, tail=Nil())"
+
+    def test_only_a_real_dataclass_decorator_means_kw_only(self):
+        # An unrelated decorator taking a kw_only keyword would
+        # otherwise have its class built by keyword against a positional
+        # signature (CR on #114).
+        from vera_bench.adt_render import python_kwonly_fields
+
+        bogus = (
+            "def register(kw_only=True):\n    return lambda c: c\n"
+            "class List: pass\n"
+            "@register(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(bogus) == {}
+        aliased = (
+            "from dataclasses import dataclass as dc\n"
+            "class List: pass\n"
+            "@dc(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(aliased)["Cons"] == ["head", "tail"]
+
+    def test_dataclass_alias_resolution_is_module_scoped(self):
+        # A nested import must not authorise a module-level decorator of
+        # the same name, and a module-level rebinding must revoke one
+        # (CR on #114). Getting it wrong builds a positional constructor
+        # by keyword.
+        from vera_bench.adt_render import python_kwonly_fields
+
+        nested = (
+            "def helper():\n"
+            "    from dataclasses import dataclass as dc\n"
+            "    return dc\n"
+            "def dc(kw_only=True):\n    return lambda c: c\n"
+            "class List: pass\n"
+            "@dc(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(nested) == {}
+
+        shadowed = (
+            "from dataclasses import dataclass as dc\n"
+            "def dc(kw_only=True):\n    return lambda c: c\n"
+            "class List: pass\n"
+            "@dc(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(shadowed) == {}
+
+        dotted = (
+            "import dataclasses\n"
+            "class List: pass\n"
+            "@dataclasses.dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(dotted)["Cons"] == ["head", "tail"]
+
+    def test_a_declaration_outranks_a_literal_for_the_discriminant(self):
+        # A seed constant written before the type would otherwise pick
+        # the discriminant, and the wrapper would build `{ kind: … }`
+        # against a `tag` union — the solution's own switch then reads
+        # undefined and a correct answer grades 0 (CR on #114).
+        src = (
+            'const seed = { kind: "Nil" };\n'
+            'type List = { tag: "Nil" } | '
+            '{ tag: "Cons"; head: number; tail: List };'
+        )
+        assert infer_ts_discriminant(src) == "tag"
+        out = render(
+            [1],
+            LIST,
+            "typescript",
+            ts_fields=infer_ts_fields(src),
+            ts_disc=infer_ts_discriminant(src),
+        )
+        assert out == '{ tag: "Cons", head: 1, tail: { tag: "Nil" } }'
+        # A genuine kind-discriminated union is still honoured.
+        kind = "type List = { kind: 'Nil' } | { kind: 'Cons'; head: number };"
+        assert infer_ts_discriminant(kind) == "kind"
+
+    def test_declaration_region_spans_semicolons_inside_braces(self):
+        # `;` is also the field separator INSIDE a union member, so a
+        # pattern ending at the first semicolon truncated the region,
+        # left no complete block in it, and fell through to the
+        # whole-source scan — where a literal could pick the
+        # discriminant again, defeating the declaration-first rule
+        # (CR on #114).
+        src = (
+            'const seed = { kind: "Nil" };\n'
+            'type List = { tag: "Cons"; head: number; tail: List } '
+            '| { tag: "Nil" };'
+        )
+        assert infer_ts_discriminant(src) == "tag"
+        out = render(
+            [1],
+            LIST,
+            "typescript",
+            ts_fields=infer_ts_fields(src),
+            ts_disc=infer_ts_discriminant(src),
+        )
+        assert out == '{ tag: "Cons", head: 1, tail: { tag: "Nil" } }'
+
+    def test_declaration_without_a_trailing_semicolon(self):
+        assert (
+            infer_ts_discriminant('type List = { tag: "Cons"; head: number }') == "tag"
+        )
+
+    def test_a_payload_field_named_kind_survives_a_tag_union(self):
+        # Excluding both spellings deleted a legitimate payload field,
+        # leaving the constructor an argument short (CR on #114).
+        src = 'type T = { tag: "Item"; kind: number; label: string };'
+        assert [n for n, _ in infer_ts_fields(src)["Item"]] == ["kind", "label"]
+
+    def test_duplicate_type_fields_resolve_by_name_or_decline(self):
+        # Branch(Tree, Tree): types cannot say which declared field is
+        # which, and declaration order is not a proxy for semantic order
+        # once reordering is accepted — guessing silently reverses the
+        # children (CR on #114). Canonical names resolve it; anything
+        # else must decline rather than guess.
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        def src(order):
+            fields = "".join(f"    {n}\n" for n in order)
+            return (
+                "from dataclasses import dataclass\nclass Tree: pass\n"
+                "@dataclass(kw_only=True)\nclass Leaf(Tree):\n    value: int\n"
+                f"@dataclass(kw_only=True)\nclass Branch(Tree):\n{fields}"
+            )
+
+        canonical = src(["right: Tree", "left: Tree"])
+        aligned = align_kwonly(python_kwonly_fields(canonical), canonical, TREE)
+        assert aligned["Branch"] == ["left", "right"]
+
+        ambiguous = src(["b: Tree", "a: Tree"])
+        with pytest.raises(Unsupported):
+            align_kwonly(python_kwonly_fields(ambiguous), ambiguous, TREE)
+
+    def test_an_unrelated_kwonly_helper_does_not_decline_the_problem(self):
+        # align_kwonly scanned every keyword-only class, so a helper
+        # dataclass of the same arity hit the ambiguity branch and
+        # declined the whole problem (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass Tree: pass\n"
+            "@dataclass(kw_only=True)\nclass Leaf(Tree):\n    value: int\n"
+            "@dataclass(kw_only=True)\nclass Branch(Tree):\n"
+            "    left: Tree\n    right: Tree\n"
+            "@dataclass(kw_only=True)\nclass Span:\n    lo: int\n    hi: int\n"
+        )
+        aligned = align_kwonly(python_kwonly_fields(src), src, TREE)
+        assert aligned["Branch"] == ["left", "right"]
+
+    def test_an_attribute_annotation_does_not_crash(self):
+        # `obj.attr: int` is a legal AnnAssign whose target is an
+        # Attribute; reading .id raised AttributeError (CR on #114).
+        from vera_bench.adt_render import python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass C: pass\n"
+            "@dataclass(kw_only=True)\nclass D(C):\n"
+            "    x: int\n    obj.attr: int\n"
+        )
+        assert python_kwonly_fields(src)["D"] == ["x"]
+
+    def test_unknown_types_are_unverifiable_in_the_kwonly_path_too(self):
+        # The positional path treats an uninterpretable type name as
+        # unverifiable; the keyword-only path compared raw tokens and
+        # would false-decline (CR on #114).
+        spec = {
+            "type": "T",
+            "form": "tagged",
+            "constructors": [
+                {"name": "Node", "args": ["Widget", "Gadget"], "fields": ["a", "b"]}
+            ],
+        }
+        src = (
+            "from dataclasses import dataclass\nclass T: pass\n"
+            "@dataclass(kw_only=True)\nclass Node(T):\n"
+            "    a: Widget\n    b: Gadget\n"
+        )
+        assert resolve_names(src, spec, "python") == {"Node": "Node"}
+
+    def test_kwonly_scalar_disagreement_declines(self):
+        # The keyword-only branch normalises through the equivalence
+        # table and then compares; this pins that a REAL scalar
+        # disagreement is still caught there (mirroring the positional
+        # test), and that normalising twice does not accidentally make
+        # str and Int compare equal (CR on #114).
+        src = (
+            "from dataclasses import dataclass\nclass List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    head: str\n    tail: List\n"
+        )
+        with pytest.raises(Unsupported):
+            resolve_names(src, LIST, "python")
+        # The same shape with the right scalar still maps.
+        ok = src.replace("head: str", "head: int")
+        assert resolve_names(ok, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+    def test_a_keyword_only_constructor_never_falls_back_to_positional(self):
+        # An unannotated keyword-only __init__ has readable NAMES but no
+        # types, so alignment used to drop it — and dropping means
+        # positional rendering, which a keyword-only class rejects with
+        # TypeError, published as the model's wrong answer (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        def src(params):
+            return (
+                "class List: pass\nclass Nil(List): pass\n"
+                "class Cons(List):\n"
+                f"    def __init__(self, *, {params}):\n        pass\n"
+            )
+
+        canonical = src("head, tail")
+        aligned = align_kwonly(
+            python_kwonly_fields(canonical),
+            canonical,
+            LIST,
+            {"Nil": "Nil", "Cons": "Cons"},
+        )
+        assert aligned["Cons"] == ["head", "tail"]
+
+        # Names that do not match the canonical ones cannot be ordered
+        # without types: decline rather than render positionally.
+        other = src("a, b")
+        with pytest.raises(Unsupported):
+            align_kwonly(
+                python_kwonly_fields(other),
+                other,
+                LIST,
+                {"Nil": "Nil", "Cons": "Cons"},
+            )
+
+    def test_scalar_shape_mismatch_is_caught(self):
+        # `(String, Self)` against a canonical `(Int, Self)` used to pass
+        # because neither side was SELF, and the wrapper then rendered an
+        # integer into a string field (CR on #114).
+        with pytest.raises(Unsupported):
+            resolve_names(
+                "type MyList = MyNil | MyCons(string, MyList)", LIST, "ailang"
+            )
+        assert resolve_names(
+            "type MyList = MyNil | MyCons(int, MyList)", LIST, "ailang"
+        ) == {"Nil": "MyNil", "Cons": "MyCons"}
+
+    def test_a_languages_own_scalar_spelling_is_not_a_mismatch(self):
+        # Enforcing equality must not false-decline Python's `str`
+        # against a canonical `String`.
+        spec = {
+            "type": "L",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": []},
+                {"name": "Cons", "args": ["String", "L"]},
+            ],
+        }
+        src = (
+            "class L: pass\nclass Nil(L): pass\n"
+            "class Cons(L):\n    def __init__(self, head: str, tail: L): pass\n"
+        )
+        assert resolve_names(src, spec, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+    def test_a_nested_constructor_argument_is_unverifiable(self):
+        # The `[^)]*` parser cannot see a nested application; flattening
+        # it would invent an arity. Absent means unverifiable, which the
+        # shape guard skips (CR on #114).
+        from vera_bench.adt_render import declared_shape
+
+        shapes = declared_shape("type E = Lit(int) | Add(Pair(E, E))", "ailang")
+        assert shapes.get("Lit") == ("int",)
+        assert "Add" not in shapes
+
+    def test_a_fieldless_kwonly_class_declines_against_a_non_nullary_ctor(self):
+        # `[]` is only alignable against a NULLARY canonical
+        # constructor. Accepting it for `Branch(Tree, Tree)` produced an
+        # empty kwargs list, which falls back to positional rendering —
+        # rejected by a keyword-only class with TypeError and published
+        # as the model's wrong answer (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass Tree: pass\n"
+            "@dataclass(kw_only=True)\nclass Leaf(Tree):\n    value: int\n"
+            "@dataclass(kw_only=True)\nclass Branch(Tree): pass\n"
+        )
+        with pytest.raises(Unsupported):
+            align_kwonly(
+                python_kwonly_fields(src),
+                src,
+                TREE,
+                {"Leaf": "Leaf", "Branch": "Branch"},
+            )
+
+    def test_a_genuinely_nullary_constructor_still_aligns_to_empty(self):
+        # The guard must not break the case it looks like: a nullary
+        # canonical constructor legitimately has no fields.
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass Option: pass\n"
+            "@dataclass(kw_only=True)\nclass NoneOpt(Option): pass\n"
+            "@dataclass(kw_only=True)\nclass Some(Option):\n    value: int\n"
+        )
+        aligned = align_kwonly(
+            python_kwonly_fields(src),
+            src,
+            OPTION,
+            {"None": "NoneOpt", "Some": "Some"},
+        )
+        assert aligned == {"NoneOpt": [], "Some": ["value"]}
+
+    def test_positional_only_self_is_not_an_argument(self):
+        # `def __init__(self, /, *, head, tail)` is legal: `self` lands
+        # in posonlyargs, and slicing only `args` left it in the shape as
+        # an extra SELF — declining a correct solution (CR on #114).
+        from vera_bench.adt_render import declared_shape
+
+        src = (
+            "class List: pass\nclass Nil(List): pass\n"
+            "class Cons(List):\n"
+            '    def __init__(self: "Cons", /, *, head: int, tail: List):\n'
+            "        pass\n"
+        )
+        assert declared_shape(src, "python")["Cons"] == ("int", "SELF")
+        assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+    def test_kwonly_alignment_uses_the_same_scalar_equivalence(self):
+        # resolve_names accepted `head: str` against a canonical String
+        # through the equivalence table, then the alignment loop's raw
+        # `==` rejected it and the problem declined anyway. One rule now
+        # serves both (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        spec = {
+            "type": "L",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": [], "fields": []},
+                {"name": "Cons", "args": ["String", "L"], "fields": ["head", "tail"]},
+            ],
+        }
+        src = (
+            "from dataclasses import dataclass\nclass L: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(L): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(L):\n"
+            "    head: str\n    tail: L\n"
+        )
+        aligned = align_kwonly(
+            python_kwonly_fields(src), src, spec, {"Nil": "Nil", "Cons": "Cons"}
+        )
+        assert aligned["Cons"] == ["head", "tail"]
+        assert render(["a"], spec, "python", py_kwonly=aligned) == (
+            'Cons(head="a", tail=Nil())'
+        )
+
+    def test_kw_only_dataclass_is_constructed_by_keyword(self):
+        from vera_bench.adt_render import python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\n"
+            "class List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(src)["Cons"] == ["head", "tail"]
+        out = render([1], LIST, "python", py_kwonly=python_kwonly_fields(src))
+        assert out == "Cons(head=1, tail=Nil())"
+
+
+class TestInterpolationSafety:
+    """A test-case string the target language would re-evaluate declines."""
+
+    def test_nested_strings_are_checked_too(self):
+        # Arguments are compound — VB-T2-006 passes a list of strings —
+        # so a top-level-only check missed the values that actually
+        # reach the interpolator (CR on #114).
+        from vera_bench.runner import _interpolation_safe
+
+        with pytest.raises(Unsupported):
+            _interpolation_safe(["a{b}"], "aver")
+        with pytest.raises(Unsupported):
+            _interpolation_safe({"Some": ["x${y}"]}, "ailang")
+        _interpolation_safe([["a", "b"], "-"], "aver")  # legal, must pass
+
+    def test_aver_braces_and_ailang_dollar_brace(self):
+        from vera_bench.runner import _interpolation_safe
+
+        with pytest.raises(Unsupported):
+            _interpolation_safe("a{b}", "aver")
+        with pytest.raises(Unsupported):
+            _interpolation_safe("x${y}", "ailang")
+        _interpolation_safe("plain", "aver")  # must not raise
+        _interpolation_safe("a{b}", "python")  # not interpolated there
