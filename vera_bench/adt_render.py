@@ -290,15 +290,38 @@ def align_kwonly(
         if actual in fields:
             field_names = fields[actual]
             declared = shapes.get(actual)
+            canonical = ctor.get("fields", [])
             if declared is None or len(declared) != len(field_names):
+                # A keyword-only constructor must NEVER fall through to
+                # positional rendering — that is a TypeError published as
+                # the model's wrong answer. Types are unavailable here
+                # (an unannotated keyword-only __init__, say), so the
+                # canonical names are the only way to order the fields:
+                # use them when they biject, and decline otherwise.
+                if canonical and set(canonical) == set(field_names):
+                    out[actual] = list(canonical)
+                elif not field_names:
+                    out[actual] = []
+                else:
+                    raise Unsupported(
+                        f"cannot align keyword-only fields {field_names} for "
+                        f"{actual}: no readable argument types and the "
+                        f"declared names do not match {canonical}"
+                    )
                 continue
             wanted = [
                 "SELF" if a.lower() == type_name.lower() else a.lower()
                 for a in ctor.get("args", [])
             ]
             if len(wanted) != len(field_names):
-                continue
-            canonical_fields = ctor.get("fields", [])
+                # Arity disagreement on a keyword-only constructor: a
+                # genuine mismatch, and again never a positional
+                # fallback.
+                raise Unsupported(
+                    f"constructor {ctor['name']} declares {len(field_names)} "
+                    f"keyword-only field(s), expected {len(wanted)}"
+                )
+            canonical_fields = canonical
             if len(set(wanted)) != len(wanted):
                 # Two arguments share a type — `Branch(Tree, Tree)` — so
                 # types cannot say which declared field is which, and

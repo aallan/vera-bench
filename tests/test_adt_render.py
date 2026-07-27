@@ -662,6 +662,58 @@ class TestIdiomsThatUsedToDecline:
         )
         assert resolve_names(src, spec, "python") == {"Node": "Node"}
 
+    def test_kwonly_scalar_disagreement_declines(self):
+        # The keyword-only branch normalises through the equivalence
+        # table and then compares; this pins that a REAL scalar
+        # disagreement is still caught there (mirroring the positional
+        # test), and that normalising twice does not accidentally make
+        # str and Int compare equal (CR on #114).
+        src = (
+            "from dataclasses import dataclass\nclass List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    head: str\n    tail: List\n"
+        )
+        with pytest.raises(Unsupported):
+            resolve_names(src, LIST, "python")
+        # The same shape with the right scalar still maps.
+        ok = src.replace("head: str", "head: int")
+        assert resolve_names(ok, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+    def test_a_keyword_only_constructor_never_falls_back_to_positional(self):
+        # An unannotated keyword-only __init__ has readable NAMES but no
+        # types, so alignment used to drop it — and dropping means
+        # positional rendering, which a keyword-only class rejects with
+        # TypeError, published as the model's wrong answer (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        def src(params):
+            return (
+                "class List: pass\nclass Nil(List): pass\n"
+                "class Cons(List):\n"
+                f"    def __init__(self, *, {params}):\n        pass\n"
+            )
+
+        canonical = src("head, tail")
+        aligned = align_kwonly(
+            python_kwonly_fields(canonical),
+            canonical,
+            LIST,
+            {"Nil": "Nil", "Cons": "Cons"},
+        )
+        assert aligned["Cons"] == ["head", "tail"]
+
+        # Names that do not match the canonical ones cannot be ordered
+        # without types: decline rather than render positionally.
+        other = src("a, b")
+        with pytest.raises(Unsupported):
+            align_kwonly(
+                python_kwonly_fields(other),
+                other,
+                LIST,
+                {"Nil": "Nil", "Cons": "Cons"},
+            )
+
     def test_scalar_shape_mismatch_is_caught(self):
         # `(String, Self)` against a canonical `(Int, Self)` used to pass
         # because neither side was SELF, and the wrapper then rendered an
