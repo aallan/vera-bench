@@ -286,6 +286,23 @@ def align_kwonly(
             ]
             if len(wanted) != len(names):
                 continue
+            canonical_fields = ctor.get("fields", [])
+            if len(set(wanted)) != len(wanted):
+                # Two arguments share a type — `Branch(Tree, Tree)` — so
+                # types cannot say which declared field is which, and
+                # declaration order is not a proxy for semantic order
+                # once reordering is allowed. Names can still resolve it
+                # when the solution used the canonical ones; otherwise
+                # decline, because guessing reverses the children
+                # silently.
+                if canonical_fields and set(canonical_fields) == set(names):
+                    out[actual] = list(canonical_fields)
+                    continue
+                raise Unsupported(
+                    f"cannot align keyword-only fields {names} for "
+                    f"{actual}: {len(wanted)} arguments share a type and "
+                    f"the declared names do not match {canonical_fields}"
+                )
             remaining = list(zip(names, declared))
             ordered: list[str] = []
             for want in wanted:
@@ -296,8 +313,14 @@ def align_kwonly(
                     ordered = []
                     break
                 ordered.append(remaining.pop(match)[0])
-            if ordered or not wanted:
-                out[actual] = ordered
+            if not ordered and wanted:
+                # A keyword-only constructor we cannot order must not
+                # fall back to positional — that raises TypeError and is
+                # published as the model's wrong answer.
+                raise Unsupported(
+                    f"cannot align keyword-only fields {names} for {actual}"
+                )
+            out[actual] = ordered
     # Nullary constructors carry no fields and need no alignment.
     for actual, names in fields.items():
         if not names:
@@ -661,6 +684,26 @@ _DECL = {
 }
 
 
+#: Each language's spelling of the same scalar, mapped to one token, so
+#: a declared shape can be compared with the spec's for EQUALITY rather
+#: than only for self-reference. Without this, `Cons(String, Self)`
+#: against a canonical `Cons(Int, Self)` passed validation and the
+#: wrapper rendered an integer into a string field.
+_SCALAR_EQUIV = {
+    "int": "int",
+    "nat": "int",
+    "integer": "int",
+    "number": "int",
+    "str": "string",
+    "string": "string",
+    "bool": "bool",
+    "boolean": "bool",
+    "float": "float",
+    "float64": "float",
+    "double": "float",
+}
+
+
 def declared_shape(source: str, language: str) -> dict[str, tuple[str, ...]]:
     """Declared constructor argument SHAPES, where the language shows them.
 
@@ -694,6 +737,12 @@ def declared_shape(source: str, language: str) -> dict[str, tuple[str, ...]]:
             if nxt:
                 body = body[: nxt.start()]
             for name, args in re.findall(r"\b(\w+)\s*\(([^)]*)\)", body):
+                # `[^)]*` cannot see a nested application, and splitting
+                # on commas would flatten it into the wrong arity.
+                # Unverifiable beats wrong: leave it out and the shape
+                # guard skips this constructor.
+                if "(" in args:
+                    continue
                 parts = [a for a in args.split(",") if a.strip()]
                 out.setdefault(name, tuple(norm(a, self_name) for a in parts))
     if language == "python":
@@ -842,11 +891,14 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
             # positionally would decline a correct solution that simply
             # listed them differently. Compare as multisets: a genuine
             # arity or type mismatch is still caught.
+            def _key(t: str) -> str:
+                return "SELF" if t == "SELF" else _SCALAR_EQUIV.get(t, t)
+
             wanted_set = sorted(
-                "SELF" if a.lower() == type_name.lower() else a.lower()
+                _key("SELF" if a.lower() == type_name.lower() else a.lower())
                 for a in want.get("args", [])
             )
-            if sorted(declared) != wanted_set:
+            if sorted(_key(d) for d in declared) != wanted_set:
                 raise Unsupported(
                     f"constructor {want['name']} is declared as {declared}, "
                     f"expected {tuple(wanted_set)} in some order"
@@ -856,8 +908,22 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
             "SELF" if a.lower() == type_name.lower() else a.lower()
             for a in want.get("args", [])
         )
+
+        def _mismatch(d: str, w: str) -> bool:
+            if d == w:
+                return False
+            if "SELF" in (d, w):
+                return True
+            # Both are concrete: compare through the equivalence table so
+            # Python's `str` matches a canonical `String`, while a
+            # genuine string-vs-int difference is caught. An unrecognised
+            # type name stays unverifiable rather than becoming a false
+            # decline.
+            dk, wk = _SCALAR_EQUIV.get(d), _SCALAR_EQUIV.get(w)
+            return bool(dk and wk and dk != wk)
+
         if len(declared) != len(wanted) or any(
-            d != w and "SELF" in (d, w) for d, w in zip(declared, wanted)
+            _mismatch(d, w) for d, w in zip(declared, wanted)
         ):
             raise Unsupported(
                 f"constructor {want['name']} is declared as {declared}, "

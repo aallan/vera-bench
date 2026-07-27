@@ -34,6 +34,14 @@ LIST = {
         {"name": "Cons", "args": ["Int", "List"], "fields": ["head", "tail"]},
     ],
 }
+TREE = {
+    "type": "Tree",
+    "form": "tagged",
+    "constructors": [
+        {"name": "Leaf", "args": ["Int"], "fields": ["value"]},
+        {"name": "Branch", "args": ["Tree", "Tree"], "fields": ["left", "right"]},
+    ],
+}
 OPTION = {
     "type": "Option",
     "form": "tagged",
@@ -583,6 +591,71 @@ class TestIdiomsThatUsedToDecline:
         # leaving the constructor an argument short (CR on #114).
         src = 'type T = { tag: "Item"; kind: number; label: string };'
         assert [n for n, _ in infer_ts_fields(src)["Item"]] == ["kind", "label"]
+
+    def test_duplicate_type_fields_resolve_by_name_or_decline(self):
+        # Branch(Tree, Tree): types cannot say which declared field is
+        # which, and declaration order is not a proxy for semantic order
+        # once reordering is accepted — guessing silently reverses the
+        # children (CR on #114). Canonical names resolve it; anything
+        # else must decline rather than guess.
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        def src(order, left="left", right="right"):
+            fields = "".join(f"    {n}\n" for n in order)
+            return (
+                "from dataclasses import dataclass\nclass Tree: pass\n"
+                "@dataclass(kw_only=True)\nclass Leaf(Tree):\n    value: int\n"
+                f"@dataclass(kw_only=True)\nclass Branch(Tree):\n{fields}"
+            )
+
+        canonical = src(["right: Tree", "left: Tree"])
+        aligned = align_kwonly(python_kwonly_fields(canonical), canonical, TREE)
+        assert aligned["Branch"] == ["left", "right"]
+
+        ambiguous = src(["b: Tree", "a: Tree"])
+        with pytest.raises(Unsupported):
+            align_kwonly(python_kwonly_fields(ambiguous), ambiguous, TREE)
+
+    def test_scalar_shape_mismatch_is_caught(self):
+        # `(String, Self)` against a canonical `(Int, Self)` used to pass
+        # because neither side was SELF, and the wrapper then rendered an
+        # integer into a string field (CR on #114).
+        with pytest.raises(Unsupported):
+            resolve_names(
+                "type MyList = MyNil | MyCons(string, MyList)", LIST, "ailang"
+            )
+        assert resolve_names(
+            "type MyList = MyNil | MyCons(int, MyList)", LIST, "ailang"
+        )
+
+    def test_a_languages_own_scalar_spelling_is_not_a_mismatch(self):
+        # Enforcing equality must not false-decline Python's `str`
+        # against a canonical `String`.
+        spec = {
+            "type": "L",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": []},
+                {"name": "Cons", "args": ["String", "L"]},
+            ],
+        }
+        src = (
+            "class L: pass\nclass Nil(L): pass\n"
+            "class Cons(L):\n    def __init__(self, head: str, tail: L): pass\n"
+        )
+        assert resolve_names(src, spec, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+    def test_a_nested_constructor_argument_is_unverifiable(self):
+        # The `[^)]*` parser cannot see a nested application; flattening
+        # it would invent an arity. Absent means unverifiable, which the
+        # shape guard skips (CR on #114).
+        from vera_bench.adt_render import declared_shape
+
+        shapes = declared_shape("type E = Lit(int) | Add(Pair(E, E))", "ailang")
+        assert shapes.get("Lit") == ("int",)
+        assert "Add" not in shapes
 
     def test_kw_only_dataclass_is_constructed_by_keyword(self):
         from vera_bench.adt_render import python_kwonly_fields
