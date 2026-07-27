@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Idempotent v0.0.16 sweep runner — one terminal, unattended, resumable.
+# Idempotent full-matrix sweep runner — one terminal, unattended, resumable.
 #
 # Runs every matrix target that is MISSING or hit a TRANSIENT infrastructure
 # fault, and SKIPS any already on disk and clean. "Clean" reuses the SAME
@@ -37,8 +37,46 @@ if [ -z "${VIRTUAL_ENV:-}" ]; then
 fi
 mkdir -p results/logs
 
-VV=$(vera version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 | tr . -)
-[ -z "$VV" ] && { echo "cannot read 'vera version'"; exit 1; }
+# Every result filename carries these two versions, so both are read from
+# the code that WRITES them rather than re-derived here. `vera-bench run`
+# records `vera_bench.__version__` and `VeraRunner.version()` verbatim, so
+# a prerelease — `0.0.19rc1`, `0.1.9-dev` — has to survive intact: a
+# `[0-9]+\.[0-9]+\.[0-9]+` match keeps only the numeric head and would
+# predict a file the CLI never writes. That is the failure this contract
+# exists to prevent; spelling the bench version out once already made
+# every successful target read as dirty, and the whole matrix was paid
+# for twice before it reported total failure over good data.
+# Asking VeraRunner rather than the shell's own `vera` also settles WHICH
+# compiler is meant: it honours $VERA_PATH ahead of $PATH, exactly as the
+# grading run does, so the predicted name can no longer describe a
+# different binary than the one that produced the results.
+_VERSIONS=$(python - <<'PY'
+import vera_bench
+
+try:
+    from vera_bench.vera_runner import VeraRunner
+
+    runner = VeraRunner()
+    vera_version, vera_bin = runner.version(), runner.vera
+except Exception:  # vera absent from PATH entirely
+    vera_version, vera_bin = "unknown", "<not found>"
+print(vera_bench.__version__, vera_version, vera_bin)
+PY
+) || _VERSIONS=""
+read -r BENCH_VER VERA_VER VERA_BIN <<<"$_VERSIONS"
+if [ -z "$BENCH_VER" ]; then
+  echo "FATAL: could not determine vera-bench version" >&2
+  exit 1
+fi
+# `unknown` is what VeraRunner reports when the compiler will not run. It
+# is omitted from filenames, so a sweep started on it would predict names
+# that never match — and the usual cause is a same-named binary earlier on
+# PATH, which is worth naming rather than leaving to be guessed at.
+if [ -z "$VERA_VER" ] || [ "$VERA_VER" = unknown ]; then
+  echo "FATAL: could not read 'vera version' from ${VERA_BIN:-<not found>}" >&2
+  echo "       set VERA_PATH if another 'vera' is shadowing the compiler" >&2
+  exit 1
+fi
 
 PAR_ANTHROPIC=${PAR_ANTHROPIC:-4}
 PAR_OPENAI=${PAR_OPENAI:-3}
@@ -126,17 +164,37 @@ do_target () {  # MODEL LABEL GLOB [run args...]
   echo "dirty $M/$LBL" >> "$STATUS_FILE"
 }
 
+# The filename `vera-bench run` will write, asked of the one function
+# that builds it (vera_bench/results_path.py) rather than spelled out
+# again here. Re-deriving it is what broke: this script waited on a
+# name the CLI never wrote, so every finished target read as dirty.
+# A subprocess per target is free against an LLM call.
+result_file () {  # MODEL [--language L] [--mode M] ...
+  local M=$1; shift
+  python -m vera_bench.results_path --model "$M" --bench-version "$BENCH_VER" "$@"
+}
+
 core () {  # MODEL
-  local M=$1 S=${1//\//-}
-  do_target "$M" vera    "results/${S}-bench-0-0-16-vera-${VV}.jsonl"
-  do_target "$M" vera-nl "results/${S}-spec-from-nl-bench-0-0-16-vera-${VV}.jsonl" --mode spec-from-nl
-  do_target "$M" python  "results/${S}-python-bench-0-0-16.jsonl"      --language python
-  do_target "$M" ts      "results/${S}-typescript-bench-0-0-16.jsonl"  --language typescript
+  local M=$1
+  do_target "$M" vera \
+    "results/$(result_file "$M" --vera-version "$VERA_VER")"
+  do_target "$M" vera-nl \
+    "results/$(result_file "$M" --mode spec-from-nl --vera-version "$VERA_VER")" \
+    --mode spec-from-nl
+  do_target "$M" python \
+    "results/$(result_file "$M" --language python)"      --language python
+  do_target "$M" ts \
+    "results/$(result_file "$M" --language typescript)"  --language typescript
 }
 ztd () {  # MODEL
-  local M=$1 S=${1//\//-}
-  do_target "$M" aver   "results/${S}-aver-bench-0-0-16-aver-*.jsonl"      --language aver
-  do_target "$M" ailang "results/${S}-ailang-bench-0-0-16-ailang-*.jsonl"  --language ailang
+  local M=$1
+  # aver/ailang carry their own compiler version, which the sweep does not
+  # know up front — so that one segment is a wildcard, but the name around
+  # it is still built by results_path rather than spelled out here.
+  do_target "$M" aver \
+    "results/$(result_file "$M" --language aver --aver-version '*')"      --language aver
+  do_target "$M" ailang \
+    "results/$(result_file "$M" --language ailang --ailang-version '*')"  --language ailang
 }
 
 # Canonical lineup, straight from the registry: "provider<TAB>id<TAB>ztd", with
@@ -168,7 +226,7 @@ run_provider () {  # PROVIDER
 MODELS_TSV=$(models_tsv)
 [ -z "$MODELS_TSV" ] && { echo "matrix produced no models"; exit 1; }
 
-echo "== sweep vs vera $VV (bench 0-0-16) — anthropic/$PAR_ANTHROPIC openai/$PAR_OPENAI moonshot/$PAR_MOONSHOT, ${RETRIES} attempts/target, pro=$INCLUDE_PRO =="
+echo "== sweep vs vera $VERA_VER (bench $BENCH_VER) — anthropic/$PAR_ANTHROPIC openai/$PAR_OPENAI moonshot/$PAR_MOONSHOT, ${RETRIES} attempts/target, pro=$INCLUDE_PRO =="
 
 # Provider streams concurrent; models within a provider serial.
 for prov in $(printf '%s\n' "$MODELS_TSV" | cut -f1 | sort -u); do

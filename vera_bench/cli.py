@@ -11,6 +11,8 @@ import click
 from rich.console import Console
 from rich.table import Table
 
+from vera_bench.results_path import result_filename
+
 console = Console()
 
 _VERSION_RE = re.compile(r"\d+\.\d+(?:\.\d+)?")
@@ -288,26 +290,21 @@ def run(
             )
             raise SystemExit(1)
 
-    # Set up output — dots to hyphens in versions for clean filenames
-    def _ver_slug(v: str) -> str:
-        return v.replace(".", "-")
-
+    # The filename is a contract with scripts/run_sweep.sh, which
+    # predicts it to decide whether a target is already done. One
+    # construction, in vera_bench.results_path, so the two cannot drift.
     if output_dir is None:
         output_dir = root / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
-    parts = [model.replace("/", "-")]
-    if language != "vera":
-        parts.append(language)
-    if language == "vera" and mode != "full-spec":
-        parts.append(mode)
-    parts.append(f"bench-{_ver_slug(bench_ver)}")
-    if vera_ver and vera_ver != "unknown":
-        parts.append(f"vera-{_ver_slug(vera_ver)}")
-    if aver_ver and aver_ver != "unknown":
-        parts.append(f"aver-{_ver_slug(aver_ver)}")
-    if ailang_ver and ailang_ver != "unknown":
-        parts.append(f"ailang-{_ver_slug(ailang_ver)}")
-    output_path = output_dir / f"{'-'.join(parts)}.jsonl"
+    output_path = output_dir / result_filename(
+        model,
+        bench_ver,
+        language=language,
+        mode=mode,
+        vera_version=vera_ver,
+        aver_version=aver_ver,
+        ailang_version=ailang_ver,
+    )
 
     # Truncate stale results from previous runs. The stored code goes
     # with them: `run` has no resume, so leaving a previous run's files

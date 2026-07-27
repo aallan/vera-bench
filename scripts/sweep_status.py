@@ -75,6 +75,23 @@ def _expected_targets() -> int:
 DECLINED = re.compile(r"test wrapper unavailable", re.I)
 
 
+def _bench_version() -> str:
+    """The installed bench version, dash-separated as filenames spell it.
+
+    Derived, never hardcoded: a literal here silently surveyed the
+    PREVIOUS release's files, reporting a finished older sweep as though
+    it were the current one. The dash spelling is borrowed from
+    `results_path` rather than repeated, so this survey cannot drift from
+    the construction it is meant to be looking at.
+    """
+    try:
+        from vera_bench import __version__
+        from vera_bench.results_path import version_slug
+    except Exception:  # pragma: no cover - packaging edge
+        return "0-0-0"
+    return version_slug(__version__)
+
+
 def classify(msg: str) -> str:
     if DECLINED.search(msg):
         # The harness abstained (could not map the model's declaration).
@@ -136,7 +153,11 @@ def verdict(n_solved: int, expected: int, buckets: dict[str, int]) -> tuple[str,
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dir", default="results")
-    ap.add_argument("--glob", default="*bench-0-0-16*.jsonl")
+    ap.add_argument(
+        "--glob",
+        default=f"*bench-{_bench_version()}*.jsonl",
+        help="result files to survey; defaults to the INSTALLED bench version",
+    )
     ap.add_argument(
         "--expect",
         type=int,
