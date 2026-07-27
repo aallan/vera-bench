@@ -544,24 +544,22 @@ class TestBaselineAdtDecline:
     def test_unmappable_canonical_is_ungraded(self, tmp_path):
         from vera_bench.baseline_runner import run_python_baseline
 
-        problem = dict(
-            TestEvaluatorProblem := {
-                "id": "VB-TEST-ADT",
-                "signature": "public fn list_length(@List -> @Nat)",
-                "entry_point": "list_length",
-                "adt": {
-                    "type": "List",
-                    "form": "list",
-                    "empty": "Nil",
-                    "cons": "Cons",
-                    "constructors": [
-                        {"name": "Nil", "args": []},
-                        {"name": "Cons", "args": ["Int", "List"]},
-                    ],
-                },
-                "test_cases": [{"args": [[1]], "expected": 1}],
-            }
-        )
+        problem = {
+            "id": "VB-TEST-ADT",
+            "signature": "public fn list_length(@List -> @Nat)",
+            "entry_point": "list_length",
+            "adt": {
+                "type": "List",
+                "form": "list",
+                "empty": "Nil",
+                "cons": "Cons",
+                "constructors": [
+                    {"name": "Nil", "args": []},
+                    {"name": "Cons", "args": ["Int", "List"]},
+                ],
+            },
+            "test_cases": [{"args": [[1]], "expected": 1}],
+        }
         sols = tmp_path / "solutions" / "python"
         sols.mkdir(parents=True)
         (sols / "VB_TEST_ADT_stub.py").write_text("def list_length(x):\n    return 0\n")
