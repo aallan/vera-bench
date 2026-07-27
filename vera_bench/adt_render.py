@@ -160,12 +160,65 @@ def _elem_type(spec: dict) -> str:
     return "Int"
 
 
-def _ctor_call(name: str, rendered: list[str], language: str) -> str:
+def python_kwonly_fields(source: str) -> dict[str, list[str]]:
+    """Keyword-only parameter names per class, for kw_only dataclasses.
+
+    `@dataclass(kw_only=True)` is legal Python 3.10+ and nothing in the
+    prompt forbids it, but a positional `Cons(1, Nil())` raises
+    TypeError against it — a correct solution graded wrong. Where the
+    constructor is keyword-only we emit keyword form using the
+    solution's OWN names.
+    """
+    import ast
+
+    out: dict[str, list[str]] = {}
+    try:
+        tree = ast.parse(strip_comments(source, "python"))
+    except SyntaxError:
+        return out
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        init = next(
+            (
+                n
+                for n in node.body
+                if isinstance(n, ast.FunctionDef) and n.name == "__init__"
+            ),
+            None,
+        )
+        if init is not None:
+            if init.args.kwonlyargs and len(init.args.args) <= 1:
+                out[node.name] = [a.arg for a in init.args.kwonlyargs]
+            continue
+        kw_only = any(
+            isinstance(d, ast.Call)
+            and any(
+                k.arg == "kw_only" and getattr(k.value, "value", False) is True
+                for k in d.keywords
+            )
+            for d in node.decorator_list
+        )
+        if kw_only:
+            out[node.name] = [
+                n.target.id for n in node.body if isinstance(n, ast.AnnAssign)
+            ]
+    return out
+
+
+def _ctor_call(
+    name: str,
+    rendered: list[str],
+    language: str,
+    kwargs: list[str] | None = None,
+) -> str:
     """Apply a constructor, respecting each language's nullary form."""
     if not rendered:
         # Python constructors are classes and must be instantiated; the
         # others name a nullary constructor bare.
         return f"{name}()" if language == "python" else name
+    if kwargs and len(kwargs) == len(rendered):
+        return f"{name}({', '.join(f'{k}={v}' for k, v in zip(kwargs, rendered))})"
     return f"{name}({', '.join(rendered)})"
 
 
@@ -173,8 +226,9 @@ def _ctor_call(name: str, rendered: list[str], language: str) -> str:
 #: union — in a type alias, an interface, or a value literal. `kind` is
 #: accepted alongside `tag`: it is at least as common a discriminant in
 #: the wild, and a model using it is entirely correct.
-_TS_TAGGED = re.compile(r"""\{\s*(tag|kind)\s*:\s*["'](\w+)["']([^}]*)\}""")
-_TS_FIELD = re.compile(r"(\w+)\s*:\s*([A-Za-z_][\w\[\]<>. ]*)")
+_TS_BLOCK = re.compile(r"\{([^{}]*)\}")
+_TS_DISC = re.compile(r"""\b(?:readonly\s+)?(tag|kind)\s*:\s*["'](\w+)["']""")
+_TS_FIELD = re.compile(r"\b(?:readonly\s+)?(\w+)\s*:\s*([A-Za-z_][\w\[\]<>. ]*)")
 
 
 def infer_ts_discriminant(source: str) -> str:
@@ -184,8 +238,11 @@ def infer_ts_discriminant(source: str) -> str:
     `{ tag: … }` object handed to code switching on `.kind` reads
     undefined and fails a correct solution.
     """
-    m = _TS_TAGGED.search(strip_comments(source, "typescript"))
-    return m.group(1) if m else "tag"
+    for block in _TS_BLOCK.finditer(strip_comments(source, "typescript")):
+        disc = _TS_DISC.search(block.group(1))
+        if disc:
+            return disc.group(1)
+    return "tag"
 
 
 def infer_ts_fields(source: str) -> dict[str, list[tuple[str, str | None]]]:
@@ -208,15 +265,28 @@ def infer_ts_fields(source: str) -> dict[str, list[tuple[str, str | None]]]:
     source = strip_comments(source, "typescript")
     fields: dict[str, list[tuple[str, str | None]]] = {}
     typed: dict[str, bool] = {}
-    for match in _TS_TAGGED.finditer(source):
-        tag, body = match.group(2), match.group(3)
+    for block in _TS_BLOCK.finditer(source):
+        body = block.group(1)
+        disc = _TS_DISC.search(body)
+        if not disc:
+            continue
+        tag = disc.group(2)
+        # The discriminant may sit anywhere in the block and may be
+        # `readonly` — an idiomatic declaration that used to be
+        # invisible, ungrading every correct solution written that way.
         pairs: list[tuple[str, str | None]] = []
-        names = re.findall(r"(\w+)\s*:", body)
+        # The discriminant is excluded before judging whether this block
+        # is a DECLARATION: its value is a string literal, never a type,
+        # so counting it would make every declaration look untyped and
+        # silently disable type-based field alignment.
+        names = [
+            n
+            for n in re.findall(r"\b(?:readonly\s+)?(\w+)\s*:", body)
+            if n not in ("tag", "kind")
+        ]
         types = {n: t.strip() for n, t in _TS_FIELD.findall(body)}
         is_decl = bool(names) and all(n in types for n in names)
         for n in names:
-            if n in ("tag", "kind"):  # a nested literal's discriminant
-                continue
             pairs.append((n, types.get(n) if is_decl else None))
         if (
             tag not in fields
@@ -307,6 +377,7 @@ def render(
     qualifier: str = "",
     ts_fields: dict[str, list[tuple[str, str | None]]] | None = None,
     ts_disc: str = "tag",
+    py_kwonly: dict[str, list[str]] | None = None,
 ) -> str:
     """Render `value` as a literal of the problem's ADT in `language`.
 
@@ -342,7 +413,10 @@ def render(
         out = _ctor_call(actual(spec["empty"]), [], language)
         for item in reversed(items):
             out = _ctor_call(
-                actual(spec["cons"]), [_scalar(item, elem, language), out], language
+                actual(spec["cons"]),
+                [_scalar(item, elem, language), out],
+                language,
+                (py_kwonly or {}).get(actual(spec["cons"])),
             )
         return out
 
@@ -350,7 +424,9 @@ def render(
     rendered = [
         _scalar(a, t, language)
         if t in _SCALARS
-        else render(a, spec, language, names, native, qualifier, ts_fields, ts_disc)
+        else render(
+            a, spec, language, names, native, qualifier, ts_fields, ts_disc, py_kwonly
+        )
         for a, t in zip(args, ctor["args"])
     ]
     if language == "typescript":
@@ -360,7 +436,9 @@ def render(
             f"{f}: {v}" for f, v in zip(fields, rendered)
         ]
         return "{ " + ", ".join(parts) + " }"
-    return _ctor_call(actual(name), rendered, language)
+    return _ctor_call(
+        actual(name), rendered, language, (py_kwonly or {}).get(actual(name))
+    )
 
 
 def render_args(
@@ -373,6 +451,7 @@ def render_args(
     qualifier: str = "",
     ts_fields: dict[str, list[tuple[str, str | None]]] | None = None,
     ts_disc: str = "tag",
+    py_kwonly: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """Render a whole argument list, ADT parameters included."""
     if spec is None:
@@ -389,7 +468,15 @@ def render_args(
         if type_name == adt_type:
             out.append(
                 render(
-                    value, spec, language, names, native, qualifier, ts_fields, ts_disc
+                    value,
+                    spec,
+                    language,
+                    names,
+                    native,
+                    qualifier,
+                    ts_fields,
+                    ts_disc,
+                    py_kwonly,
                 )
             )
         elif type_name in _SCALARS:
@@ -414,8 +501,88 @@ _DECL = {
     "typescript": re.compile(r"""\b(?:tag|kind)\s*:\s*["'](\w+)["']"""),
     "aver": re.compile(r"^\s{2,}(\w+)\s*(?:\([^)]*\))?\s*$", re.M),
     # A type may span lines: `type X =` followed by `| Ctor…` lines.
-    "ailang": re.compile(r"^type\s+\w+\s*=\s*(.+(?:\n[ \t]*\|[^\n]*)*)", re.M),
+    # `type MyList[a] = …` is the generic form AILANG's own prompt
+    # teaches; the parameter list used to block the match entirely.
+    "ailang": re.compile(
+        r"^type\s+\w+\s*(?:\[[^\]]*\])?\s*=\s*(.+(?:\n[ \t]*\|[^\n]*)*)", re.M
+    ),
 }
+
+
+def declared_shape(source: str, language: str) -> dict[str, tuple[str, ...]]:
+    """Declared constructor argument SHAPES, where the language shows them.
+
+    Arity alone cannot catch the case that matters: `Cons(List, Int)` is
+    a swap, not a count mismatch, and rendering the canonical order into
+    it produces a call that fails at runtime — recorded as the model's
+    wrong answer. Types are normalised so a self-reference reads as SELF
+    and scalars compare case-insensitively, letting a spec's
+    `["Int", "List"]` be compared with what the solution actually wrote.
+
+    A constructor absent from the result is UNVERIFIABLE, not nullary —
+    Python without annotations, for instance. Callers must not treat a
+    missing entry as a mismatch.
+    """
+    src = strip_comments(source, language)
+    out: dict[str, tuple[str, ...]] = {}
+
+    def norm(t: str, self_names: object) -> str:
+        if isinstance(self_names, str):
+            self_names = {self_names}
+        t = t.strip().split(":")[-1].strip().rstrip(",")
+        t = re.sub(r"\[[^\]]*\]", "", t).strip()
+        lowered = {n.lower() for n in self_names}
+        return "SELF" if t.lower() in lowered else t.lower()
+
+    if language in ("aver", "ailang"):
+        for decl in re.finditer(r"\btype\s+(\w+)", src):
+            self_name = decl.group(1)
+            body = src[decl.end() :]
+            nxt = re.search(r"\btype\s+\w+", body)
+            if nxt:
+                body = body[: nxt.start()]
+            for name, args in re.findall(r"\b(\w+)\s*\(([^)]*)\)", body):
+                parts = [a for a in args.split(",") if a.strip()]
+                out.setdefault(name, tuple(norm(a, self_name) for a in parts))
+    if language == "python":
+        import ast
+
+        try:
+            tree = ast.parse(src)
+        except SyntaxError:
+            return {}
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ClassDef):
+                continue
+            init = next(
+                (
+                    n
+                    for n in node.body
+                    if isinstance(n, ast.FunctionDef) and n.name == "__init__"
+                ),
+                None,
+            )
+            # A Python ADT's recursive reference is the BASE class
+            # (`tail: List`), not the constructor's own class.
+            selfish = {node.name} | {
+                b.id for b in node.bases if isinstance(b, ast.Name)
+            }
+            if init is not None:
+                params = init.args.posonlyargs + init.args.args[1:]
+                params += init.args.kwonlyargs
+                if all(p.annotation is not None for p in params) and params:
+                    out[node.name] = tuple(
+                        norm(ast.unparse(p.annotation).strip("\"'"), selfish)
+                        for p in params
+                    )
+            else:
+                fields = [n for n in node.body if isinstance(n, ast.AnnAssign)]
+                if fields:
+                    out[node.name] = tuple(
+                        norm(ast.unparse(f.annotation).strip("\"'"), selfish)
+                        for f in fields
+                    )
+    return out
 
 
 def declared_names(source: str, language: str) -> list[str]:
@@ -456,6 +623,17 @@ def uses_native_collection(source: str, spec: dict) -> bool:
     return not (wanted <= declared)
 
 
+def _uses_ailang_prelude(source: str, spec: dict) -> bool:
+    """Whether an AILANG solution leans on a prelude type it never declares."""
+    names = [c["name"] for c in spec.get("constructors", [])]
+    if not names:
+        return False
+    declared = {n.lower() for n in declared_names(source, "ailang")}
+    if any(n.lower() in declared for n in names):
+        return False
+    return all(re.search(rf"\b{re.escape(n)}\b", source) for n in names)
+
+
 def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
     """Map canonical constructor names onto the ones the solution declares.
 
@@ -466,6 +644,11 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
     type_name = spec.get("type", "")
     source = strip_comments(source, language)
     if language == "aver" and re.search(rf"\b{re.escape(type_name)}<", source):
+        return {}
+    if language == "ailang" and _uses_ailang_prelude(source, spec):
+        # Option/Some/None come from the auto-imported prelude, so there
+        # is no declaration to match — the canonical names ARE the
+        # prelude's, and a correct solution using them used to decline.
         return {}
     declared = declared_names(source, language)
     lowered = {d.lower(): d for d in declared}
@@ -488,6 +671,29 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
         raise Unsupported(
             f"cannot map constructor {want!r} onto {declared or 'no declaration'}"
         )
+    # Shape validation, the guard the Vera side has had since #112: a
+    # solution declaring Cons(List, Int) — swapped but internally
+    # consistent and spec-legal — was rendered against the canonical
+    # order and graded WRONG. A mapping we cannot build a correct call
+    # for is a decline, not the model's failure.
+    shapes = declared_shape(source, language)
+    type_name = spec.get("type", "")
+    for want in spec.get("constructors", []):
+        actual = mapping.get(want["name"])
+        declared = shapes.get(actual)
+        if declared is None:
+            continue  # unverifiable in this language, not a mismatch
+        wanted = tuple(
+            "SELF" if a.lower() == type_name.lower() else a.lower()
+            for a in want.get("args", [])
+        )
+        if len(declared) != len(wanted) or any(
+            d != w and "SELF" in (d, w) for d, w in zip(declared, wanted)
+        ):
+            raise Unsupported(
+                f"constructor {want['name']} is declared as {declared}, "
+                f"expected {wanted}"
+            )
     if len(set(mapping.values())) != len(mapping):
         # Two canonical names resolved onto one declared constructor —
         # whichever call gets built is wrong for one of them, and it
@@ -615,6 +821,7 @@ def adt_call(problem: dict, source: str, language: str, args: list) -> str | Non
     qualifier = declared_type(source, language, spec)
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
     ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
+    py_kwonly = python_kwonly_fields(source) if language == "python" else None
     return ", ".join(
         render_args(
             args,
@@ -626,6 +833,7 @@ def adt_call(problem: dict, source: str, language: str, args: list) -> str | Non
             qualifier,
             ts_fields,
             ts_disc,
+            py_kwonly,
         )
     )
 
@@ -647,8 +855,17 @@ def adt_expected(
     qualifier = declared_type(source, language, spec)
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
     ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
+    py_kwonly = python_kwonly_fields(source) if language == "python" else None
     return render(
-        expected, spec, language, names, native, qualifier, ts_fields, ts_disc
+        expected,
+        spec,
+        language,
+        names,
+        native,
+        qualifier,
+        ts_fields,
+        ts_disc,
+        py_kwonly,
     )
 
 

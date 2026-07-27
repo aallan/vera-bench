@@ -239,7 +239,11 @@ class TestResolveNamesWidening:
     """The declaration forms the first regexes missed (review of #112)."""
 
     def test_bare_and_dataclass_python_classes_resolve(self):
-        src = "class Nil:\n    pass\n\n@dataclass\nclass Cons:\n    head: int\n"
+        src = (
+            "class List: pass\n"
+            "class Nil(List):\n    pass\n\n"
+            "@dataclass\nclass Cons(List):\n    head: int\n    tail: List\n"
+        )
         assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
 
     def test_multiline_ailang_type_resolves(self):
@@ -352,3 +356,110 @@ class TestCommentBlindness:
         from vera_bench.adt_render import strip_comments
 
         assert '"a -- b"' in strip_comments('let x = "a -- b"  -- gone', "vera")
+
+
+class TestDeclaredShapeGuard:
+    """A swapped-but-legal declaration declines instead of grading wrong.
+
+    The Vera path has validated declared shape since #112; the other four
+    matched by name alone, so a spec-compliant `Cons(List, Int)` was
+    rendered in canonical order and failed at runtime — the model's
+    "wrong answer". Adversarial review of #112, filed as #113.
+    """
+
+    def test_swapped_shape_declines_in_every_readable_language(self):
+        cases = [
+            ("ailang", "type MyList = MyNil | MyCons(MyList, int)"),
+            ("aver", "type MyList\n    Nil\n    Cons(MyList, Int)\n"),
+            (
+                "python",
+                "class List: pass\nclass Nil(List): pass\n"
+                "class Cons(List):\n"
+                "    def __init__(self, tail: List, head: int): pass\n",
+            ),
+        ]
+        for language, src in cases:
+            with pytest.raises(Unsupported):
+                resolve_names(src, LIST, language)
+
+    def test_correct_shapes_still_map(self):
+        cases = [
+            ("ailang", "type MyList = MyNil | MyCons(int, MyList)"),
+            ("aver", "type MyList\n    Nil\n    Cons(Int, MyList)\n"),
+            (
+                "python",
+                "class List: pass\nclass Nil(List): pass\n"
+                "class Cons(List):\n"
+                "    def __init__(self, head: int, tail: List): pass\n",
+            ),
+        ]
+        for language, src in cases:
+            assert resolve_names(src, LIST, language)
+
+    def test_unannotated_python_is_unverifiable_not_a_mismatch(self):
+        # No annotations means we cannot read the shape; declining would
+        # ungrade correct solutions wholesale.
+        src = (
+            "class List: pass\nclass Nil(List): pass\n"
+            "class Cons(List):\n    def __init__(self, head, tail): pass\n"
+        )
+        assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+
+class TestIdiomsThatUsedToDecline:
+    """Legal idioms each language's own docs teach (#113)."""
+
+    def test_readonly_typescript_declaration(self):
+        src = (
+            'type List = { readonly tag: "Nil" } | '
+            '{ readonly tag: "Cons"; readonly head: number; '
+            "readonly tail: List };"
+        )
+        fields = infer_ts_fields(src)
+        assert [n for n, _ in fields["Cons"]] == ["head", "tail"]
+        # types survive, so order alignment still works
+        assert all(t is not None for _, t in fields["Cons"])
+
+    def test_discriminant_need_not_come_first(self):
+        src = 'type List = { head: number; tail: List; tag: "Cons" };'
+        assert [n for n, _ in infer_ts_fields(src)["Cons"]] == ["head", "tail"]
+
+    def test_ailang_generic_type_parameters(self):
+        src = "type MyList[a] = MyNil | MyCons(a, MyList[a])"
+        assert resolve_names(src, LIST, "ailang") == {
+            "Nil": "MyNil",
+            "Cons": "MyCons",
+        }
+
+    def test_ailang_prelude_type_needs_no_declaration(self):
+        # Option/Some/None are auto-imported; there is nothing to match.
+        src = "export func f(x: int) -> Option[int] = Some(x)\nlet y = None"
+        assert resolve_names(src, OPTION, "ailang") == {}
+
+    def test_kw_only_dataclass_is_constructed_by_keyword(self):
+        from vera_bench.adt_render import python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\n"
+            "class List: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(List): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(src)["Cons"] == ["head", "tail"]
+        out = render([1], LIST, "python", py_kwonly=python_kwonly_fields(src))
+        assert out == "Cons(head=1, tail=Nil())"
+
+
+class TestInterpolationSafety:
+    """A test-case string the target language would re-evaluate declines."""
+
+    def test_aver_braces_and_ailang_dollar_brace(self):
+        from vera_bench.runner import _interpolation_safe
+
+        with pytest.raises(Unsupported):
+            _interpolation_safe("a{b}", "aver")
+        with pytest.raises(Unsupported):
+            _interpolation_safe("x${y}", "ailang")
+        _interpolation_safe("plain", "aver")  # must not raise
+        _interpolation_safe("a{b}", "python")  # not interpolated there
