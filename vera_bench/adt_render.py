@@ -161,11 +161,19 @@ def _elem_type(spec: dict) -> str:
 
 
 def _dataclass_aliases(tree: object) -> set[str]:
-    """Names in this module that actually refer to dataclasses.dataclass."""
+    """Module-scope names that actually refer to dataclasses.dataclass.
+
+    Only top-level bindings count, and a later top-level rebinding
+    removes one: an import nested inside a function does not authorise a
+    module-level decorator of the same name, and a module-level `def dc`
+    shadowing an earlier import means `@dc(...)` is not a dataclass at
+    all. Getting this wrong builds a positional constructor by keyword.
+    """
     import ast
 
     names = set()
-    for node in ast.walk(tree):
+    body = getattr(tree, "body", [])
+    for node in body:
         if isinstance(node, ast.ImportFrom) and node.module == "dataclasses":
             for a in node.names:
                 if a.name == "dataclass":
@@ -174,6 +182,12 @@ def _dataclass_aliases(tree: object) -> set[str]:
             for a in node.names:
                 if a.name == "dataclasses":
                     names.add((a.asname or a.name) + ".dataclass")
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.discard(node.name)
+        elif isinstance(node, ast.Assign):
+            for t in node.targets:
+                if isinstance(t, ast.Name):
+                    names.discard(t.id)
     return names
 
 
@@ -316,6 +330,18 @@ _TS_DISC = re.compile(r"""\b(?:readonly\s+)?(tag|kind)\s*:\s*["'](\w+)["']""")
 _TS_FIELD = re.compile(r"\b(?:readonly\s+)?(\w+)\s*:\s*([A-Za-z_][\w\[\]<>. ]*)")
 
 
+#: `type X = …` up to its terminating semicolon, and `interface X { … }`.
+_TS_DECL_REGION = re.compile(
+    r"\btype\s+\w+[^=;]*=\s*[^;]*;|\binterface\s+\w+[^{]*\{[^}]*(?:\{[^}]*\}[^}]*)*\}",
+    re.S,
+)
+
+
+def _ts_declaration_regions(source: str) -> list[str]:
+    """The type/interface declarations in a TypeScript source."""
+    return [m.group(0) for m in _TS_DECL_REGION.finditer(source)]
+
+
 def infer_ts_discriminant(source: str) -> str:
     """The discriminant key the solution uses — `tag` unless it says `kind`.
 
@@ -323,7 +349,18 @@ def infer_ts_discriminant(source: str) -> str:
     `{ tag: … }` object handed to code switching on `.kind` reads
     undefined and fails a correct solution.
     """
-    for block in _TS_BLOCK.finditer(strip_comments(source, "typescript")):
+    src = strip_comments(source, "typescript")
+    # A `type`/`interface` declaration outranks any object literal: a
+    # seed constant or example value written before the declaration
+    # would otherwise pick the discriminant, and the wrapper would build
+    # `{ kind: … }` objects against a `tag` union — the solution's own
+    # switch then reads undefined and a correct answer grades 0.
+    for region in _ts_declaration_regions(src):
+        for block in _TS_BLOCK.finditer(region):
+            disc = _TS_DISC.search(block.group(1))
+            if disc:
+                return disc.group(1)
+    for block in _TS_BLOCK.finditer(src):
         disc = _TS_DISC.search(block.group(1))
         if disc:
             return disc.group(1)

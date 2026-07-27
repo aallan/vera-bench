@@ -493,6 +493,64 @@ class TestIdiomsThatUsedToDecline:
         )
         assert python_kwonly_fields(aliased)["Cons"] == ["head", "tail"]
 
+    def test_dataclass_alias_resolution_is_module_scoped(self):
+        # A nested import must not authorise a module-level decorator of
+        # the same name, and a module-level rebinding must revoke one
+        # (CR on #114). Getting it wrong builds a positional constructor
+        # by keyword.
+        from vera_bench.adt_render import python_kwonly_fields
+
+        nested = (
+            "def helper():\n"
+            "    from dataclasses import dataclass as dc\n"
+            "    return dc\n"
+            "def dc(kw_only=True):\n    return lambda c: c\n"
+            "class List: pass\n"
+            "@dc(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(nested) == {}
+
+        shadowed = (
+            "from dataclasses import dataclass as dc\n"
+            "def dc(kw_only=True):\n    return lambda c: c\n"
+            "class List: pass\n"
+            "@dc(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(shadowed) == {}
+
+        dotted = (
+            "import dataclasses\n"
+            "class List: pass\n"
+            "@dataclasses.dataclass(kw_only=True)\nclass Cons(List):\n"
+            "    head: int\n    tail: List\n"
+        )
+        assert python_kwonly_fields(dotted)["Cons"] == ["head", "tail"]
+
+    def test_a_declaration_outranks_a_literal_for_the_discriminant(self):
+        # A seed constant written before the type would otherwise pick
+        # the discriminant, and the wrapper would build `{ kind: … }`
+        # against a `tag` union — the solution's own switch then reads
+        # undefined and a correct answer grades 0 (CR on #114).
+        src = (
+            'const seed = { kind: "Nil" };\n'
+            'type List = { tag: "Nil" } | '
+            '{ tag: "Cons"; head: number; tail: List };'
+        )
+        assert infer_ts_discriminant(src) == "tag"
+        out = render(
+            [1],
+            LIST,
+            "typescript",
+            ts_fields=infer_ts_fields(src),
+            ts_disc=infer_ts_discriminant(src),
+        )
+        assert out == '{ tag: "Cons", head: 1, tail: { tag: "Nil" } }'
+        # A genuine kind-discriminated union is still honoured.
+        kind = "type List = { kind: 'Nil' } | { kind: 'Cons'; head: number };"
+        assert infer_ts_discriminant(kind) == "kind"
+
     def test_kw_only_dataclass_is_constructed_by_keyword(self):
         from vera_bench.adt_render import python_kwonly_fields
 
