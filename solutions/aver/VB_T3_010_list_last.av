@@ -21,9 +21,7 @@ verify list_last
 
 fn main() -> Unit
     ! [Console.print]
-    empty = MyList.Nil
-    single = MyList.Cons(42, MyList.Nil)
-    triple = MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil)))
-    Console.print("{list_last(empty)}")
-    Console.print("{list_last(single)}")
-    Console.print("{list_last(triple)}")
+    Console.print("{list_last(MyList.Cons(1, MyList.Cons(2, MyList.Cons(3, MyList.Nil))))}")
+    Console.print("{list_last(MyList.Nil)}")
+    Console.print("{list_last(MyList.Cons(7, MyList.Nil))}")
+    Console.print("{list_last(MyList.Cons(-1, MyList.Cons(-9, MyList.Nil)))}")

@@ -8,4 +8,9 @@ export func list_length(xs: MyList) -> int =
     MyCons(_, rest) => 1 + list_length(rest)
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(list_length(MyNil)));
+  println(show(list_length(MyCons(42, MyNil))));
+  println(show(list_length(MyCons(1, MyCons(2, MyCons(3, MyNil))))));
+  println(show(list_length(MyCons(-1, MyCons(-2, MyCons(-3, MyCons(-4, MyCons(-5, MyNil))))))))
+}

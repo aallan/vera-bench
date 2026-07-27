@@ -9,5 +9,7 @@ fn greet(name: String) -> Unit
 
 fn main() -> Unit
     ! [Console.print]
-    greet("World")
-    greet("Alice")
+    greet("world")
+    Console.print("<<VB-CASE>>")
+    greet("Vera")
+    Console.print("<<VB-CASE>>")

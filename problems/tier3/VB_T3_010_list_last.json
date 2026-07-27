@@ -6,14 +6,118 @@
   "description_neutral": "Define a linked list type and an option type. Write a function that returns the last element of the list, or none if the list is empty.",
   "signature": "public fn list_last(@List -> @Option)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "list_last",
-  "tags": ["adt", "pattern-matching", "recursion", "decreases", "two-adts", "option", "nested-match"],
-  "test_cases": [],
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "recursion",
+    "decreases",
+    "two-adts",
+    "option",
+    "nested-match"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "expected": {
+        "Some": [
+          3
+        ]
+      }
+    },
+    {
+      "args": [
+        []
+      ],
+      "expected": {
+        "None": []
+      }
+    },
+    {
+      "args": [
+        [
+          7
+        ]
+      ],
+      "expected": {
+        "Some": [
+          7
+        ]
+      }
+    },
+    {
+      "args": [
+        [
+          -1,
+          -9
+        ]
+      ],
+      "expected": {
+        "Some": [
+          -9
+        ]
+      }
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
-  "notes": "The agent must define TWO ADTs (List and Option) and use nested match: first on the list, then on the tail to check if it's the last element. Inside the inner match, De Bruijn indices shift again."
+  "notes": "The agent must define TWO ADTs (List and Option) and use nested match: first on the list, then on the tail to check if it's the last element. Inside the inner match, De Bruijn indices shift again.",
+  "adt": {
+    "type": "List",
+    "form": "list",
+    "empty": "Nil",
+    "cons": "Cons",
+    "constructors": [
+      {
+        "name": "Nil",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Cons",
+        "args": [
+          "Int",
+          "List"
+        ],
+        "fields": [
+          "head",
+          "tail"
+        ]
+      }
+    ]
+  },
+  "return_adt": {
+    "type": "Option",
+    "form": "tagged",
+    "constructors": [
+      {
+        "name": "None",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Some",
+        "args": [
+          "Int"
+        ],
+        "fields": [
+          "value"
+        ]
+      }
+    ]
+  }
 }

@@ -141,14 +141,15 @@ and two IO problems whose multi-line output the cross-language baseline
 protocol cannot host.
 
 Vera now gets the same treatment
-([#107](https://github.com/aallan/vera-bench/issues/107)): as of v0.0.17,
-ten more problems grade, 46 of the 60. Reaching for the rest immediately paid
-for itself, exposing a canonical solution that had shipped broken; `check` and
-`verify` both passed it, and only running it caught it. The 14 still ungraded
-are the twelve that take an ADT argument, plus those two IO problems. They are the
-ADT, pattern-matching and effect-handler problems, the ones that exercise what
-makes Vera different from Python, so the scores above are measured on the part
-of the benchmark where the two languages are most alike.
+([#107](https://github.com/aallan/vera-bench/issues/107)): v0.0.17 took the
+gradeable set to 46, and v0.0.18 closed it — all 60 problems are gradeable, in
+all five languages. Reaching for the rest paid for itself immediately,
+exposing seven canonical solutions that had shipped broken; `check` and
+`verify` passed every one, and only running them caught them. The scores above
+are still measured over the 36 problems gradeable when that sweep ran — the
+last 24 are the ADT, pattern-matching and effect-handler problems, the ones
+that exercise what makes Vera different from Python, so a re-sweep against
+the full 60 is the next milestone.
 
 ### The benchmark is saturating
 

@@ -7,4 +7,9 @@ func build_greeting(name: string) -> string = "Hello, ${name}!"
 export func greet(name: string) -> () ! {IO} =
   println(build_greeting(name))
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  greet("world");
+  println("<<VB-CASE>>");
+  greet("Vera");
+  println("<<VB-CASE>>")
+}

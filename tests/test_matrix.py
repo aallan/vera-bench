@@ -207,13 +207,99 @@ class TestGradeableVersioning:
         assert pr._pass_at_1_pct(rows, "0.0.16") == 100
         assert pr._pass_at_1_pct(rows, "0.0.17") == 80
 
-    def test_every_pinned_id_is_gradeable_today(self):
+    def test_every_pinned_id_is_gradeable_today(self, monkeypatch):
         # A GRADEABLE_ADDED entry for a problem with no test cases would
         # mean the pin and the problem set disagree about reality.
         pr = self._pr()
-        pr._GRADEABLE_IDS = None  # drop any patched value; read from disk
+        # drop any patched value and read from disk — via monkeypatch so
+        # the disk cache cannot leak into later tests
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", None)
         current = pr._gradeable_ids(None)
         missing = set(pr.GRADEABLE_ADDED) - current
         assert not missing, f"pinned but not gradeable on disk: {sorted(missing)}"
         for version in pr.GRADEABLE_ADDED.values():
             assert pr._version_tuple(version) is not None
+
+    def test_version_boundaries_match_published_history(self, monkeypatch):
+        # The mechanism is tested with synthetic pins above; this pins
+        # the REAL data. A typo'd version on one of the 24 entries, or a
+        # problem gaining cases without a pin, corrupts regenerated
+        # published charts silently — the exact CLAUDE.md invariant.
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", None)
+        assert len(pr._gradeable_ids("0.0.16")) == 36
+        assert len(pr._gradeable_ids("0.0.17")) == 46
+        assert len(pr._gradeable_ids(None)) == 60
+        added = pr._gradeable_ids(None) - pr._gradeable_ids("0.0.16")
+        assert added == set(pr.GRADEABLE_ADDED)
+
+    def test_declines_leave_the_denominator(self, monkeypatch):
+        # "test wrapper unavailable" is the harness abstaining, not the
+        # model failing; only harness-labelled rows are excluded, so a
+        # model cannot shrink its own denominator.
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {"P0", "P1", "P2"})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {})
+        rows = [
+            {"problem_id": "P0", "attempt": 1, "check_pass": True, "run_correct": True},
+            {
+                "problem_id": "P1",
+                "attempt": 1,
+                "check_pass": True,
+                "error_message": "test wrapper unavailable: no data declaration",
+            },
+            {
+                "problem_id": "P2",
+                "attempt": 1,
+                "check_pass": True,
+                "run_correct": False,
+            },
+        ]
+        # P1 declined: 1 solved of 2 eligible, not 1 of 3.
+        assert pr._pass_at_1_pct(rows) == 50
+        # A model-written message must not trigger the exclusion.
+        rows[1] = {
+            "problem_id": "P1",
+            "attempt": 1,
+            "check_pass": True,
+            "run_correct": False,
+            "error_message": "test wrapper unavailable (I refuse)",
+        }
+        assert pr._pass_at_1_pct(rows) == 33
+
+    def test_a_forged_decline_message_does_not_shrink_the_denominator(
+        self, monkeypatch
+    ):
+        # A compile-failure row carries the compiler's diagnostic, which
+        # quotes the model's own source. Substring-matching alone let a
+        # model remove its problem from the denominator by writing the
+        # phrase; the marker must be anchored and paired with check_pass.
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {"P0", "P1"})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {})
+        rows = [
+            {"problem_id": "P0", "attempt": 1, "check_pass": True, "run_correct": True},
+            {
+                "problem_id": "P1",
+                "attempt": 1,
+                "check_pass": False,
+                "error_message": "[E001] parse error near "
+                "'test wrapper unavailable: hi'",
+            },
+        ]
+        assert pr._pass_at_1_pct(rows) == 50  # counted, not excluded
+
+    def test_a_genuine_decline_still_leaves_the_denominator(self, monkeypatch):
+        pr = self._pr()
+        monkeypatch.setattr(pr, "_GRADEABLE_IDS", {"P0", "P1"})
+        monkeypatch.setattr(pr, "GRADEABLE_ADDED", {})
+        rows = [
+            {"problem_id": "P0", "attempt": 1, "check_pass": True, "run_correct": True},
+            {
+                "problem_id": "P1",
+                "attempt": 1,
+                "check_pass": True,
+                "error_message": "test wrapper unavailable: no data declaration",
+            },
+        ]
+        assert pr._pass_at_1_pct(rows) == 100

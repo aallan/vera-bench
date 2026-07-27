@@ -6,14 +6,90 @@
   "description_neutral": "Define a linked list type with nil and cons constructors. Write a function that returns the nth element (0-indexed), or -1 if the index is out of bounds.",
   "signature": "public fn list_nth(@List, @Nat -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "list_nth",
-  "tags": ["recursion", "decreases", "termination", "adt", "indexing", "two-params"],
-  "test_cases": [],
+  "tags": [
+    "recursion",
+    "decreases",
+    "termination",
+    "adt",
+    "indexing",
+    "two-params"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        [
+          10,
+          20,
+          30
+        ],
+        0
+      ],
+      "expected": 10
+    },
+    {
+      "args": [
+        [
+          10,
+          20,
+          30
+        ],
+        2
+      ],
+      "expected": 30
+    },
+    {
+      "args": [
+        [
+          10,
+          20,
+          30
+        ],
+        3
+      ],
+      "expected": -1
+    },
+    {
+      "args": [
+        [],
+        0
+      ],
+      "expected": -1
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
-  "notes": "list_nth(lst, n): @Nat.0=n, @List.0=lst. decreases(@List.0) because the list gets shorter. Inside Cons(@Int, @List), the index @Nat.0 remains unchanged. The agent must use 0-1 for -1 since there's no unary minus on literals."
+  "notes": "list_nth(lst, n): @Nat.0=n, @List.0=lst. decreases(@List.0) because the list gets shorter. Inside Cons(@Int, @List), the index @Nat.0 remains unchanged. The agent must use 0-1 for -1 since there's no unary minus on literals.",
+  "adt": {
+    "type": "List",
+    "form": "list",
+    "empty": "Nil",
+    "cons": "Cons",
+    "constructors": [
+      {
+        "name": "Nil",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Cons",
+        "args": [
+          "Int",
+          "List"
+        ],
+        "fields": [
+          "head",
+          "tail"
+        ]
+      }
+    ]
+  }
 }

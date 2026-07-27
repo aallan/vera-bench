@@ -63,57 +63,6 @@ adopting the T1–T4 aggregate convention above — that resolved the reporting
 question, not the limitation, which stands. Re-open the question under
 ROADMAP Milestone 2 if a direct method is designed.
 
-### 14 problems are not output-graded: 12 ADT-argument, 2 IO
-
-As of v0.0.17 the harness grades 46 of 60 problems. Strings and bools
-round-trip on the `vera run --fn` command line (the old "integer arguments
-only" limit no longer holds against vera 0.1.7), and array arguments go
-through a generated Vera caller (`vera_bench/vera_wrapper.py`) that writes
-the arguments into the source — with structured *returns* compared inside
-Vera, because they print as WASM addresses, not values.
-
-Two shapes remain ungraded:
-
-- **ADT arguments** (`@List`, `@Tree`, `@Expr`, `@Option`; 12 problems). The
-  problem statements ask the *model* to define the type, so constructor
-  names, arity and field order are the model's choice — a wrapper has to be
-  generated against the model's own declaration, with a decline-to-grade
-  path when it cannot be matched. Guessing would record correct solutions as
-  failures, which is worse than not grading.
-- **IO problems** (`@Unit` return; 2 problems). Vera grades them on stdout,
-  but the aver/ailang baseline protocol is one printed line per test case,
-  and `print_numbers` emits several lines or none. Grading is
-  all-languages-or-none, so they wait for a whole-stdout baseline mode.
-
-**Exit condition:** [#107](https://github.com/aallan/vera-bench/issues/107)
-steps 2 (ADT arguments) and 5 (IO stdout).
-
-### The LLM request timeout is hardcoded, and Moonshot's differs
-
-The per-request timeout lives in each client's `complete()` signature and
-cannot be set from the CLI. Moonshot runs at **300s** (raised in v0.0.17
-after VB-T5-009 exceeded 120s deterministically and was recorded as a
-*transient* error, inviting retries that could never succeed); every other
-provider runs at **120s**. Until the flag exists, Moonshot rows on long
-problems are not strictly comparable with other providers' under the same
-version, and a repeated timeout should be read as a budget wall rather than
-infrastructure flake.
-
-**Exit condition:** [#105](https://github.com/aallan/vera-bench/issues/105)
-— a `--timeout` flag threaded through to the clients, recorded in the rows.
-
-### `rerun_failed.py` must not repair files from an older bench version
-
-The surgical repair tool re-runs problems under the *current* harness and
-splices the rows into the target file. Against a file from an older bench
-version that mixes measurement conditions invisibly: the spliced rows carry
-the current timeout, wrapper grading and problem set inside a filename that
-claims the old version. Repair only files whose embedded version matches the
-installed `vera-bench --version`.
-
-**Exit condition:** none — this is an inherent property of in-place repair.
-The version-embedded filename is the guard; check it before `--apply`.
-
 ---
 
 ## Analytical caveats

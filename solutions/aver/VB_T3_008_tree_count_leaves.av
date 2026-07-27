@@ -19,9 +19,6 @@ verify tree_count_leaves
 
 fn main() -> Unit
     ! [Console.print]
-    leaf = Tree.Leaf(1)
-    pair = Tree.Branch(Tree.Leaf(1), Tree.Leaf(2))
-    nested = Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3))
-    Console.print("{tree_count_leaves(leaf)}")
-    Console.print("{tree_count_leaves(pair)}")
-    Console.print("{tree_count_leaves(nested)}")
+    Console.print("{tree_count_leaves(Tree.Leaf(5))}")
+    Console.print("{tree_count_leaves(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)))}")
+    Console.print("{tree_count_leaves(Tree.Branch(Tree.Branch(Tree.Leaf(1), Tree.Leaf(2)), Tree.Leaf(3)))}")

@@ -9,4 +9,13 @@ func print_loop(i: int, n: int) -> () ! {IO} =
 
 export func print_numbers(n: int) -> () ! {IO} = print_loop(1, n)
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  print_numbers(0);
+  println("<<VB-CASE>>");
+  print_numbers(1);
+  println("<<VB-CASE>>");
+  print_numbers(3);
+  println("<<VB-CASE>>");
+  print_numbers(5);
+  println("<<VB-CASE>>")
+}

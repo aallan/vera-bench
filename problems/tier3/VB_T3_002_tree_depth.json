@@ -23,8 +23,92 @@
     "let-binding",
     "max-builtin"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        {
+          "Leaf": [
+            5
+          ]
+        }
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        {
+          "Branch": [
+            {
+              "Leaf": [
+                1
+              ]
+            },
+            {
+              "Leaf": [
+                2
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": 2
+    },
+    {
+      "args": [
+        {
+          "Branch": [
+            {
+              "Branch": [
+                {
+                  "Leaf": [
+                    1
+                  ]
+                },
+                {
+                  "Leaf": [
+                    2
+                  ]
+                }
+              ]
+            },
+            {
+              "Leaf": [
+                3
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": 3
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Requires let bindings for intermediate results inside Branch arm. Tests that the agent discovers max() is a prefix-less builtin. Inside Branch(@Tree, @Tree), @Tree.0 is right child, @Tree.1 is left."
+  "notes": "Requires let bindings for intermediate results inside Branch arm. Tests that the agent discovers max() is a prefix-less builtin. Inside Branch(@Tree, @Tree), @Tree.0 is right child, @Tree.1 is left.",
+  "adt": {
+    "type": "Tree",
+    "form": "tagged",
+    "constructors": [
+      {
+        "name": "Leaf",
+        "args": [
+          "Int"
+        ],
+        "fields": [
+          "value"
+        ]
+      },
+      {
+        "name": "Branch",
+        "args": [
+          "Tree",
+          "Tree"
+        ],
+        "fields": [
+          "left",
+          "right"
+        ]
+      }
+    ]
+  }
 }

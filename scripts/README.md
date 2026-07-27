@@ -567,7 +567,7 @@ per (model, mode). These four need the raw JSONL rows.
 | `refusal` | Where did models decline to answer — and did that same model solve that same problem elsewhere? |
 | `generation` | Consecutive flagship releases (`GENERATION_PAIR`) across every language, as a slope chart |
 | `saturation` | Every (model, language) score as one dot, with a "1 problem = N pp" scale bar |
-| `coverage` | What pass@1 structurally cannot see: the problems with no test cases (14 of 60 as of v0.0.17, version-pinned) |
+| `coverage` | What pass@1 structurally cannot see: the problems with no test cases (none as of v0.0.18, version-pinned) |
 
 ```bash
 python scripts/plot_narrative.py --version 0.0.16            # all four
@@ -592,7 +592,7 @@ counts as "solved" has to be right:
 - **gradeable problem** (has test cases) → `run_correct is True`
 - **no test cases** → `check_pass is True`
 
-Problems without test cases (14 of the 60 as of v0.0.17; the split is
+Problems without test cases (none as of v0.0.18; the split is
 version-pinned, so a `--version` render shows its own era's) carry
 `run_correct: None` *by construction*, never because anything failed.
 Testing `run_correct is True` alone reports a

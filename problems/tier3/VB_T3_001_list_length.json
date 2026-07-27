@@ -22,8 +22,69 @@
     "decreases",
     "data-definition"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        []
+      ],
+      "expected": 0
+    },
+    {
+      "args": [
+        [
+          42
+        ]
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        [
+          1,
+          2,
+          3
+        ]
+      ],
+      "expected": 3
+    },
+    {
+      "args": [
+        [
+          -1,
+          -2,
+          -3,
+          -4,
+          -5
+        ]
+      ],
+      "expected": 5
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "The agent must define data List { Nil, Cons(Int, List) } AND write the function. Inside match Cons(@Int, @List), @List.0 refers to the tail (matched binding), not the parameter. This is THE core De Bruijn test."
+  "notes": "The agent must define data List { Nil, Cons(Int, List) } AND write the function. Inside match Cons(@Int, @List), @List.0 refers to the tail (matched binding), not the parameter. This is THE core De Bruijn test.",
+  "adt": {
+    "type": "List",
+    "form": "list",
+    "empty": "Nil",
+    "cons": "Cons",
+    "constructors": [
+      {
+        "name": "Nil",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Cons",
+        "args": [
+          "Int",
+          "List"
+        ],
+        "fields": [
+          "head",
+          "tail"
+        ]
+      }
+    ]
+  }
 }

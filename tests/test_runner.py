@@ -17,6 +17,8 @@ from vera_bench.runner import (
     ProblemResult,
     _ailang_literal,
     _aver_literal,
+    _evaluate_python_code,
+    _evaluate_typescript_code,
     _strip_ailang_main,
     _strip_aver_main,
     _strip_module_effects,
@@ -3292,3 +3294,127 @@ class TestConnectionErrorDoesNotAbortSweep:
         assert len(results) == 1
         assert "connection reset by peer" in results[0].error_message
         assert (tmp_path / "out.jsonl").read_text().strip()
+
+
+class TestTsWrapperConsoleRestore:
+    """A throwing case must not corrupt the cases after it (CR on #112).
+
+    The generated TS wrapper patches console.log and process.stdout.write
+    around each call. If the call throws and the catch does not restore
+    them, every later case's output — and the final JSON result line
+    itself — lands in the capture buffer instead of stdout, so one bad
+    case fails the whole problem with "Bad JSON output".
+    """
+
+    @pytest.mark.skipif(not _has_tsx, reason="tsx/npx not on PATH")
+    def test_a_throwing_case_leaves_later_cases_graded(self, tmp_path):
+        problem = {
+            "id": "VB-TEST-THROW",
+            "signature": "public fn absolute_value(@Int -> @Int)",
+            "entry_point": "absolute_value",
+            "test_cases": [
+                {"args": [-5], "expected": 5},
+                {"args": [0], "expected": 0},
+            ],
+        }
+        code = (
+            "function absoluteValue(x: number): number {\n"
+            "  if (x < 0) throw new Error('boom');\n"
+            "  return x;\n"
+            "}\n"
+        )
+        result = _evaluate_typescript_code(code, problem, tmp_path, attempt=1)
+        # Case 1 throws and fails; case 2 must still run and pass — and
+        # the JSON protocol must survive, so this is a parsed result, not
+        # a "Bad JSON output" error.
+        assert result["tests_total"] == 2
+        assert result["tests_passed"] == 1
+        assert "Bad JSON" not in str(result.get("error_message") or "")
+
+
+class TestEvaluatorAdtDeclines:
+    """An unmappable model declaration declines to ungraded, never a crash.
+
+    Before the guards, an Unsupported from the ADT mapper propagated to
+    the worker's catch-all and was recorded as a crash row. These are
+    hermetic: the decline happens at wrapper-build, before any
+    subprocess.
+    """
+
+    PROBLEM = {
+        "id": "VB-TEST-ADT",
+        "signature": "public fn list_length(@List -> @Nat)",
+        "entry_point": "list_length",
+        "adt": {
+            "type": "List",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": [], "fields": []},
+                {"name": "Cons", "args": ["Int", "List"], "fields": ["head", "tail"]},
+            ],
+        },
+        "test_cases": [{"args": [[1, 2]], "expected": 2}],
+    }
+
+    def test_python_unmappable_is_ungraded(self, tmp_path):
+        code = "def list_length(x):\n    return 0\n"  # no constructors at all
+        r = _evaluate_python_code(code, self.PROBLEM, tmp_path, attempt=1)
+        assert r["run_correct"] is None
+        assert r["tests_total"] == 0
+        assert "test wrapper unavailable" in r["error_message"]
+
+    def test_typescript_unmappable_is_ungraded(self, tmp_path):
+        code = "function listLength(x: any): number { return 0; }\n"
+        r = _evaluate_typescript_code(code, self.PROBLEM, tmp_path, attempt=1)
+        assert r["run_correct"] is None
+        assert r["tests_total"] == 0
+        assert "test wrapper unavailable" in r["error_message"]
+
+
+class TestNonAnswersAreFailuresNotDeclines:
+    """A refusal must score as a failure, never leave the denominator.
+
+    Both evaluators reached the ADT mapper before the model's code was
+    parsed, so a prose refusal declined — and since declines now leave
+    the pass@1 denominator, a non-answer outscored a wrong answer.
+    """
+
+    PROBLEM = {
+        "id": "VB-TEST-REFUSE",
+        "signature": "public fn list_length(@List -> @Nat)",
+        "entry_point": "list_length",
+        "adt": {
+            "type": "List",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": [], "fields": []},
+                {"name": "Cons", "args": ["Int", "List"], "fields": ["head", "tail"]},
+            ],
+        },
+        "test_cases": [{"args": [[1, 2]], "expected": 2}],
+    }
+
+    def test_python_refusal_is_a_failure(self, tmp_path):
+        r = _evaluate_python_code(
+            "I cannot help with that request.\n", self.PROBLEM, tmp_path, attempt=1
+        )
+        assert r["run_correct"] is False
+        assert "test wrapper unavailable" not in (r["error_message"] or "")
+
+    def test_typescript_refusal_is_a_failure(self, tmp_path):
+        r = _evaluate_typescript_code(
+            "I cannot help with that request.\n", self.PROBLEM, tmp_path, attempt=1
+        )
+        assert r["run_correct"] is False
+        assert "test wrapper unavailable" not in (r["error_message"] or "")
+
+    def test_a_real_mapping_gap_still_declines(self, tmp_path):
+        # Genuine code, unmappable declaration: this one may abstain.
+        code = "def list_length(x):\n    return 0\n"
+        r = _evaluate_python_code(code, self.PROBLEM, tmp_path, attempt=1)
+        assert r["run_correct"] is None
+        assert "test wrapper unavailable" in r["error_message"]

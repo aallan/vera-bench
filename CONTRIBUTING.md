@@ -26,8 +26,7 @@ New benchmark problems are welcome. For each new problem, you must produce:
 Every comparison language needs a baseline, or `vera-bench baselines --language
 {lang}` covers fewer problems than its siblings and the cross-language numbers
 stop being like-for-like. (Baselines only execute the problems that carry
-`test_cases` — 46 of 60 as of v0.0.17; the rest are validated by `vera check`
-alone.)
+`test_cases` — all 60 as of v0.0.18.)
 
 Adding or changing `test_cases` on a problem carries three obligations, and
 `vera-bench baselines` across all four languages is the check that you met

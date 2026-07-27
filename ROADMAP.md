@@ -4,15 +4,15 @@ This file tracks **forward-looking** work, ordered by priority — top to bottom
 roughly the order we intend to do it. For what has shipped in each release, see
 [CHANGELOG.md](CHANGELOG.md); completed items move there rather than staying here.
 
-## Milestone 1: Grade everything, harden the loop (current)
+## Milestone 1: Harden the loop (current)
 
-v0.0.17 took the output-graded set from 36 of 60 problems to 46, by generating
-a Vera caller for structured arguments. The rest of the gap, and the
-operational debts the v0.0.16 sweep exposed, in priority order:
+v0.0.18 closed the grading gap: all 60 problems are output-graded in all five
+languages. What remains are the operational debts the v0.0.16 sweep exposed:
 
-- [ ] **ADT-argument grading** — the 12 remaining `@List`/`@Tree`/`@Expr`/`@Option` problems. Needs the wrapper generated against the *model's own* type declaration, with a decline-to-grade path when it cannot be matched ([#107](https://github.com/aallan/vera-bench/issues/107) step 2)
-- [ ] **IO-problem grading** — the 2 `@Unit` problems. Vera grades them on stdout, but the aver/ailang baseline protocol is one printed line per test case; needs a whole-stdout mode across the baselines ([#107](https://github.com/aallan/vera-bench/issues/107) step 5)
-- [ ] Store generated code alongside result rows, so post-hoc analysis stops being impossible ([#109](https://github.com/aallan/vera-bench/issues/109))
+- [ ] **Re-sweep against the full 60.** The published numbers are graded over
+  36 problems; nothing has been swept against the complete set yet, and stored
+  code (#109) makes the next expansion re-gradeable rather than a re-run
+
 - [ ] `--timeout` flag threaded to the LLM clients, collapsing the Moonshot 300s / everyone 120s asymmetry ([#105](https://github.com/aallan/vera-bench/issues/105))
 - [ ] `run_sweep.sh` per-problem retry instead of whole-target re-runs ([#101](https://github.com/aallan/vera-bench/issues/101))
 - [ ] Tier the test suite (unit vs integration) so the merge gate is fast and hermetic ([#102](https://github.com/aallan/vera-bench/issues/102))

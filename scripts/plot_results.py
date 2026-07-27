@@ -252,9 +252,8 @@ _GRADEABLE_IDS: set[str] | None = None
 # TODAY's problem set — but old result files carry rows for problems
 # that were not gradeable when they were swept. Without this pin,
 # regenerating a v0.0.16 chart after #107 landed would divide 36
-# problems' worth of solves by the current 46-problem denominator (the
-# 36 plus the ten this release added) and silently deflate every
-# published number. Same failure class, same
+# problems' worth of solves by the current 60-problem denominator and
+# silently deflate every published number. Same failure class, same
 # remedy, as HISTORICAL_LINEUPS above.
 #
 # Maintenance rule: whenever test cases are added to an EXISTING
@@ -263,21 +262,46 @@ _GRADEABLE_IDS: set[str] | None = None
 # carry no rows for them at all, so presence-filtering already excludes
 # them.
 GRADEABLE_ADDED: dict[str, str] = {
-    pid: "0.0.17"
-    for pid in (
-        # arrays, via the generated wrapper (#107 step 1)
-        "VB-T2-001",
-        "VB-T2-002",
-        "VB-T2-006",
-        "VB-T2-007",
-        "VB-T2-008",
-        "VB-T2-010",
-        "VB-T5-005",
-        "VB-T5-010",
-        # scalar strings on the CLI, no wrapper needed
-        "VB-T2-003",
-        "VB-T2-009",
-    )
+    **{
+        pid: "0.0.17"
+        for pid in (
+            # arrays, via the generated wrapper (#107 step 1)
+            "VB-T2-001",
+            "VB-T2-002",
+            "VB-T2-006",
+            "VB-T2-007",
+            "VB-T2-008",
+            "VB-T2-010",
+            "VB-T5-005",
+            "VB-T5-010",
+            # scalar strings on the CLI, no wrapper needed
+            "VB-T2-003",
+            "VB-T2-009",
+        )
+    },
+    **{
+        pid: "0.0.18"
+        for pid in (
+            # ADT arguments, matched against the model's own declaration
+            # (#107 step 2a)
+            "VB-T3-001",
+            "VB-T3-002",
+            "VB-T3-003",
+            "VB-T3-004",
+            "VB-T3-005",
+            "VB-T3-006",
+            "VB-T3-007",
+            "VB-T3-008",
+            "VB-T4-009",
+            # ADT returns, compared structurally per language (step 2b)
+            "VB-T3-009",
+            "VB-T3-010",
+            "VB-T4-006",
+            # graded on printed output (step 5)
+            "VB-T5-002",
+            "VB-T5-008",
+        )
+    },
 }
 
 
@@ -321,6 +345,31 @@ def _gradeable_ids(version: str | None = None) -> set[str]:
     }
 
 
+#: The harness writes this prefix itself when it cannot build a caller.
+#: Anchored at the start and paired with check_pass, because a
+#: compile-failure row carries the compiler's diagnostic — which quotes
+#: the model's own source. A model that wrote the phrase could otherwise
+#: have its problem removed from the denominator instead of counted as
+#: a failure, which is precisely what this exclusion must not allow.
+_DECLINE_PREFIX = "test wrapper unavailable:"
+
+
+def _declined(row: dict) -> bool:
+    """A harness decline: ungraded because WE could not build a caller.
+
+    Three conditions, all harness-controlled: no run_correct verdict,
+    the code compiled (so this is not a compile failure whose diagnostic
+    merely quotes the model), and the message STARTS with the marker the
+    harness writes. A model cannot satisfy the second and third at once
+    with anything it writes.
+    """
+    return (
+        "run_correct" not in row
+        and row.get("check_pass") is True
+        and (row.get("error_message") or "").startswith(_DECLINE_PREFIX)
+    )
+
+
 def _pass_at_1_pct(rows: list[dict], version: str | None = None) -> int | None:
     """pass@1 as an integer percent: solved / gradeable-problems-present.
 
@@ -329,6 +378,14 @@ def _pass_at_1_pct(rows: list[dict], version: str | None = None) -> int | None:
     did not. This is the honest headline: unlike run_correct-over-eligible
     it does not shrink the denominator when the model refuses or fails to
     compile, so refusing hard problems cannot inflate the bar.
+
+    The one exception is a harness DECLINE — "test wrapper unavailable",
+    written when the harness could not map the model's own type
+    declaration to build a caller. That is the harness abstaining, not
+    the model failing, so the problem leaves the denominator for that
+    target. The distinction is deliberate and narrow: only rows the
+    harness itself labelled are excluded, so a model cannot buy a
+    smaller denominator with anything it writes.
 
     Best attempt per problem (an attempt-2 fix that compiles supersedes
     attempt-1), matching compute_metrics. Returns None when no gradeable
@@ -343,13 +400,18 @@ def _pass_at_1_pct(rows: list[dict], version: str | None = None) -> int | None:
             attempts.setdefault(pid, {})[r.get("attempt")] = r
     if not attempts:
         return None
-    solved = 0
+    solved = eligible = 0
     for a in attempts.values():
         a2, a1 = a.get(2), a.get(1)
         best = a2 if (a2 and a2.get("check_pass")) else a1
+        if best and _declined(best):
+            continue
+        eligible += 1
         if best and best.get("run_correct") is True:
             solved += 1
-    return round(100 * solved / len(attempts))
+    if not eligible:
+        return None
+    return round(100 * solved / eligible)
 
 
 def extract_data(

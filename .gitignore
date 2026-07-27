@@ -20,6 +20,10 @@ htmlcov/
 *.wat
 tmp/
 results/*.jsonl
+# Generated code stored beside the rows (#109) — same status as the
+# JSONL it accompanies: reproducible output, shipped as a release
+# asset rather than committed.
+results/code/
 results/summary.md
 results/timing.json
 

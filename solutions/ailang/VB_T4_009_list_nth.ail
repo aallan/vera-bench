@@ -8,4 +8,9 @@ export func list_nth(xs: MyList, i: int) -> int =
     MyCons(h, t) => if i == 0 then h else list_nth(t, i - 1)
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(list_nth(MyCons(10, MyCons(20, MyCons(30, MyNil))), 0)));
+  println(show(list_nth(MyCons(10, MyCons(20, MyCons(30, MyNil))), 2)));
+  println(show(list_nth(MyCons(10, MyCons(20, MyCons(30, MyNil))), 3)));
+  println(show(list_nth(MyNil, 0)))
+}

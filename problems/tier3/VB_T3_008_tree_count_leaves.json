@@ -24,8 +24,92 @@
     "tree",
     "counting"
   ],
-  "test_cases": [],
+  "test_cases": [
+    {
+      "args": [
+        {
+          "Leaf": [
+            5
+          ]
+        }
+      ],
+      "expected": 1
+    },
+    {
+      "args": [
+        {
+          "Branch": [
+            {
+              "Leaf": [
+                1
+              ]
+            },
+            {
+              "Leaf": [
+                2
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": 2
+    },
+    {
+      "args": [
+        {
+          "Branch": [
+            {
+              "Branch": [
+                {
+                  "Leaf": [
+                    1
+                  ]
+                },
+                {
+                  "Leaf": [
+                    2
+                  ]
+                }
+              ]
+            },
+            {
+              "Leaf": [
+                3
+              ]
+            }
+          ]
+        }
+      ],
+      "expected": 3
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "The ensures clause @Nat.result >= 1 itself still proves at Tier 1 (base case returns 1; recursive case sums two values each >= 1). vera_verify_tier1 is false because Vera 0.1.x auto-synthesises an int_overflow obligation on the recursive sum (tree_count_leaves(l) + tree_count_leaves(r)) which is unprovable at Tier 1 for unbounded trees and is checked at Tier 3 (runtime) instead."
+  "notes": "The ensures clause @Nat.result >= 1 itself still proves at Tier 1 (base case returns 1; recursive case sums two values each >= 1). vera_verify_tier1 is false because Vera 0.1.x auto-synthesises an int_overflow obligation on the recursive sum (tree_count_leaves(l) + tree_count_leaves(r)) which is unprovable at Tier 1 for unbounded trees and is checked at Tier 3 (runtime) instead.",
+  "adt": {
+    "type": "Tree",
+    "form": "tagged",
+    "constructors": [
+      {
+        "name": "Leaf",
+        "args": [
+          "Int"
+        ],
+        "fields": [
+          "value"
+        ]
+      },
+      {
+        "name": "Branch",
+        "args": [
+          "Tree",
+          "Tree"
+        ],
+        "fields": [
+          "left",
+          "right"
+        ]
+      }
+    ]
+  }
 }

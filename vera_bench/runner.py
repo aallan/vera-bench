@@ -17,6 +17,13 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress
 
+from vera_bench.adt_render import adt_call as _adt_call
+from vera_bench.adt_render import adt_expected as _adt_expected
+from vera_bench.adt_render import adt_printed as _adt_printed
+from vera_bench.adt_render import (
+    grades_on_stdout,
+    return_spec,
+)
 from vera_bench.models import AuthError, LLMClient
 from vera_bench.prompts import (
     build_ailang_fix_prompt,
@@ -43,6 +50,54 @@ _FENCE_RE = re.compile(
     r"```(?:vera|aver|ailang|ail|python|py|typescript|ts)?\s*\n(.*?)\n?```",
     re.DOTALL,
 )
+
+
+#: File extension for stored generated code, by language.
+_CODE_EXT = {
+    "vera": "vera",
+    "python": "py",
+    "typescript": "ts",
+    "aver": "av",
+    "ailang": "ail",
+}
+
+
+def store_code(
+    code_dir: Path | None,
+    problem_id: str,
+    attempt: int,
+    language: str,
+    code: str,
+) -> str | None:
+    """Write one attempt's generated code beside the results.
+
+    Returns the path relative to the *results* directory, so a row stays
+    valid if the whole tree is moved or shipped as a release asset.
+
+    Without this, a benchmark run is unfalsifiable after the fact: the
+    verdicts survive and the code that earned them does not. That cost a
+    full re-sweep when the graded set expanded, because there was no way
+    to grade the answers we had already paid for.
+
+    Storage is instrumentation, so a failed write must not lose a run
+    that cost real money — an OSError is reported and swallowed. It is
+    never *silent*: the row simply carries no `code_path`, and the
+    console says why.
+    """
+    if code_dir is None:
+        return None
+    ext = _CODE_EXT.get(language, "txt")
+    path = code_dir / f"{problem_id}_attempt{attempt}.{ext}"
+    try:
+        code_dir.mkdir(parents=True, exist_ok=True)
+        path.write_text(code, encoding="utf-8")
+    except OSError as e:
+        console.print(f"[yellow]Could not store code for {problem_id}: {e}[/yellow]")
+        return None
+    try:
+        return str(path.relative_to(code_dir.parent.parent))
+    except ValueError:  # code_dir supplied from outside the results tree
+        return str(path)
 
 
 def extract_code(response_text: str) -> str:
@@ -84,6 +139,9 @@ class ProblemResult:
     error_message: str | None = None
     bench_version: str = ""
     vera_version: str = ""
+    #: Where this attempt's generated code was stored, relative to the
+    #: results directory. None when storage is off or the write failed.
+    code_path: str | None = None
 
     def to_jsonl(self) -> str:
         d = asdict(self)
@@ -157,7 +215,8 @@ def _evaluate_code(
     # For those, generate a caller with the arguments written into the
     # source, the way the Python and AILANG evaluators already do (#107).
     signature = problem.get("signature", "")
-    wrapped = can_wrap(signature)
+    adt_spec = problem.get("adt")
+    wrapped = can_wrap(signature, adt_spec)
     for i, tc in enumerate(test_cases):
         if not isinstance(tc, dict):
             continue
@@ -169,7 +228,13 @@ def _evaluate_code(
         if wrapped:
             try:
                 wrapper, expected = build_wrapper(
-                    code, entry_point, signature, args, expected
+                    code,
+                    entry_point,
+                    signature,
+                    args,
+                    expected,
+                    adt_spec,
+                    return_spec(problem),
                 )
             except Unsupported as e:
                 # Leave the problem ungraded rather than score it on a
@@ -179,8 +244,11 @@ def _evaluate_code(
                 result["run_correct"] = None
                 result["tests_total"] = 0
                 result["tests_passed"] = 0
-                if not result.get("error_message"):
-                    result["error_message"] = f"test wrapper unavailable: {e}"
+                # Overwrite unconditionally: a preceding "verify error"
+                # (vera verify can raise on a Z3 timeout) would otherwise
+                # mask the decline label, and every consumer then scores
+                # the harness's abstention as the model's wrong answer.
+                result["error_message"] = f"test wrapper unavailable: {e}"
                 return result
             run_path = work_dir / f"{problem['id']}_attempt{attempt}_probe{i}.vera"
             run_path.write_text(code + "\n" + wrapper, encoding="utf-8")
@@ -229,6 +297,29 @@ def _evaluate_code(
     return result
 
 
+def _is_an_answer(code: str, language: str, entry_point: str) -> bool:
+    """Whether this looks like code at all, rather than a non-answer.
+
+    Gates the decline path. A refusal, an apology or a truncated stub
+    must be scored as a failure to answer; only genuine
+    could-not-map-this-declaration cases may leave the denominator.
+    """
+    if language == "python":
+        import ast
+
+        try:
+            ast.parse(code)
+        except SyntaxError:
+            return False
+        return bool(re.search(rf"\bdef\s+{re.escape(entry_point)}\b", code))
+    if language == "typescript":
+        from vera_bench.ts_wrapper import snake_to_camel
+
+        fn = snake_to_camel(entry_point)
+        return bool(re.search(rf"\b{re.escape(fn)}\b", code))
+    return True
+
+
 def _evaluate_python_code(
     code: str,
     problem: dict,
@@ -263,8 +354,26 @@ def _evaluate_python_code(
         "import contextlib",
         "import io",
         "import json",
+        # A returned ADT has no __eq__, so both sides are walked into a
+        # comparable shape. Both are built with the SAME constructors, so
+        # class names line up (#107 step 2b).
+        "def _norm(v):",
+        "    if isinstance(v, (bool, int, float, str)) or v is None: return v",
+        "    if isinstance(v, (list, tuple)): return [_norm(x) for x in v]",
+        # getattr-based, because vars() raises TypeError on a
+        # __slots__ / @dataclass(slots=True) class — idiomatic modern
+        # Python whose correct solutions were graded 0/N.
+        "    _f = getattr(v, '__dict__', None)",
+        "    if _f is None:",
+        "        _s = getattr(type(v), '__slots__', ())",
+        "        _s = (_s,) if isinstance(_s, str) else _s",
+        "        _f = {k: getattr(v, k, None) for k in _s}",
+        "    return [type(v).__name__] + [_norm(x) for x in _f.values()]",
         "import sys",
         f"sys.path.insert(0, {str(work_dir)!r})",
+        # Star-import so an ADT problem's constructors come with the
+        # entry point; the wrapper builds values with them.
+        f"from {code_path.stem} import *  # noqa: F403",
         f"from {code_path.stem} import {entry_point}",
         "",
         "results = []",
@@ -279,17 +388,52 @@ def _evaluate_python_code(
             expected = expected == "true"
         args_repr = repr(args)
         expected_repr = repr(expected)
+        # An ADT argument cannot be a plain literal: it has to be built
+        # with the solution's own constructors (#107 step 2). Unsupported
+        # means WE could not map the model's declaration — the problem is
+        # left ungraded, exactly like the Vera path, because grading it
+        # on a call we are not sure of would record a correct solution as
+        # a wrong answer (and letting it raise would record a crash).
+        try:
+            adt_args = _adt_call(problem, code, "python", args)
+            adt_ret = _adt_expected(problem, code, "python", expected)
+        except Unsupported as e:
+            if not _is_an_answer(code, "python", entry_point):
+                # Not a mapping gap — the model did not answer.
+                result["check_pass"] = False
+                result["run_correct"] = False
+                result["tests_total"] = len(test_cases)
+                result["error_message"] = f"no usable {entry_point}: {e}"
+                return result
+            result["run_correct"] = None
+            result["tests_total"] = 0
+            result["tests_passed"] = 0
+            result["error_message"] = f"test wrapper unavailable: {e}"
+            return result
+        call_expr = adt_args if adt_args is not None else f"*{args_repr}"
+        if grades_on_stdout(problem) and not isinstance(expected, str):
+            expected_repr = repr(str(expected))
+        cmp_py = (
+            # An @Unit problem is graded on what it PRINTED, not on the
+            # None it returned (#107 step 5).
+            f"_buf_{i}.getvalue().strip() == {expected_repr}.strip()"
+            if grades_on_stdout(problem)
+            else f"_norm(actual_{i}) == _norm({adt_ret})"
+            if adt_ret is not None
+            else f"actual_{i} == {expected_repr}"
+        )
         wrapper_lines.extend(
             [
                 "try:",
-                # Solutions that print (the IO problems) would interleave
-                # with the JSON result line and corrupt the protocol, so
-                # every call runs under a stdout redirect. The captured
-                # text is discarded for now; grading @Unit problems ON
-                # that text is #107 step 5.
-                "    with contextlib.redirect_stdout(io.StringIO()):",
-                f"        actual_{i} = {entry_point}(*{args_repr})",
-                f"    passed_{i} = actual_{i} == {expected_repr}",
+                # Solutions that print would interleave with the JSON
+                # result line and corrupt the protocol, so every call
+                # runs under a stdout redirect. For @Unit problems the
+                # captured text IS the graded answer (see cmp_py above,
+                # #107 step 5); for the rest it is discarded.
+                f"    _buf_{i} = io.StringIO()",
+                f"    with contextlib.redirect_stdout(_buf_{i}):",
+                f"        actual_{i} = {entry_point}({call_expr})",
+                f"    passed_{i} = {cmp_py}",
                 f'    results.append({{"passed": passed_{i},'
                 f' "actual": repr(actual_{i})}})',
                 "except Exception as e:",
@@ -338,7 +482,7 @@ def _evaluate_python_code(
         return result
 
     try:
-        test_results = json.loads(proc.stdout)
+        test_results = json.loads((proc.stdout or "").strip().splitlines()[-1])
     except json.JSONDecodeError:
         result["tests_total"] = len(test_cases)
         result["run_correct"] = False
@@ -346,9 +490,22 @@ def _evaluate_python_code(
         return result
 
     passed = sum(1 for r in test_results if r.get("passed"))
+    # A harness-side comparator fault and a model bug used to be
+    # byte-identical in JSONL (issue #72, re-instantiated for the
+    # generated wrappers): surface the first per-case error.
+    first_err = next(
+        (
+            f"test {idx}: {r['error']}"
+            for idx, r in enumerate(test_results)
+            if not r.get("passed") and r.get("error")
+        ),
+        None,
+    )
     result["tests_total"] = len(test_cases)
     result["tests_passed"] = passed
     result["run_correct"] = passed == len(test_cases)
+    if first_err and not result.get("error_message"):
+        result["error_message"] = first_err
     return result
 
 
@@ -359,10 +516,10 @@ def _evaluate_typescript_code(
     attempt: int,
 ) -> dict:
     """Write TypeScript code to a file and run test cases via npx tsx."""
-    from vera_bench.baseline_runner import _snake_to_camel
+    from vera_bench.ts_wrapper import build_ts_wrapper, snake_to_camel
 
     entry_point = problem.get("entry_point", "")
-    ts_fn = _snake_to_camel(entry_point)
+    ts_fn = snake_to_camel(entry_point)
     test_cases = problem.get("test_cases", [])
 
     result: dict = {
@@ -384,52 +541,38 @@ def _evaluate_typescript_code(
     code_path = work_dir / f"{safe_id}_attempt{attempt}.ts"
     # Ensure function is exported
     export_code = code
-    if f"export function {ts_fn}" not in code:
+    # A solution exporting at the bottom (`export { sumArray };`) is
+    # already exported; splicing `export` onto the declaration too makes
+    # esbuild refuse the whole file.
+    already_exported = (
+        f"export function {ts_fn}" in code
+        or f"export const {ts_fn}" in code
+        or "export {" in code
+        and ts_fn in code.split("export {", 1)[-1].split("}", 1)[0]
+    )
+    if not already_exported:
         export_code = code.replace(f"function {ts_fn}(", f"export function {ts_fn}(")
     code_path.write_text(export_code, encoding="utf-8")
 
-    # Build test wrapper
-    wrapper_lines = [
-        f'import {{ {ts_fn} }} from "./{code_path.name}";',
-        "",
-        "const results: Array<{passed: boolean,"
-        " actual?: string, error?: string}> = [];",
-        "",
-    ]
-
-    for i, tc in enumerate(test_cases):
-        if not isinstance(tc, dict):
-            continue
-        args = tc.get("args", [])
-        expected = tc.get("expected")
-        if isinstance(expected, str) and expected in ("true", "false"):
-            expected = expected == "true"
-        args_json = json.dumps(args)
-        expected_json = json.dumps(expected)
-        # Loose == (not ===) so a Vera-style 1/0 expected matches a native
-        # boolean (VB-T1-006's original false failure). Arrays are the
-        # exception: == on arrays is reference equality and always false
-        # for a fresh return value, so they compare by JSON — which is
-        # value equality for the int/string arrays the problems use.
-        wrapper_lines.extend(
-            [
-                "try {",
-                f"  const actual_{i} = {ts_fn}(...{args_json});",
-                f"  const passed_{i} = Array.isArray(actual_{i}) || "
-                f"Array.isArray({expected_json}) "
-                f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
-                f": actual_{i} == {expected_json};",
-                f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
-                "} catch (e: any) {",
-                "  results.push({passed: false, error: String(e)});",
-                "}",
-                "",
-            ]
-        )
-
-    wrapper_lines.append("console.log(JSON.stringify(results));")
+    # Build test wrapper — the shared implementation (ts_wrapper.py);
+    # Unsupported means the model's declaration could not be mapped, and
+    # the problem is left ungraded exactly like the Python and Vera paths.
+    try:
+        wrapper_text = build_ts_wrapper(problem, code, f"./{code_path.name}")
+    except Unsupported as e:
+        if not _is_an_answer(code, "typescript", entry_point):
+            result["check_pass"] = False
+            result["run_correct"] = False
+            result["tests_total"] = len(test_cases)
+            result["error_message"] = f"no usable {ts_fn}: {e}"
+            return result
+        result["run_correct"] = None
+        result["tests_total"] = 0
+        result["tests_passed"] = 0
+        result["error_message"] = f"test wrapper unavailable: {e}"
+        return result
     wrapper_path = work_dir / f"{safe_id}_test{attempt}.ts"
-    wrapper_path.write_text("\n".join(wrapper_lines), encoding="utf-8")
+    wrapper_path.write_text(wrapper_text, encoding="utf-8")
 
     # Find tsx
     tsx = shutil.which("tsx")
@@ -478,7 +621,7 @@ def _evaluate_typescript_code(
         return result
 
     try:
-        test_results = json.loads(proc.stdout)
+        test_results = json.loads((proc.stdout or "").strip().splitlines()[-1])
     except json.JSONDecodeError:
         result["tests_total"] = len(test_cases)
         result["run_correct"] = False
@@ -486,9 +629,22 @@ def _evaluate_typescript_code(
         return result
 
     passed = sum(1 for r in test_results if r.get("passed"))
+    # A harness-side comparator fault and a model bug used to be
+    # byte-identical in JSONL (issue #72, re-instantiated for the
+    # generated wrappers): surface the first per-case error.
+    first_err = next(
+        (
+            f"test {idx}: {r['error']}"
+            for idx, r in enumerate(test_results)
+            if not r.get("passed") and r.get("error")
+        ),
+        None,
+    )
     result["tests_total"] = len(test_cases)
     result["tests_passed"] = passed
     result["run_correct"] = passed == len(test_cases)
+    if first_err and not result.get("error_message"):
+        result["error_message"] = first_err
     return result
 
 
@@ -629,18 +785,46 @@ def _evaluate_aver_code(
         expected = tc.get("expected")
         result["tests_total"] += 1
 
-        args_str = ", ".join(_aver_literal(a) for a in args)
+        # An ADT argument is built with the MODEL's own constructors —
+        # the plain-literal path would write a Python dict repr into the
+        # generated main and record the failure as the model's wrong
+        # answer (#107 step 2). An ADT return compares against its
+        # printed form, which is the same syntax the renderer emits.
+        # Unsupported declines the whole problem to ungraded, same
+        # contract as every other evaluator.
+        try:
+            adt_args = _adt_call(problem, code_without_main, "aver", args)
+            printed = _adt_printed(problem, code_without_main, "aver", expected)
+        except Unsupported as e:
+            result["run_correct"] = None
+            result["tests_total"] = 0
+            result["tests_passed"] = 0
+            result["error_message"] = f"test wrapper unavailable: {e}"
+            return result
+        args_str = (
+            adt_args
+            if adt_args is not None
+            else ", ".join(_aver_literal(a) for a in args)
+        )
 
         # If code has no module declaration, wrap it
         has_module = any(
             line.strip().startswith("module ") for line in code_without_main.split("\n")
         )
+        if grades_on_stdout(problem):
+            # @Unit: the call prints for itself; wrapping it in an
+            # interpolated Console.print would append a unit repr to the
+            # real output (#107 step 5). One subprocess per case, so the
+            # whole stdout belongs to this case.
+            main_body = f"    {entry_point}({args_str})\n"
+        else:
+            main_body = f'    Console.print("{{{entry_point}({args_str})}}")\n'
         if has_module:
             test_file = (
                 f"{code_without_main}\n\n"
                 f"fn main() -> Unit\n"
                 f"    ! [Console.print]\n"
-                f'    Console.print("{{{entry_point}({args_str})}}")\n'
+                f"{main_body}"
             )
         else:
             test_file = (
@@ -649,7 +833,7 @@ def _evaluate_aver_code(
                 f"{code_without_main}\n\n"
                 f"fn main() -> Unit\n"
                 f"    ! [Console.print]\n"
-                f'    Console.print("{{{entry_point}({args_str})}}")\n'
+                f"{main_body}"
             )
 
         test_path = work_dir / f"{safe_id}_test{i}_attempt{attempt}.av"
@@ -678,7 +862,12 @@ def _evaluate_aver_code(
 
         actual_output = run_proc.stdout.strip()
 
-        if _aver_output_matches(actual_output, expected):
+        matched = (
+            actual_output == printed
+            if printed is not None
+            else _aver_output_matches(actual_output, expected)
+        )
+        if matched:
             result["tests_passed"] += 1
         else:
             all_pass = False
@@ -850,10 +1039,16 @@ def _evaluate_ailang_code(
         result["run_correct"] = False
         return result
 
-    # First, type-check the bare module (without any main) — failures here
-    # are compile errors and we don't need to attempt test cases.
+    # First, type-check the module — failures here are compile errors and
+    # we don't need to attempt test cases. A stub main is appended because
+    # ailang resolves the implicit prelude only when a main exists: a bare
+    # module calling println fails check with "undefined variable:
+    # println" while the identical code with any main checks clean
+    # (probed against ailang v0.4). Without the stub, every IO solution
+    # was recorded as a compile failure.
     check_path = work_dir / f"{safe_id}_check_attempt{attempt}.ail"
-    check_path.write_text(code_without_main, encoding="utf-8")
+    check_stub = "\n\nexport func main() -> () ! {IO} {\n  ()\n}\n"
+    check_path.write_text(code_without_main + check_stub, encoding="utf-8")
     try:
         check_proc = subprocess.run(  # noqa: S603
             [  # noqa: S607
@@ -913,13 +1108,27 @@ def _evaluate_ailang_code(
             continue
         args = tc.get("args", [])
         expected = tc.get("expected")
-        args_str = ", ".join(_ailang_literal(a) for a in args)
-
-        test_main = (
-            f"\n\nexport func main() -> () ! {{IO}} {{\n"
-            f"  println(show({entry_point}({args_str})))\n"
-            f"}}\n"
+        # Same ADT and @Unit handling as the Aver evaluator above.
+        try:
+            adt_args = _adt_call(problem, code_without_main, "ailang", args)
+            printed = _adt_printed(problem, code_without_main, "ailang", expected)
+        except Unsupported as e:
+            result["run_correct"] = None
+            result["tests_total"] = 0
+            result["tests_passed"] = 0
+            result["error_message"] = f"test wrapper unavailable: {e}"
+            return result
+        args_str = (
+            adt_args
+            if adt_args is not None
+            else ", ".join(_ailang_literal(a) for a in args)
         )
+
+        call = f"{entry_point}({args_str})"
+        body = (
+            f"  {call}\n" if grades_on_stdout(problem) else f"  println(show({call}))\n"
+        )
+        test_main = f"\n\nexport func main() -> () ! {{IO}} {{\n{body}}}\n"
         test_file = code_without_main + test_main
         test_path = work_dir / f"{safe_id}_test{i}_attempt{attempt}.ail"
         test_path.write_text(test_file, encoding="utf-8")
@@ -954,7 +1163,12 @@ def _evaluate_ailang_code(
             continue
 
         actual = run_proc.stdout.strip()
-        if _aver_output_matches(actual, expected):
+        matched = (
+            actual == printed
+            if printed is not None
+            else _aver_output_matches(actual, expected)
+        )
+        if matched:
             tests_passed += 1
 
     result["tests_passed"] = tests_passed
@@ -1096,6 +1310,7 @@ def run_single_problem(
     max_tokens: int = 4096,
     bench_version: str = "",
     vera_version: str = "",
+    code_dir: Path | None = None,
 ) -> list[ProblemResult]:
     """Run the full pipeline for one problem.
 
@@ -1152,6 +1367,7 @@ def run_single_problem(
         return results
 
     code = extract_code(llm_response.text)
+    code_path = store_code(code_dir, problem["id"], 1, language, code)
 
     if language == "aver":
         eval_result = _evaluate_aver_code(code, problem, work_dir, attempt=1)
@@ -1181,6 +1397,7 @@ def run_single_problem(
             timestamp=_now(),
             bench_version=bench_version,
             vera_version=vera_version,
+            code_path=code_path,
             **eval_result,
         )
     )
@@ -1226,6 +1443,7 @@ def run_single_problem(
             return results
 
         fix_code = extract_code(fix_response.text)
+        fix_code_path = store_code(code_dir, problem["id"], 2, language, fix_code)
         fix_eval = _evaluate_aver_code(fix_code, problem, work_dir, attempt=2)
 
         results.append(
@@ -1241,6 +1459,7 @@ def run_single_problem(
                 timestamp=_now(),
                 bench_version=bench_version,
                 vera_version=vera_version,
+                code_path=fix_code_path,
                 **fix_eval,
             )
         )
@@ -1284,6 +1503,7 @@ def run_single_problem(
             return results
 
         fix_code = extract_code(fix_response.text)
+        fix_code_path = store_code(code_dir, problem["id"], 2, language, fix_code)
         fix_eval = _evaluate_ailang_code(fix_code, problem, work_dir, attempt=2)
 
         results.append(
@@ -1299,6 +1519,7 @@ def run_single_problem(
                 timestamp=_now(),
                 bench_version=bench_version,
                 vera_version=vera_version,
+                code_path=fix_code_path,
                 **fix_eval,
             )
         )
@@ -1332,6 +1553,7 @@ def run_single_problem(
             return results
 
         fix_code = extract_code(fix_response.text)
+        fix_code_path = store_code(code_dir, problem["id"], 2, language, fix_code)
         fix_eval = _evaluate_code(fix_code, problem, vera, work_dir, attempt=2)
 
         results.append(
@@ -1347,6 +1569,7 @@ def run_single_problem(
                 timestamp=_now(),
                 bench_version=bench_version,
                 vera_version=vera_version,
+                code_path=fix_code_path,
                 **fix_eval,
             )
         )
@@ -1368,6 +1591,7 @@ def run_benchmark(
     bench_version: str = "",
     vera_version: str = "",
     parallel: int = 1,
+    store_generated_code: bool = True,
 ) -> list[ProblemResult]:
     """Run the full benchmark across all problems.
 
@@ -1391,6 +1615,14 @@ def run_benchmark(
     rather than a silent under-report when a problem crashes.
     """
     work_dir = Path(tempfile.mkdtemp(prefix="verabench_"))
+    # One directory per target, named for the JSONL it accompanies, so a
+    # row's code_path is unambiguous even when several targets share a
+    # results directory.
+    code_dir = (
+        output_path.parent / "code" / output_path.stem
+        if output_path is not None and store_generated_code
+        else None
+    )
     all_results: list[ProblemResult] = []
 
     def _record(problem_results: list[ProblemResult]) -> None:
@@ -1445,6 +1677,7 @@ def run_benchmark(
                             max_tokens=max_tokens,
                             bench_version=bench_version,
                             vera_version=vera_version,
+                            code_dir=code_dir,
                         )
                     except AuthError:
                         # Auth failures (bad API key) abort the whole
@@ -1484,6 +1717,7 @@ def run_benchmark(
                     max_tokens=max_tokens,
                     bench_version=bench_version,
                     vera_version=vera_version,
+                    code_dir=code_dir,
                 )
 
             with Progress(console=console) as progress:

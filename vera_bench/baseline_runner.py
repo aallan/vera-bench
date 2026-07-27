@@ -16,17 +16,23 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress
 
+from vera_bench.adt_render import (
+    STDOUT_SENTINEL,
+    grades_on_stdout,
+)
+from vera_bench.adt_render import adt_call as _adt_call
+from vera_bench.adt_render import adt_expected as _adt_expected
+from vera_bench.adt_render import adt_printed as _adt_printed
 from vera_bench.runner import ProblemResult
+from vera_bench.ts_wrapper import build_ts_wrapper, snake_to_camel
+from vera_bench.vera_wrapper import Unsupported
 
 console = Console()
 
 _EXT = {"python": ".py", "typescript": ".ts", "aver": ".av", "ailang": ".ail"}
 
 
-def _snake_to_camel(name: str) -> str:
-    """Convert snake_case to camelCase."""
-    parts = name.split("_")
-    return parts[0] + "".join(w.capitalize() for w in parts[1:])
+_snake_to_camel = snake_to_camel
 
 
 def _find_baseline_file(
@@ -59,13 +65,32 @@ def _build_python_wrapper(
         "import contextlib",
         "import io",
         "import json",
+        # A returned ADT has no __eq__, so both sides are walked into a
+        # comparable shape. Both are built with the SAME constructors, so
+        # class names line up (#107 step 2b).
+        "def _norm(v):",
+        "    if isinstance(v, (bool, int, float, str)) or v is None: return v",
+        "    if isinstance(v, (list, tuple)): return [_norm(x) for x in v]",
+        # getattr-based, because vars() raises TypeError on a
+        # __slots__ / @dataclass(slots=True) class — idiomatic modern
+        # Python whose correct solutions were graded 0/N.
+        "    _f = getattr(v, '__dict__', None)",
+        "    if _f is None:",
+        "        _s = getattr(type(v), '__slots__', ())",
+        "        _s = (_s,) if isinstance(_s, str) else _s",
+        "        _f = {k: getattr(v, k, None) for k in _s}",
+        "    return [type(v).__name__] + [_norm(x) for x in _f.values()]",
         "import sys",
         f"sys.path.insert(0, {str(baseline_path.parent)!r})",
+        # Star-import so an ADT problem's constructors come with the
+        # entry point; the wrapper builds values with them.
+        f"from {baseline_path.stem} import *  # noqa: F403",
         f"from {baseline_path.stem} import {entry_point}",
         "",
         "results = []",
     ]
 
+    src_text = baseline_path.read_text(encoding="utf-8")
     for i, tc in enumerate(test_cases):
         args = tc.get("args", [])
         expected = tc.get("expected")
@@ -73,17 +98,36 @@ def _build_python_wrapper(
             expected = expected == "true"
         args_repr = repr(args)
         expected_repr = repr(expected)
+        # An ADT argument cannot be a plain literal: it has to be built
+        # with the solution's own constructors (#107 step 2).
+        adt_args = _adt_call(problem, src_text, "python", args)
+        call_expr = adt_args if adt_args is not None else f"*{args_repr}"
+        # A returned ADT has no structural equality in Python, so both
+        # sides are walked into a comparable shape (#107 step 2b).
+        adt_ret = _adt_expected(problem, src_text, "python", expected)
+        if grades_on_stdout(problem) and not isinstance(expected, str):
+            expected_repr = repr(str(expected))
+        cmp_py = (
+            # An @Unit problem is graded on what it PRINTED, not on the
+            # None it returned (#107 step 5).
+            f"_buf_{i}.getvalue().strip() == {expected_repr}.strip()"
+            if grades_on_stdout(problem)
+            else f"_norm(actual_{i}) == _norm({adt_ret})"
+            if adt_ret is not None
+            else f"actual_{i} == {expected_repr}"
+        )
         lines.extend(
             [
                 "try:",
-                # Solutions that print (the IO problems) would interleave
-                # with the JSON result line and corrupt the protocol, so
-                # every call runs under a stdout redirect. The captured
-                # text is discarded for now; grading @Unit problems ON
-                # that text is #107 step 5.
-                "    with contextlib.redirect_stdout(io.StringIO()):",
-                f"        actual_{i} = {entry_point}(*{args_repr})",
-                f"    passed_{i} = actual_{i} == {expected_repr}",
+                # Solutions that print would interleave with the JSON
+                # result line and corrupt the protocol, so every call
+                # runs under a stdout redirect. For @Unit problems the
+                # captured text IS the graded answer (see cmp_py above,
+                # #107 step 5); for the rest it is discarded.
+                f"    _buf_{i} = io.StringIO()",
+                f"    with contextlib.redirect_stdout(_buf_{i}):",
+                f"        actual_{i} = {entry_point}({call_expr})",
+                f"    passed_{i} = {cmp_py}",
                 f'    results.append({{"passed": passed_{i},'
                 f' "actual": repr(actual_{i})}})',
                 "except Exception as e:",
@@ -99,56 +143,12 @@ def _build_typescript_wrapper(
     problem: dict,
     baseline_path: Path,
 ) -> str:
-    """Build a TypeScript wrapper script that runs test cases."""
-    entry_point = problem["entry_point"]
-    ts_fn = _snake_to_camel(entry_point)
-    test_cases = problem.get("test_cases", [])
-
-    # Use relative import path for the baseline
-    rel_path = f"./{baseline_path.name}"
-
-    lines = [
-        f'import {{ {ts_fn} }} from "{rel_path}";',
-        "",
-        "const results: Array<"
-        "{passed: boolean, actual?: string, error?: string}> = [];",
-        "",
-    ]
-
-    for i, tc in enumerate(test_cases):
-        args = tc.get("args", [])
-        expected = tc.get("expected")
-        # Normalize vera-style bools: "true"/"false" strings or 1/0 ints
-        if isinstance(expected, str) and expected in ("true", "false"):
-            expected = expected == "true"
-        elif isinstance(expected, int) and expected in (0, 1):
-            # Could be a bool — use loose comparison to handle both
-            pass  # keep as int, use == below
-        args_json = json.dumps(args)
-        expected_json = json.dumps(expected)
-        # Loose == (not ===) so a Vera-style 1/0 expected matches a native
-        # boolean (VB-T1-006's original false failure). Arrays are the
-        # exception: == on arrays is reference equality and always false
-        # for a fresh return value, so they compare by JSON — which is
-        # value equality for the int/string arrays the problems use.
-        lines.extend(
-            [
-                "try {",
-                f"  const actual_{i} = {ts_fn}(...{args_json});",
-                f"  const passed_{i} = Array.isArray(actual_{i}) || "
-                f"Array.isArray({expected_json}) "
-                f"? JSON.stringify(actual_{i}) === JSON.stringify({expected_json}) "
-                f": actual_{i} == {expected_json};",
-                f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
-                "} catch (e: any) {",
-                "  results.push({passed: false, error: String(e)});",
-                "}",
-                "",
-            ]
-        )
-
-    lines.append("console.log(JSON.stringify(results));")
-    return "\n".join(lines)
+    """Build the TypeScript wrapper — one shared implementation."""
+    return build_ts_wrapper(
+        problem,
+        baseline_path.read_text(encoding="utf-8"),
+        f"./{baseline_path.name}",
+    )
 
 
 def _tsx_bin() -> str | None:
@@ -189,7 +189,21 @@ def run_python_baseline(
             timestamp=_now(),
         )
 
-    wrapper_code = _build_python_wrapper(problem, baseline_path)
+    try:
+        wrapper_code = _build_python_wrapper(problem, baseline_path)
+    except Unsupported as e:
+        # Same contract as the aver/ailang unmappable path: one problem
+        # ungraded, never the whole run aborted.
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="python",
+            attempt=1,
+            check_pass=True,
+            run_correct=None,
+            error_message=f"test wrapper unavailable: {e}",
+            timestamp=_now(),
+        )
     wrapper_path = work_dir / f"{problem_id}_wrapper.py"
     wrapper_path.write_text(wrapper_code, encoding="utf-8")
 
@@ -259,7 +273,19 @@ def run_typescript_baseline(
     # The TS files don't export — add export wrapper
     _add_ts_export(work_baseline, problem)
 
-    wrapper_code = _build_typescript_wrapper(problem, work_baseline)
+    try:
+        wrapper_code = _build_typescript_wrapper(problem, work_baseline)
+    except Unsupported as e:
+        return ProblemResult(
+            problem_id=problem_id,
+            model="baseline",
+            language="typescript",
+            attempt=1,
+            check_pass=True,
+            run_correct=None,
+            error_message=f"test wrapper unavailable: {e}",
+            timestamp=_now(),
+        )
     wrapper_path = work_dir / f"{problem_id}_wrapper.ts"
     wrapper_path.write_text(wrapper_code, encoding="utf-8")
 
@@ -348,7 +374,7 @@ def _parse_subprocess_result(
         )
 
     try:
-        test_results = json.loads(result.stdout)
+        test_results = json.loads((result.stdout or "").strip().splitlines()[-1])
     except json.JSONDecodeError:
         return ProblemResult(
             problem_id=problem_id,
@@ -364,6 +390,17 @@ def _parse_subprocess_result(
         )
 
     tests_passed = sum(1 for r in test_results if r.get("passed"))
+    # A harness-side comparator fault and a model bug used to be
+    # byte-identical in JSONL (issue #72, re-instantiated for the
+    # generated wrappers): surface the first per-case error.
+    first_err = next(
+        (
+            f"test {idx}: {r['error']}"
+            for idx, r in enumerate(test_results)
+            if not r.get("passed") and r.get("error")
+        ),
+        None,
+    )
     tests_total = len(test_cases)
 
     return ProblemResult(
@@ -375,6 +412,7 @@ def _parse_subprocess_result(
         run_correct=(tests_passed == tests_total),
         tests_total=tests_total,
         tests_passed=tests_passed,
+        error_message=first_err,
         wall_time_s=elapsed,
         timestamp=_now(),
     )
@@ -506,14 +544,46 @@ def run_aver_baseline(
 
     # Parse output: each line corresponds to one test case result
     stdout = run_result.stdout.strip()
-    output_lines = stdout.split("\n") if stdout else []
+    if grades_on_stdout(problem):
+        # A case may print several lines or none, so the one-line-per-case
+        # protocol cannot address them positionally. The generated main
+        # prints a sentinel between cases instead (#107 step 5).
+        output_lines = [c.strip() for c in stdout.split(STDOUT_SENTINEL)]
+    else:
+        output_lines = stdout.split("\n") if stdout else []
     tests_passed = 0
 
+    src_text = baseline_path.read_text(encoding="utf-8")
+    unmappable = False
+    unmappable_reason: str | None = None
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
+        # An ADT return prints as `Cons(1, Nil)` in both Aver and AILANG,
+        # which is the same syntax the renderer emits — so the printed
+        # form IS the comparison, no equality instance required (#107
+        # step 2b). AILANG has no derived Eq for user types, so this is
+        # the only route there.
+        try:
+            printed = _adt_printed(problem, src_text, "aver", expected)
+        except Unsupported as e:
+            # This solution's constructors could not be mapped. Leave the
+            # problem ungraded rather than abort every remaining one — an
+            # instrumentation gap must not look like a wrong answer, and
+            # must never take the run down with it. The reason travels
+            # with the row: an ungraded row with no reason vanishes from
+            # every counter, which is silent coverage loss.
+            printed = None
+            unmappable = True
+            unmappable_reason = f"test wrapper unavailable: {e}"
+        if unmappable:
+            # Partial counts on an ungraded row invite misreading it as
+            # partially graded; skip comparison outright.
+            continue
         if i < len(output_lines):
             actual = output_lines[i].strip()
-            if _aver_output_matches(actual, expected):
+            if printed is not None:
+                tests_passed += 1 if actual == printed else 0
+            elif _aver_output_matches(actual, expected):
                 tests_passed += 1
 
     return ProblemResult(
@@ -522,7 +592,8 @@ def run_aver_baseline(
         language="aver",
         attempt=1,
         check_pass=True,
-        run_correct=(tests_passed == len(test_cases)),
+        run_correct=(None if unmappable else tests_passed == len(test_cases)),
+        error_message=unmappable_reason,
         tests_total=len(test_cases),
         tests_passed=tests_passed,
         wall_time_s=elapsed,
@@ -741,14 +812,44 @@ def run_ailang_baseline(
     # Parse stdout: each line corresponds to one test case result.
     # Reuses the Aver output-matching logic (handles bool 1/0 vs "true"/"false").
     stdout = run_result.stdout.strip()
-    output_lines = stdout.split("\n") if stdout else []
+    if grades_on_stdout(problem):
+        # A case may print several lines or none, so the one-line-per-case
+        # protocol cannot address them positionally. The generated main
+        # prints a sentinel between cases instead (#107 step 5).
+        output_lines = [c.strip() for c in stdout.split(STDOUT_SENTINEL)]
+    else:
+        output_lines = stdout.split("\n") if stdout else []
     tests_passed = 0
 
+    ail_src = baseline_path.read_text(encoding="utf-8")
+    unmappable = False
+    unmappable_reason: str | None = None
     for i, tc in enumerate(test_cases):
         expected = tc.get("expected")
+        # `show` renders an AILANG ADT in the same syntax the renderer
+        # emits, which is the only comparison available: AILANG has no
+        # derived Eq for user types (#107 step 2b).
+        try:
+            printed = _adt_printed(problem, ail_src, "ailang", expected)
+        except Unsupported as e:
+            # This solution's constructors could not be mapped. Leave the
+            # problem ungraded rather than abort every remaining one — an
+            # instrumentation gap must not look like a wrong answer, and
+            # must never take the run down with it. The reason travels
+            # with the row: an ungraded row with no reason vanishes from
+            # every counter, which is silent coverage loss.
+            printed = None
+            unmappable = True
+            unmappable_reason = f"test wrapper unavailable: {e}"
+        if unmappable:
+            # Partial counts on an ungraded row invite misreading it as
+            # partially graded; skip comparison outright.
+            continue
         if i < len(output_lines):
             actual = output_lines[i].strip()
-            if _aver_output_matches(actual, expected):
+            if printed is not None:
+                tests_passed += 1 if actual == printed else 0
+            elif _aver_output_matches(actual, expected):
                 tests_passed += 1
 
     return ProblemResult(
@@ -757,7 +858,8 @@ def run_ailang_baseline(
         language="ailang",
         attempt=1,
         check_pass=True,
-        run_correct=(tests_passed == len(test_cases)),
+        run_correct=(None if unmappable else tests_passed == len(test_cases)),
+        error_message=unmappable_reason,
         tests_total=len(test_cases),
         tests_passed=tests_passed,
         wall_time_s=elapsed,

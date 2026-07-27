@@ -531,3 +531,68 @@ class TestRunAilangBaseline:
         assert result.tests_total == 3
         assert result.tests_passed == 2
         assert result.run_correct is False
+
+
+class TestBaselineAdtDecline:
+    """An unmappable canonical yields one ungraded row, not an aborted run.
+
+    The guard sits at the wrapper-build boundary in run_python_baseline;
+    without it, an Unsupported took down every remaining problem in the
+    baselines run (the aver bug class from #107 step 2b).
+    """
+
+    def test_unmappable_canonical_is_ungraded(self, tmp_path):
+        from vera_bench.baseline_runner import run_python_baseline
+
+        problem = {
+            "id": "VB-TEST-ADT",
+            "signature": "public fn list_length(@List -> @Nat)",
+            "entry_point": "list_length",
+            "adt": {
+                "type": "List",
+                "form": "list",
+                "empty": "Nil",
+                "cons": "Cons",
+                "constructors": [
+                    {"name": "Nil", "args": []},
+                    {"name": "Cons", "args": ["Int", "List"]},
+                ],
+            },
+            "test_cases": [{"args": [[1]], "expected": 1}],
+        }
+        sols = tmp_path / "solutions" / "python"
+        sols.mkdir(parents=True)
+        (sols / "VB_TEST_ADT_stub.py").write_text("def list_length(x):\n    return 0\n")
+        row = run_python_baseline(problem, tmp_path / "solutions", tmp_path)
+        assert row.check_pass is True
+        assert row.run_correct is None
+        assert "test wrapper unavailable" in row.error_message
+
+
+class TestSentinelDataContract:
+    """The canonical IO mains must print one sentinel per test case.
+
+    The mains are data (CLAUDE.md invariant) regenerated from the
+    problem JSON; a regeneration that drops the sentinels, or a drifted
+    constant, silently breaks the baseline splitting for both IO
+    problems. CI carries no aver/ailang binaries, so this string-level
+    contract is the only automated guard there.
+    """
+
+    def test_io_mains_carry_one_sentinel_per_case(self):
+        import json
+        from pathlib import Path
+
+        from vera_bench.adt_render import STDOUT_SENTINEL
+
+        root = Path(__file__).parent.parent
+        for pid_glob in ("*T5_002*", "*T5_008*"):
+            problem = json.loads(
+                next(root.glob(f"problems/tier5/{pid_glob}")).read_text()
+            )
+            n = len(problem["test_cases"])
+            for lang, ext in (("aver", "av"), ("ailang", "ail")):
+                stem = problem["id"].replace("-", "_")
+                sol = next(root.glob(f"solutions/{lang}/{stem}_*.{ext}"))
+                count = sol.read_text().count(STDOUT_SENTINEL)
+                assert count == n, (sol.name, count, n)

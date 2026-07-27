@@ -9,6 +9,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
+from vera_bench.adt_render import return_spec
 from vera_bench.vera_runner import VeraRunner
 from vera_bench.vera_wrapper import (
     PROBE_FN,
@@ -156,7 +157,8 @@ def validate_problem(
     # Both paths must agree, or the canonical solutions would be validated
     # differently from the code being graded against them.
     signature = problem.get("signature", "")
-    wrapped = can_wrap(signature)
+    adt_spec = problem.get("adt")
+    wrapped = can_wrap(signature, adt_spec)
     source = Path(vera_file).read_text(encoding="utf-8") if wrapped else ""
     probe_dir: tempfile.TemporaryDirectory | None = (
         tempfile.TemporaryDirectory() if wrapped else None
@@ -172,7 +174,13 @@ def validate_problem(
         if wrapped:
             try:
                 wrapper, expected = build_wrapper(
-                    source, entry_point, signature, args, expected
+                    source,
+                    entry_point,
+                    signature,
+                    args,
+                    expected,
+                    adt_spec,
+                    return_spec(problem),
                 )
             except Unsupported as e:
                 result["errors"].append(f"run({args}): no wrapper: {e}")

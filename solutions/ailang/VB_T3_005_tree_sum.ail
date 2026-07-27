@@ -8,4 +8,8 @@ export func tree_sum(t: MyTree) -> int =
     MyBranch(l, r) => tree_sum(l) + tree_sum(r)
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(tree_sum(MyLeaf(5))));
+  println(show(tree_sum(MyBranch(MyLeaf(1), MyLeaf(2)))));
+  println(show(tree_sum(MyBranch(MyBranch(MyLeaf(4), MyLeaf(-4)), MyLeaf(9)))))
+}

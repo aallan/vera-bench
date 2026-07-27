@@ -16,9 +16,11 @@ import pytest
 from vera_bench.vera_wrapper import (
     PROBE_FN,
     Unsupported,
+    adt_eq_body,
     build_wrapper,
     can_wrap,
     entry_effects,
+    match_constructors,
     parse_signature,
     render_value,
 )
@@ -158,3 +160,108 @@ class TestCanWrap:
 
     def test_unparseable_declines(self):
         assert can_wrap("") is False
+
+
+class TestNameMatchValidatesShape:
+    """A name match with a different declared shape declines (CR on #112).
+
+    A model writing Cons(List, Int) — swapped — name-matches, and the
+    generated Cons(1, Nil) then fails to compile, recording a possibly
+    correct solution as a wrong answer. Shape disagreement is a decline.
+    """
+
+    SPEC = {
+        "type": "List",
+        "form": "list",
+        "empty": "Nil",
+        "cons": "Cons",
+        "constructors": [
+            {"name": "Nil", "args": []},
+            {"name": "Cons", "args": ["Int", "List"]},
+        ],
+    }
+
+    def test_swapped_shape_declines(self):
+        with pytest.raises(Unsupported):
+            match_constructors("data List { Nil, Cons(List, Int) }", self.SPEC)
+
+    def test_wrong_arity_declines(self):
+        with pytest.raises(Unsupported):
+            match_constructors("data List { Nil, Cons(Int) }", self.SPEC)
+
+    def test_matching_shape_still_maps(self):
+        got = match_constructors("data List { Nil, Cons(Int, List) }", self.SPEC)
+        assert got == {"Nil": "Nil", "Cons": "Cons"}
+
+
+class TestCanWrapStructuredReturn:
+    """A structured RETURN wraps even with all-scalar parameters.
+
+    `vera run` prints an array or ADT return as a WASM address, so the
+    CLI path records a correct solution as wrong, every time. @Unit is
+    the deliberate exception: those problems are graded on stdout.
+    """
+
+    SPEC = TestNameMatchValidatesShape.SPEC
+
+    def test_scalar_in_array_out_wraps(self):
+        assert can_wrap("public fn f(@Int -> @Array<Int>)") is True
+
+    def test_scalar_in_adt_out_wraps_with_a_spec(self):
+        assert can_wrap("public fn f(@Int -> @List)", self.SPEC) is True
+
+    def test_scalar_in_adt_out_declines_without_one(self):
+        assert can_wrap("public fn f(@Int -> @List)") is False
+
+    def test_unit_return_stays_on_the_cli(self):
+        # The IO problems are graded on stdout through the CLI path.
+        assert can_wrap("public fn f(@Nat -> @Unit)") is False
+
+
+class TestAdtEqBodyDiscrimination:
+    """The generated equality must be false for everything else.
+
+    validate proves only the true direction (canonicals are correct), so
+    a vacuous-true regression — an arm reading true where it should read
+    false — would inflate Vera scores invisibly. Pin the emitted arms.
+    """
+
+    LIST = {
+        "type": "List",
+        "form": "list",
+        "empty": "Nil",
+        "cons": "Cons",
+        "constructors": [
+            {"name": "Nil", "args": []},
+            {"name": "Cons", "args": ["Int", "List"]},
+        ],
+    }
+    OPTION = {
+        "type": "Option",
+        "form": "tagged",
+        "constructors": [
+            {"name": "None", "args": []},
+            {"name": "Some", "args": ["Int"]},
+        ],
+    }
+    IDENT = {"Nil": "Nil", "Cons": "Cons", "None": "None", "Some": "Some"}
+
+    def test_tagged_non_matching_arms_are_false(self):
+        body = adt_eq_body({"Some": [3]}, self.OPTION, self.IDENT)
+        assert "None -> false" in body
+        assert "@Int.0 == 3" in body
+        assert "true" not in body.replace("-> false", "")
+        # the matching arm compares, never blanket-trues
+
+    def test_list_terminal_nil_is_the_only_true(self):
+        body = adt_eq_body([1], self.LIST, self.IDENT)
+        # outer level: a Nil where Cons(1, …) is expected -> false
+        assert body.count("Nil -> false") == 1
+        # inner level: the terminal Nil -> true, exactly once
+        assert body.count("Nil -> true") == 1
+        assert "@Int.0 == 1" in body
+
+    def test_renamed_type_threads_into_patterns(self):
+        body = adt_eq_body([1], self.LIST, self.IDENT, "IntList")
+        assert "@IntList.0" in body
+        assert "@List.0" not in body

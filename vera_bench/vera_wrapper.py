@@ -1,12 +1,13 @@
 """Generate a Vera caller so a problem can be graded on structured input.
 
 `vera run --fn` passes arguments on a command line, so it can only carry
-scalars. That is why 24 of the 60 problems have no test cases: their entry
-point takes a list, a tree or an array, and there is no way to hand one to
-it. Every other language in the harness already avoids this by writing a
-wrapper that calls the solution with the arguments written into the source
-(see `_build_python_wrapper` and the AILANG `main` synthesis in
-`runner.py`); this is Vera catching up.
+scalars. That is why 24 of the 60 problems once had no test cases: their
+entry point takes a list, a tree or an array, and there was no way to hand
+one to it. This module is how Vera caught up — the same
+write-the-arguments-into-the-source treatment the other languages get
+(`_build_python_wrapper` in `baseline_runner.py`; the Python wrapper in
+`runner.py` is built inline in `_evaluate_python_code`). All 60 problems
+are graded through one generated caller or another as of v0.0.18.
 
 Two findings from the Vera 0.1.7 compiler shape the design.
 
@@ -28,6 +29,30 @@ The generator declines rather than guesses. `Unsupported` means the caller
 should leave the problem ungraded, exactly as today. Grading it on a
 wrapper we are not sure of would turn a correct solution into a recorded
 failure, which is worse than not grading it.
+
+ADT arguments are the harder half, because the *model* defines the type.
+The problem says "define a linked list ADT with Nil and Cons
+constructors", so the full-spec prompt names them — but the neutral
+description used for spec-from-NL only says "nil and cons", and nothing
+stops a model writing `Empty` and `Node`. So a test-case value is written
+against the problem's *canonical* constructor names, and the wrapper maps
+those onto whatever the model actually declared:
+
+  1. by name, case-insensitively — the overwhelmingly common case — and
+     the name match must also carry the canonical argument shape: a
+     declared `Cons(List, Int)` (swapped) declines rather than
+     generating a call that cannot compile on the model's account;
+  2. failing that, by structure — a canonical constructor matches a model
+     constructor with the same argument signature, but only when that
+     signature is unique within the declaration. `Add(Expr, Expr)` and a
+     hypothetical `Mul(Expr, Expr)` are indistinguishable by shape, so an
+     ambiguous match declines rather than guessing wrong;
+  3. failing that, decline.
+
+That ordering matters for what a decline means. A decline is a *harness*
+outcome, not a model failure: the model may well have written a perfect
+solution under names we could not map. It is recorded as ungraded with a
+reason, and never as a wrong answer.
 """
 
 from __future__ import annotations
@@ -56,12 +81,17 @@ class Unsupported(Exception):
 
 
 def _split_types(text: str) -> list[str]:
-    """Split a parameter list on commas that are not inside angle brackets."""
+    """Split on commas that are not nested inside brackets.
+
+    Both angle brackets and parentheses count: a signature carries
+    `@Map<Int, Int>` and a data declaration carries `Cons(Int, List)`,
+    and splitting either down the middle silently loses a constructor.
+    """
     parts, depth, current = [], 0, ""
     for ch in text:
-        if ch == "<":
+        if ch in "<(":
             depth += 1
-        elif ch == ">":
+        elif ch in ">)":
             depth -= 1
         if ch == "," and depth == 0:
             parts.append(current.strip())
@@ -107,7 +137,10 @@ def render_value(value: object, vera_type: str) -> str:
     if vera_type == "@String":
         if not isinstance(value, str):
             raise Unsupported(f"{value!r} is not a string")
-        return json.dumps(value)
+        # ensure_ascii=False: Vera spells escapes \u{...}, so json's
+        # default \uXXXX for non-ASCII is a parse error and a legal
+        # unicode test case failed a correct solution.
+        return json.dumps(value, ensure_ascii=False)
     if vera_type == "@Float64":
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             raise Unsupported(f"{value!r} is not a number")
@@ -122,9 +155,11 @@ def entry_effects(source: str, entry_point: str) -> str:
     entry point does not compile, and the entry point's effects are the
     model's choice, not ours.
     """
+    from vera_bench.adt_render import strip_comments
+
     match = re.search(
         rf"\bfn\s+{re.escape(entry_point)}\s*\(.*?\)(.*?)\{{",
-        source,
+        strip_comments(source, "vera"),
         re.S,
     )
     if match:
@@ -153,6 +188,8 @@ def build_wrapper(
     signature: str,
     args: list,
     expected: object,
+    adt: dict | None = None,
+    ret_adt: dict | None = None,
 ) -> tuple[str, object]:
     """Return (wrapper source to append, expected value to compare against).
 
@@ -168,11 +205,19 @@ def build_wrapper(
         )
 
     effects = entry_effects(source, entry_point)
-    call = (
-        f"{entry_point}("
-        + ", ".join(render_value(a, t) for a, t in zip(args, params))
-        + ")"
-    )
+    # An ADT argument is rendered with the MODEL's constructor names, so
+    # the mapping is resolved once against its own declaration.
+    mapping: dict[str, str] = {}
+    adt_type = f"@{adt['type']}" if adt else None
+    if adt is not None and adt_type in params:
+        mapping = match_constructors(source, adt)
+
+    def _arg(value: object, vera_type: str) -> str:
+        if adt is not None and vera_type == adt_type:
+            return render_adt(value, adt, mapping)
+        return render_value(value, vera_type)
+
+    call = f"{entry_point}(" + ", ".join(_arg(a, t) for a, t in zip(args, params)) + ")"
 
     if ret in SCALARS:
         body = f"  {call}"
@@ -208,16 +253,303 @@ def build_wrapper(
         # `vera run` prints a Bool as 1/0.
         return eq + "\n" + main, 1
 
+    if ret_adt is not None:
+        # The return type may be a DIFFERENT ADT from the arguments'
+        # (VB-T3-010 takes a @List and returns an @Option), so its
+        # constructors are matched separately.
+        ret_mapping = (
+            mapping
+            if adt is not None and ret_adt is adt and mapping
+            else match_constructors(source, ret_adt)
+        )
+        declared = declared_type_name(source, ret_adt)
+        eq_body = adt_eq_body(expected, ret_adt, ret_mapping, declared)
+        eq = _fn(
+            _EQ_FN, f"@{declared}", "@Bool", "effects(pure)", eq_body, public=False
+        )
+        main = _fn(
+            PROBE_FN, "@Unit", "@Bool", effects, f"  {_EQ_FN}({call})", public=True
+        )
+        return eq + "\n" + main, 1
+
     raise Unsupported(f"no comparison strategy for return type {ret}")
 
 
-def can_wrap(signature: str) -> bool:
-    """Whether this signature needs, and can have, a generated wrapper."""
+# A Vera ADT declaration: `private data List { Nil, Cons(Int, List) }`.
+_DATA = re.compile(r"\bdata\s+(\w+)\s*\{(.*?)\}", re.S)
+_CTOR = re.compile(r"^(\w+)\s*(?:\((.*)\))?$", re.S)
+
+#: Stands in for the declared type inside a constructor signature, so
+#: `Cons(Int, List)` and `Node(Int, Stack)` compare equal by shape.
+SELF = "SELF"
+
+
+def parse_data_decls(source: str) -> dict[str, list[tuple[str, tuple[str, ...]]]]:
+    """Every `data` declaration in the source, as {type: [(ctor, args)]}.
+
+    Argument types are normalised so a self-reference reads as SELF,
+    which is what makes structural matching work across a model's own
+    choice of type name.
+    """
+    from vera_bench.adt_render import strip_comments
+
+    out: dict[str, list[tuple[str, tuple[str, ...]]]] = {}
+    for match in _DATA.finditer(strip_comments(source, "vera")):
+        type_name, body = match.group(1), match.group(2)
+        ctors: list[tuple[str, tuple[str, ...]]] = []
+        for raw in _split_types(body):
+            m = _CTOR.match(raw.strip())
+            if not m:
+                continue
+            args = tuple(
+                SELF if a.strip() == type_name else a.strip()
+                for a in _split_types(m.group(2) or "")
+                if a.strip()
+            )
+            ctors.append((m.group(1), args))
+        if ctors:
+            out[type_name] = ctors
+    return out
+
+
+def _canonical_args(args: list[str], type_name: str) -> tuple[str, ...]:
+    return tuple(SELF if a == type_name else a for a in args)
+
+
+def match_constructors(source: str, spec: dict) -> dict[str, str]:
+    """Map the problem's canonical constructor names onto the model's own.
+
+    `spec` is the problem JSON's `adt` block: a type name and the
+    constructors the problem asked for. Raises Unsupported when the
+    model's declaration cannot be mapped with confidence.
+    """
+    type_name = spec.get("type", "")
+    decls = parse_data_decls(source)
+    if not decls:
+        raise Unsupported("no data declaration found")
+    if type_name in decls:
+        model_ctors = decls[type_name]
+    elif len(decls) == 1:
+        # The model named the type something else. Harmless when it is
+        # the only one; among several, the constructors decide.
+        model_ctors = next(iter(decls.values()))
+    else:
+        # Several declarations, none with the spec's name (a model that
+        # renamed both types in a two-type problem). The declaration
+        # whose constructor names cover the spec's is the match — when
+        # exactly one does; otherwise decline rather than pick.
+        wanted = {c["name"].lower() for c in spec.get("constructors", [])}
+        covering = [
+            name
+            for name, ctors in decls.items()
+            if wanted <= {n.lower() for n, _ in ctors}
+        ]
+        if len(covering) != 1:
+            raise Unsupported(
+                f"no declaration named {type_name!r} and "
+                f"{len(covering) or len(decls)} candidates"
+            )
+        model_ctors = decls[covering[0]]
+
+    by_name = {name.lower(): name for name, _ in model_ctors}
+    args_by_name = {name.lower(): args for name, args in model_ctors}
+    sig_count: dict[tuple[str, ...], int] = {}
+    for _, args in model_ctors:
+        sig_count[args] = sig_count.get(args, 0) + 1
+    by_sig = {args: name for name, args in model_ctors}
+
+    mapping: dict[str, str] = {}
+    for want in spec.get("constructors", []):
+        cname = want["name"]
+        want_args = _canonical_args(list(want.get("args", [])), type_name)
+        if cname.lower() in by_name:
+            declared = args_by_name[cname.lower()]
+            if declared != want_args:
+                # The name matches but the shape does not — a wrapper
+                # built against this declaration cannot compile, and a
+                # compile failure would be recorded as the model's wrong
+                # answer rather than as our inability to call it.
+                raise Unsupported(
+                    f"constructor {cname} is declared with shape "
+                    f"{declared or '()'}, expected {want_args or '()'}"
+                )
+            mapping[cname] = by_name[cname.lower()]
+            continue
+        if sig_count.get(want_args) == 1:
+            mapping[cname] = by_sig[want_args]
+            continue
+        if want_args in sig_count:
+            raise Unsupported(
+                f"constructor {cname} is ambiguous: {sig_count[want_args]} "
+                f"declared constructors share its shape"
+            )
+        raise Unsupported(f"no constructor matches {cname}{want_args or ''}")
+    return mapping
+
+
+def render_adt(value: object, spec: dict, mapping: dict[str, str]) -> str:
+    """Render a test-case value as a Vera literal using the model's names.
+
+    Two forms, because a linked list written in tagged form is unreadable
+    past three elements and most of these problems are lists:
+
+    - ``list``   — a JSON array, folded right onto the empty/cons pair.
+    - ``tagged`` — ``{"Ctor": [arg, ...]}``, general enough for trees,
+      expressions and options.
+    """
+    form = spec.get("form", "tagged")
+    if form == "list":
+        if not isinstance(value, list):
+            raise Unsupported(f"{value!r} is not a list for {spec.get('type')}")
+        empty, cons = spec["empty"], spec["cons"]
+        elem = "@" + _cons_elem(spec)
+        out = mapping[empty]
+        for item in reversed(value):
+            out = f"{mapping[cons]}({render_value(item, elem)}, {out})"
+        return out
+    if not isinstance(value, dict) or len(value) != 1:
+        raise Unsupported(f"{value!r} is not a single-key tagged constructor")
+    ctor, args = next(iter(value.items()))
+    if ctor not in mapping:
+        raise Unsupported(f"unknown constructor {ctor!r} in test case")
+    if not isinstance(args, list):
+        raise Unsupported(f"arguments for {ctor} must be a list")
+    want = next(c for c in spec["constructors"] if c["name"] == ctor)
+    if len(args) != len(want.get("args", [])):
+        raise Unsupported(f"{ctor} takes {len(want.get('args', []))} argument(s)")
+    if not args:
+        return mapping[ctor]
+    rendered = [
+        render_adt(a, spec, mapping)
+        if t not in ("Int", "Nat", "Bool", "String", "Float64")
+        else render_value(a, f"@{t}")
+        for a, t in zip(args, want["args"])
+    ]
+    return f"{mapping[ctor]}({', '.join(rendered)})"
+
+
+def _cons_elem(spec: dict) -> str:
+    """The element type a `form: list` spec's cons constructor declares."""
+    for ctor in spec.get("constructors", []):
+        if ctor["name"] == spec.get("cons") and ctor.get("args"):
+            return ctor["args"][0]
+    return "Int"
+
+
+def declared_type_name(source: str, spec: dict) -> str:
+    """The type name the solution actually declared for this spec.
+
+    Mirrors match_constructors' resolution: the spec's own name when
+    declared, else the single declaration's name. The generated eq
+    function's parameter and match patterns must use this — a model that
+    renames List to IntList is within its rights, and a wrapper written
+    against @List cannot compile against its code.
+    """
+    decls = parse_data_decls(source)
+    type_name = spec.get("type", "")
+    if type_name in decls or not decls:
+        return type_name
+    if len(decls) == 1:
+        return next(iter(decls))
+    wanted = {c["name"].lower() for c in spec.get("constructors", [])}
+    covering = [
+        name for name, ctors in decls.items() if wanted <= {n.lower() for n, _ in ctors}
+    ]
+    return covering[0] if len(covering) == 1 else type_name
+
+
+def adt_eq_body(
+    expected: object,
+    spec: dict,
+    mapping: dict[str, str],
+    type_name: str | None = None,
+) -> str:
+    """An unrolled match that is true exactly for `expected`.
+
+    Recursion is deliberately avoided. A generated recursive equality
+    would need its own `decreases` clause and correct De Bruijn indices
+    in every arm — and a wrong index there compiles, verifies, and
+    computes the wrong answer, which is precisely how VB-T5-008 shipped
+    broken. The expected value is known when the wrapper is generated, so
+    the shape is spelled out instead: each arm either matches the exact
+    constructor and payload, or returns false.
+
+    Inside a `Cons(@Int, @List)` arm, `@Int.0` is the matched head and
+    `@List.0` the matched tail — the nearest binding, not an outer one.
+    """
+    if spec.get("form") == "list":
+        if not isinstance(expected, list):
+            raise Unsupported(f"expected {expected!r} is not a list")
+        empty, cons = mapping[spec["empty"]], mapping[spec["cons"]]
+        t = type_name or spec["type"]
+        elem = "@" + _cons_elem(spec)
+
+        def build(items: list) -> str:
+            if not items:
+                return (
+                    f"match @{t}.0 {{ {empty} -> true, {cons}({elem}, @{t}) -> false }}"
+                )
+            head, rest = items[0], items[1:]
+            inner = build(rest)
+            return (
+                f"match @{t}.0 {{ {empty} -> false, "
+                f"{cons}({elem}, @{t}) -> if {elem}.0 == {render_value(head, elem)} "
+                f"then {{ {inner} }} else {{ false }} }}"
+            )
+
+        return "  " + build(expected)
+
+    name, args, ctor = _expect_tagged(expected, spec)
+    arms = []
+    for c in spec.get("constructors", []):
+        actual = mapping[c["name"]]
+        params = ", ".join(f"@{t}" for t in c.get("args", []))
+        pattern = f"{actual}({params})" if params else actual
+        if c["name"] != name:
+            arms.append(f"{pattern} -> false")
+        elif not args:
+            arms.append(f"{pattern} -> true")
+        else:
+            checks = " && ".join(
+                f"@{t}.0 == {render_value(a, f'@{t}')}" for a, t in zip(args, c["args"])
+            )
+            arms.append(f"{pattern} -> {checks}")
+    type_ref = f"@{type_name or spec['type']}.0"
+    return f"  match {type_ref} {{ " + ", ".join(arms) + " }"
+
+
+def _expect_tagged(expected: object, spec: dict) -> tuple[str, list, dict]:
+    if not isinstance(expected, dict) or len(expected) != 1:
+        raise Unsupported(f"expected {expected!r} is not a tagged constructor")
+    name, args = next(iter(expected.items()))
+    if not isinstance(args, list):
+        raise Unsupported(f"arguments for {name} must be a list")
+    for ctor in spec.get("constructors", []):
+        if ctor["name"] == name:
+            return name, args, ctor
+    raise Unsupported(f"unknown constructor {name!r}")
+
+
+def can_wrap(signature: str, adt: dict | None = None) -> bool:
+    """Whether this signature needs, and can have, a generated wrapper.
+
+    Scalars still go on the command line unwrapped. Arrays always wrap.
+    An ADT parameter wraps only when the problem carries an `adt` spec
+    to map the model's declaration onto — without one there is nothing
+    to match against, and guessing is the one thing this must not do.
+    """
     try:
         params, ret = parse_signature(signature)
     except Unsupported:
         return False
     structured = [p for p in params if p not in SCALARS]
-    if not structured:
-        return False  # scalars go on the command line as before
-    return all(_ARRAY.match(p) for p in structured)
+    # A structured RETURN forces a wrapper even with all-scalar
+    # parameters: `vera run` prints it as a WASM address, so the CLI
+    # path records a correct solution as wrong, every time. @Unit is
+    # not structured — those problems are graded on stdout via the CLI.
+    structured_ret = ret != "@Unit" and ret not in SCALARS
+    if not structured and not structured_ret:
+        return False  # scalar in, scalar out: the command line works
+    params_ok = all(_ARRAY.match(p) or adt is not None for p in structured)
+    ret_ok = not structured_ret or bool(_ARRAY.match(ret)) or adt is not None
+    return params_ok and ret_ok

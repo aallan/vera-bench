@@ -6,14 +6,85 @@
   "description_neutral": "Define an option type with none and some constructors. Write a function that unwraps the option, returning the contained value or a default integer.",
   "signature": "public fn option_unwrap_or(@Option, @Int -> @Int)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "option_unwrap_or",
-  "tags": ["adt", "pattern-matching", "option", "data-definition", "two-params"],
-  "test_cases": [],
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "option",
+    "data-definition",
+    "two-params"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        {
+          "Some": [
+            5
+          ]
+        },
+        0
+      ],
+      "expected": 5
+    },
+    {
+      "args": [
+        {
+          "None": []
+        },
+        99
+      ],
+      "expected": 99
+    },
+    {
+      "args": [
+        {
+          "Some": [
+            -3
+          ]
+        },
+        7
+      ],
+      "expected": -3
+    },
+    {
+      "args": [
+        {
+          "None": []
+        },
+        -1
+      ],
+      "expected": -1
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": true,
-  "notes": "Parameters: option_unwrap_or(opt, default). @Int.0=default, @Option.0=opt. Inside Some(@Int), @Int.0 refers to the unwrapped value — NOT the default parameter. This is the core De Bruijn test."
+  "notes": "Parameters: option_unwrap_or(opt, default). @Int.0=default, @Option.0=opt. Inside Some(@Int), @Int.0 refers to the unwrapped value — NOT the default parameter. This is the core De Bruijn test.",
+  "adt": {
+    "type": "Option",
+    "form": "tagged",
+    "constructors": [
+      {
+        "name": "None",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Some",
+        "args": [
+          "Int"
+        ],
+        "fields": [
+          "value"
+        ]
+      }
+    ]
+  }
 }

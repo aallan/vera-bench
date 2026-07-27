@@ -7,6 +7,136 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.18] - 2026-07-27
+
+### Added
+
+- **Harness declines leave the pass@1 denominator.** "test wrapper
+  unavailable" is the harness abstaining — it could not map the model's
+  own declaration — and counting it as a failed solve broke the decline
+  contract at the only level anyone publishes. Only harness-labelled
+  ungraded rows are excluded, so a model cannot buy a smaller
+  denominator with anything it writes; `sweep_status.py` gives declines
+  their own bucket, because a rising decline rate is a harness gap, not
+  a model score. Ungraded aver/ailang baseline rows now carry the
+  reason, the generated Python/TypeScript wrappers surface their first
+  per-case error (issue #72's fix, extended), and `rerun_failed.py`
+  copies stored code across with the rows it splices.
+- **Every problem is output-graded: 46 of 60 becomes 60 of 60.** The last
+  fourteen split three ways, each needing a different answer in all five
+  languages. **ADT arguments** (nine problems) ask the *model* to define
+  the type, so a test case cannot be a literal: each problem now carries
+  an `adt` block naming the constructors it asks for, and the harness
+  maps those onto whatever the solution declared — by name
+  case-insensitively, then by unique shape, then declining. A model that
+  writes `Empty`/`Node` is graded; `Add(Expr, Expr)` against a
+  hypothetical `Mul(Expr, Expr)` is ambiguous by shape and declines
+  rather than guessing wrong. **ADT returns** (three) needed a
+  comparison per language, because none of them share Vera's: Vera uses
+  an unrolled match, Python walks both sides into a comparable form
+  (a returned `Cons` has no `__eq__`), TypeScript compares key-sorted
+  JSON, Aver has structural `==`, and AILANG has no derived `Eq` at all
+  so its printed form is the only route. **IO problems** (two) are graded
+  on what they printed, with a sentinel between cases so a case that
+  prints several lines or none can still be split out
+  ([#107](https://github.com/aallan/vera-bench/issues/107)).
+- **Generated code is stored beside the result rows.** A sweep's verdicts
+  survived in the JSONL and the code that earned them did not, which is
+  why expanding the graded set cost a full re-sweep: 460 answers to
+  newly-graded problems had already been generated, all of them
+  compiling, and none could be graded because they were gone. Each
+  attempt now writes to `results/code/{target}/` with `code_path` on the
+  row. On by default; `--no-store-code` opts out
+  ([#109](https://github.com/aallan/vera-bench/issues/109)).
+
+### Fixed
+
+- **Comments could silently flip a grading outcome, in all five
+  languages.** Every declaration scanner was a regex over raw source, so
+  comment text was indistinguishable from code: a comment inside a Vera
+  `data` block dropped a constructor, a commented-out canonical
+  declaration shadowed the model's real one, a comment quoting the
+  "requires(), ensures(), effects()" rule was mirrored into the wrapper
+  as invalid `effects()`, an Aver doc comment merely mentioning
+  `List<Int>` flipped a declared-type solution onto builtin members that
+  do not exist, and a TypeScript JSDoc `@example` overrode the real
+  declaration's field names. Each recorded a correct solution as a wrong
+  answer, and models comment their code constantly. Scanners now strip
+  comments first, string-literal-aware so a `--` inside a string stays
+  code.
+- **A refusal scored better than a wrong answer.** Both the Python and
+  TypeScript evaluators reached the ADT mapper before the model's code
+  was parsed at all, so a prose refusal took the decline path — and
+  since declines leave the pass@1 denominator, not answering beat
+  answering wrongly. Declining now requires the code to be an answer:
+  parseable, with the entry point present.
+- **The decline label was forgeable.** `_declined` substring-matched
+  "test wrapper unavailable" anywhere in `error_message`, and a
+  compile-failure row carries the compiler's diagnostic — which quotes
+  the model's own source. A model that wrote the phrase had its problem
+  removed from the denominator. The marker is now anchored at the start
+  and paired with `check_pass`, two conditions only the harness can
+  satisfy together.
+- **`sweep_status.py` crashed on the first decline row** — the new
+  bucket was added to `classify()` but not to the counter dict, so the
+  sweep's only live monitor died with a KeyError.
+- **Generated Python `_norm` called `vars()`**, which raises on a
+  `__slots__` or `@dataclass(slots=True)` class — idiomatic modern
+  Python, graded 0/N. It reads `__slots__` when there is no `__dict__`.
+- **Legal-but-unlucky solutions were mis-graded**: a Vera `@String` test
+  case containing non-ASCII emitted `\uXXXX` where Vera spells escapes
+  `\u{...}`; a TypeScript solution exporting at the bottom
+  (`export { fn };`) had `export` spliced onto its declaration too, and
+  esbuild refused the file; any legal print outside the capture window
+  corrupted the whole-stdout JSON protocol (the result line is now
+  parsed as the last line, not the whole stream); and a `verify error`
+  masked the Vera decline label so an abstention read as a wrong answer.
+
+- **The aver and AILANG LLM evaluators could not grade what the
+  baselines grade.** Baselines run the canonical mains; graded code goes
+  through per-language argument synthesis the baselines never touch, and
+  that path rendered an ADT argument as a Python dict repr injected into
+  generated source, failed, and blamed the model. The two IO problems
+  fared no better: AILANG's check step fails any solution calling
+  `println` unless a `main` exists (the implicit prelude hangs off it),
+  and both languages graded printed output against the raw expected
+  value. Found by the multi-agent review running each language's
+  evaluator over its own canonical solutions — known-correct code
+  scoring 0 is a harness bug by definition, and that parity check is now
+  a 59-test suite (`test_evaluator_parity.py`).
+- **A model that renames the ADT type got an uncompilable wrapper.**
+  `match_constructors` deliberately tolerates `List` becoming `IntList`,
+  but the generated `probe_eq` hard-coded the problem's name, so the
+  wrapper could not compile against the model's own code — a correct
+  solution recorded as wrong, worst in spec-from-NL where inventing the
+  name is the point. The declared name now threads through, resolved by
+  constructor coverage when several declarations could match.
+- **TypeScript field order and discriminant now follow the solution.** A
+  declaration listing `tail` before `head` is legal; positional zipping
+  scrambled the constructed value. Fields align to canonical argument
+  order by type, `kind:`-discriminated unions are constructed with
+  `kind`, and a value literal in a comment no longer poisons inference.
+  Python's bare/dataclass classes and AILANG's multi-line type
+  declarations resolve too, and a constructor mapping that is not
+  one-to-one declines.
+
+- **Seven canonical solutions were wrong, across four of the five languages.**
+  Every one passed `check` and `verify`; every one was visible the moment
+  it was run. Vera's `list_reverse` and `print_numbers` both recursed
+  with their arguments swapped — the first diverged, the second printed
+  `1` for `n=3`. Aver's `print_loop` guarded the wrong way and printed
+  `0` for `print_numbers(0)`. An AILANG file had never parsed
+  (semicolons where the grammar wants commas) and two more declared a
+  leafless `MyLeaf` contradicting both the problem and their own
+  `tree_sum`. TypeScript's greeter was named `greetIO` where the entry
+  point is `greet`, so nothing using the problem definition could reach
+  it. These are the problems that had no test cases, which is precisely
+  why nothing had ever run them.
+- **An unmappable constructor took down a whole baselines run** through
+  an uncaught exception. It now leaves that one problem ungraded, which
+  is what a harness gap should look like — never a wrong answer, and
+  never twenty-six problems that silently never ran.
+
 ## [0.0.17] - 2026-07-26
 
 ### Added

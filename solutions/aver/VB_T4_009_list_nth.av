@@ -22,4 +22,5 @@ fn main() -> Unit
     ! [Console.print]
     Console.print("{list_nth([10, 20, 30], 0)}")
     Console.print("{list_nth([10, 20, 30], 2)}")
+    Console.print("{list_nth([10, 20, 30], 3)}")
     Console.print("{list_nth([], 0)}")

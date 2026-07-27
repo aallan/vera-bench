@@ -6,14 +6,97 @@
   "description_neutral": "Define a linked list type with nil and cons constructors. Write a function that concatenates two lists.",
   "signature": "public fn list_append(@List, @List -> @List)",
   "contracts": {
-    "requires": ["true"],
-    "ensures": ["true"],
+    "requires": [
+      "true"
+    ],
+    "ensures": [
+      "true"
+    ],
     "effects": "pure"
   },
   "entry_point": "list_append",
-  "tags": ["adt", "pattern-matching", "recursion", "decreases", "data-definition", "two-list-params"],
-  "test_cases": [],
+  "tags": [
+    "adt",
+    "pattern-matching",
+    "recursion",
+    "decreases",
+    "data-definition",
+    "two-list-params"
+  ],
+  "test_cases": [
+    {
+      "args": [
+        [
+          1,
+          2
+        ],
+        [
+          3
+        ]
+      ],
+      "expected": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "args": [
+        [],
+        []
+      ],
+      "expected": []
+    },
+    {
+      "args": [
+        [
+          1
+        ],
+        []
+      ],
+      "expected": [
+        1
+      ]
+    },
+    {
+      "args": [
+        [],
+        [
+          5,
+          6
+        ]
+      ],
+      "expected": [
+        5,
+        6
+      ]
+    }
+  ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Parameters: list_append(xs, ys). @List.0=ys, @List.1=xs. decreases(@List.1). Inside Cons(@Int, @List), the matched tail is @List.0 and ys shifts to @List.1. The termination metric on a non-rightmost parameter has a T3 runtime check."
+  "notes": "Parameters: list_append(xs, ys). @List.0=ys, @List.1=xs. decreases(@List.1). Inside Cons(@Int, @List), the matched tail is @List.0 and ys shifts to @List.1. The termination metric on a non-rightmost parameter has a T3 runtime check.",
+  "adt": {
+    "type": "List",
+    "form": "list",
+    "empty": "Nil",
+    "cons": "Cons",
+    "constructors": [
+      {
+        "name": "Nil",
+        "args": [],
+        "fields": []
+      },
+      {
+        "name": "Cons",
+        "args": [
+          "Int",
+          "List"
+        ],
+        "fields": [
+          "head",
+          "tail"
+        ]
+      }
+    ]
+  }
 }

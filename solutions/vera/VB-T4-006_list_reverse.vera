@@ -21,7 +21,13 @@ where {
   {
     match @List.1 {
       Nil -> @List.0,
-      Cons(@Int, @List) -> reverse_acc(Cons(@Int.0, @List.1), @List.0)
+      -- Recurse as (tail, head :: acc). The frame is (xs, acc), and the
+      -- Cons pattern rebinds @List, so inside this arm @List.0 is the
+      -- matched tail and @List.1 is the accumulator. Passing
+      -- (Cons(@Int.0, @List.1), @List.0) put the growing accumulator in
+      -- the xs slot, so xs never shrank and reverse diverged.
+      -- check and verify both passed that; only running it caught it.
+      Cons(@Int, @List) -> reverse_acc(@List.0, Cons(@Int.0, @List.1))
     }
   }
 }

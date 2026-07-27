@@ -8,4 +8,9 @@ export func list_append(xs: MyList, ys: MyList) -> MyList =
     MyCons(h, t) => MyCons(h, list_append(t, ys))
   }
 
-export func main() -> () ! {IO} = ()
+export func main() -> () ! {IO} {
+  println(show(list_append(MyCons(1, MyCons(2, MyNil)), MyCons(3, MyNil))));
+  println(show(list_append(MyNil, MyNil)));
+  println(show(list_append(MyCons(1, MyNil), MyNil)));
+  println(show(list_append(MyNil, MyCons(5, MyCons(6, MyNil)))))
+}

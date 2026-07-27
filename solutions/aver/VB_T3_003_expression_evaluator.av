@@ -23,7 +23,7 @@ verify eval_expr
 
 fn main() -> Unit
     ! [Console.print]
-    Console.print("{eval_expr(Expr.Lit(5))}")
+    Console.print("{eval_expr(Expr.Lit(42))}")
     Console.print("{eval_expr(Expr.Add(Expr.Lit(2), Expr.Lit(3)))}")
     Console.print("{eval_expr(Expr.Neg(Expr.Lit(7)))}")
-    Console.print("{eval_expr(Expr.Add(Expr.Lit(10), Expr.Neg(Expr.Lit(3))))}")
+    Console.print("{eval_expr(Expr.Add(Expr.Neg(Expr.Lit(4)), Expr.Lit(10)))}")

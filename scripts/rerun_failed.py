@@ -43,6 +43,7 @@ import argparse
 import glob
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -127,6 +128,26 @@ def rerun_one(
     if stray:
         sys.exit(f"re-run of {pid} returned rows for {sorted(stray)} — not splicing")
     return rows
+
+
+def copy_code(scratch: str, canonical: str, pid: str) -> None:
+    """Bring a re-run problem's stored code across with its rows.
+
+    code_path strings are relative to the results dir and the filename
+    stem carries no directory, so a spliced row would otherwise resolve
+    to the ORIGINAL failed attempt's file under the canonical tree —
+    fresh rows, stale code, under identical names. Runs inside the
+    per-pid scratch's lifetime; splice() happens after it is deleted.
+    """
+    stem = os.path.splitext(os.path.basename(canonical))[0]
+    src = os.path.join(scratch, "code", stem)
+    if not os.path.isdir(src):
+        return
+    dest = os.path.join(os.path.dirname(canonical), "code", stem)
+    os.makedirs(dest, exist_ok=True)
+    for name in os.listdir(src):
+        if name.split("_attempt")[0] == pid:
+            shutil.copy2(os.path.join(src, name), os.path.join(dest, name))
 
 
 def splice(canonical: str, fresh_by_pid: dict[str, list[dict]]) -> None:
@@ -224,6 +245,7 @@ def main() -> None:
             fresh_by_pid[pid] = rerun_one(
                 args.model, args.language, args.mode, pid, extra, scratch, args.timeout
             )
+            copy_code(scratch, canonical, pid)
     splice(canonical, fresh_by_pid)
     print(
         f"\nspliced {len(fresh_by_pid)} problem(s) into {os.path.basename(canonical)}"
