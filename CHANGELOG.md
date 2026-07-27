@@ -40,7 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Six canonical solutions were wrong, in four of the five languages.**
+- **Seven canonical solutions were wrong, across four of the five languages.**
   Every one passed `check` and `verify`; every one was visible the moment
   it was run. Vera's `list_reverse` and `print_numbers` both recursed
   with their arguments swapped — the first diverged, the second printed

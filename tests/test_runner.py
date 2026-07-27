@@ -17,6 +17,7 @@ from vera_bench.runner import (
     ProblemResult,
     _ailang_literal,
     _aver_literal,
+    _evaluate_typescript_code,
     _strip_ailang_main,
     _strip_aver_main,
     _strip_module_effects,
@@ -3292,3 +3293,39 @@ class TestConnectionErrorDoesNotAbortSweep:
         assert len(results) == 1
         assert "connection reset by peer" in results[0].error_message
         assert (tmp_path / "out.jsonl").read_text().strip()
+
+
+class TestTsWrapperConsoleRestore:
+    """A throwing case must not corrupt the cases after it (CR on #112).
+
+    The generated TS wrapper patches console.log and process.stdout.write
+    around each call. If the call throws and the catch does not restore
+    them, every later case's output — and the final JSON result line
+    itself — lands in the capture buffer instead of stdout, so one bad
+    case fails the whole problem with "Bad JSON output".
+    """
+
+    @pytest.mark.skipif(not _has_tsx, reason="tsx/npx not on PATH")
+    def test_a_throwing_case_leaves_later_cases_graded(self, tmp_path):
+        problem = {
+            "id": "VB-TEST-THROW",
+            "signature": "public fn absolute_value(@Int -> @Int)",
+            "entry_point": "absolute_value",
+            "test_cases": [
+                {"args": [-5], "expected": 5},
+                {"args": [0], "expected": 0},
+            ],
+        }
+        code = (
+            "function absoluteValue(x: number): number {\n"
+            "  if (x < 0) throw new Error('boom');\n"
+            "  return x;\n"
+            "}\n"
+        )
+        result = _evaluate_typescript_code(code, problem, tmp_path, attempt=1)
+        # Case 1 throws and fails; case 2 must still run and pass — and
+        # the JSON protocol must survive, so this is a parsed result, not
+        # a "Bad JSON output" error.
+        assert result["tests_total"] == 2
+        assert result["tests_passed"] == 1
+        assert "Bad JSON" not in str(result.get("error_message") or "")

@@ -17,15 +17,11 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import Progress
 
+from vera_bench.adt_render import adt_call as _adt_call
+from vera_bench.adt_render import adt_expected as _adt_expected
 from vera_bench.adt_render import (
-    declared_type,
     grades_on_stdout,
-    infer_ts_fields,
-    render,
-    render_args,
-    resolve_names,
     return_spec,
-    uses_native_collection,
 )
 from vera_bench.models import AuthError, LLMClient
 from vera_bench.prompts import (
@@ -45,7 +41,6 @@ from vera_bench.vera_wrapper import (
     Unsupported,
     build_wrapper,
     can_wrap,
-    parse_signature,
 )
 
 console = Console()
@@ -152,50 +147,6 @@ class ProblemResult:
         # Drop None values for cleaner JSONL
         d = {k: v for k, v in d.items() if v is not None}
         return json.dumps(d, ensure_ascii=False)
-
-
-def _adt_expected(
-    problem: dict, source: str, language: str, expected: object
-) -> str | None:
-    """The expected ADT value rendered in `language`, or None.
-
-    Only for problems whose entry point RETURNS the ADT. Returns a
-    literal built with the solution's own constructors, so both sides of
-    the comparison are the same shape.
-    """
-    spec = return_spec(problem)
-    if spec is None:
-        return None
-    native = language == "aver" and uses_native_collection(source, spec)
-    names = {} if native else resolve_names(source, spec, language)
-    qualifier = declared_type(source, language, spec)
-    ts_fields = infer_ts_fields(source) if language == "typescript" else None
-    return render(expected, spec, language, names, native, qualifier, ts_fields)
-
-
-def _adt_call(problem: dict, source: str, language: str, args: list) -> str | None:
-    """Render an ADT call for this test case, or None when not applicable.
-
-    Returns the arguments already rendered in the solution's own
-    constructor names, e.g. `Cons(1, Nil()), 5`. None means the problem
-    carries no ADT and the caller's ordinary literal path applies.
-    Unsupported propagates: the problem is left ungraded rather than
-    graded on a call we are not sure of.
-    """
-    spec = problem.get("adt")
-    if not spec:
-        return None
-    params, _ = parse_signature(problem.get("signature", ""))
-    param_types = [p.lstrip("@") for p in params]
-    native = language == "aver" and uses_native_collection(source, spec)
-    names = {} if native else resolve_names(source, spec, language)
-    qualifier = declared_type(source, language, spec)
-    ts_fields = infer_ts_fields(source) if language == "typescript" else None
-    return ", ".join(
-        render_args(
-            args, param_types, spec, language, names, native, qualifier, ts_fields
-        )
-    )
 
 
 def _evaluate_code(
@@ -604,6 +555,11 @@ def _evaluate_typescript_code(
                 ),
                 f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
                 "} catch (e: any) {",
+                # Restore here too: a throwing case would otherwise leave
+                # console.log patched, swallowing every later case AND the
+                # final JSON result line — one bad case corrupting the
+                # whole problem's protocol.
+                "  console.log = _log; (process.stdout as any).write = _w;",
                 "  results.push({passed: false, error: String(e)});",
                 "}",
                 "",

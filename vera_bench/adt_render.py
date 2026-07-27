@@ -33,7 +33,7 @@ from __future__ import annotations
 import json
 import re
 
-from vera_bench.vera_wrapper import Unsupported
+from vera_bench.vera_wrapper import Unsupported, parse_signature
 
 #: Scalar argument types that render as plain literals in every language.
 _SCALARS = frozenset({"Int", "Nat", "Bool", "String", "Float64"})
@@ -380,17 +380,7 @@ def return_spec(problem: dict) -> dict | None:
 
 def returns_adt(problem: dict) -> bool:
     """Whether the entry point returns an ADT this harness can compare."""
-    spec = problem.get("return_adt") or problem.get("adt")
-    if not spec:
-        return False
-    from vera_bench.vera_wrapper import Unsupported as _U
-    from vera_bench.vera_wrapper import parse_signature
-
-    try:
-        _, ret = parse_signature(problem.get("signature", ""))
-    except _U:
-        return False
-    return ret == f"@{spec.get('type')}"
+    return return_spec(problem) is not None
 
 
 def printed_form(
@@ -430,3 +420,72 @@ def grades_on_stdout(problem: dict) -> bool:
     except _U:
         return False
     return ret == "@Unit"
+
+
+# --- Rendering a whole test case against one solution ---------------
+# One implementation, imported by runner and baseline_runner both —
+# two hand-synchronised copies of grading logic is how the wrapper
+# builders drifted (#111), and these were heading the same way.
+
+
+def adt_call(problem: dict, source: str, language: str, args: list) -> str | None:
+    """Render an ADT call for this test case, or None when not applicable.
+
+    Returns the arguments already rendered in the solution's own
+    constructor names, e.g. `Cons(1, Nil()), 5`. None means the problem
+    carries no ADT and the caller's ordinary literal path applies.
+    Unsupported propagates: the problem is left ungraded rather than
+    graded on a call we are not sure of.
+    """
+    spec = problem.get("adt")
+    if not spec:
+        return None
+    params, _ = parse_signature(problem.get("signature", ""))
+    param_types = [p.lstrip("@") for p in params]
+    native = language == "aver" and uses_native_collection(source, spec)
+    names = {} if native else resolve_names(source, spec, language)
+    qualifier = declared_type(source, language, spec)
+    ts_fields = infer_ts_fields(source) if language == "typescript" else None
+    return ", ".join(
+        render_args(
+            args, param_types, spec, language, names, native, qualifier, ts_fields
+        )
+    )
+
+
+def adt_expected(
+    problem: dict, source: str, language: str, expected: object
+) -> str | None:
+    """The expected ADT value rendered in `language`, or None.
+
+    Only for problems whose entry point RETURNS the ADT. Both sides of
+    the comparison are then built from the same constructors, so they are
+    the same shape and can be compared structurally.
+    """
+    spec = return_spec(problem)
+    if spec is None:
+        return None
+    native = language == "aver" and uses_native_collection(source, spec)
+    names = {} if native else resolve_names(source, spec, language)
+    qualifier = declared_type(source, language, spec)
+    ts_fields = infer_ts_fields(source) if language == "typescript" else None
+    return render(expected, spec, language, names, native, qualifier, ts_fields)
+
+
+def adt_printed(
+    problem: dict, source: str, language: str, expected: object
+) -> str | None:
+    """The expected ADT return as the language prints it, or None."""
+    spec = return_spec(problem)
+    if spec is None:
+        return None
+    native = language == "aver" and uses_native_collection(source, spec)
+    names = {} if native else resolve_names(source, spec, language)
+    # Aver prints a built-in qualified (`Option.Some(3)`) and a declared
+    # type bare (`Cons(1, Nil)`).
+    import re as _re
+
+    type_name = spec.get("type", "")
+    builtin = language == "aver" and _re.search(rf"\b{_re.escape(type_name)}<", source)
+    qualifier = type_name if builtin else ""
+    return printed_form(expected, spec, language, names, native, qualifier)
