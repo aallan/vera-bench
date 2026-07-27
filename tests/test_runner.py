@@ -17,6 +17,7 @@ from vera_bench.runner import (
     ProblemResult,
     _ailang_literal,
     _aver_literal,
+    _evaluate_python_code,
     _evaluate_typescript_code,
     _strip_ailang_main,
     _strip_aver_main,
@@ -3329,3 +3330,44 @@ class TestTsWrapperConsoleRestore:
         assert result["tests_total"] == 2
         assert result["tests_passed"] == 1
         assert "Bad JSON" not in str(result.get("error_message") or "")
+
+
+class TestEvaluatorAdtDeclines:
+    """An unmappable model declaration declines to ungraded, never a crash.
+
+    Before the guards, an Unsupported from the ADT mapper propagated to
+    the worker's catch-all and was recorded as a crash row. These are
+    hermetic: the decline happens at wrapper-build, before any
+    subprocess.
+    """
+
+    PROBLEM = {
+        "id": "VB-TEST-ADT",
+        "signature": "public fn list_length(@List -> @Nat)",
+        "entry_point": "list_length",
+        "adt": {
+            "type": "List",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": [], "fields": []},
+                {"name": "Cons", "args": ["Int", "List"], "fields": ["head", "tail"]},
+            ],
+        },
+        "test_cases": [{"args": [[1, 2]], "expected": 2}],
+    }
+
+    def test_python_unmappable_is_ungraded(self, tmp_path):
+        code = "def list_length(x):\n    return 0\n"  # no constructors at all
+        r = _evaluate_python_code(code, self.PROBLEM, tmp_path, attempt=1)
+        assert r["run_correct"] is None
+        assert r["tests_total"] == 0
+        assert "test wrapper unavailable" in r["error_message"]
+
+    def test_typescript_unmappable_is_ungraded(self, tmp_path):
+        code = "function listLength(x: any): number { return 0; }\n"
+        r = _evaluate_typescript_code(code, self.PROBLEM, tmp_path, attempt=1)
+        assert r["run_correct"] is None
+        assert r["tests_total"] == 0
+        assert "test wrapper unavailable" in r["error_message"]

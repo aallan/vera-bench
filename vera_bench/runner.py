@@ -538,9 +538,17 @@ def _evaluate_typescript_code(
                 "try {",
                 "  _out = []; console.log = _cap;",
                 "  (process.stdout as any).write = _capw;",
-                f"  const actual_{i} = {ts_fn}({ts_call});",
-                "  console.log = _log;",
-                "  (process.stdout as any).write = _w;",
+                f"  let actual_{i}: any;",
+                # The invocation sits in try/finally so the console is
+                # restored on every path — success, throw, anything. A
+                # restore that lives on the success path and again in the
+                # catch is the same behaviour but invites the next editor
+                # to add a path that forgets it.
+                "  try {",
+                f"    actual_{i} = {ts_fn}({ts_call});",
+                "  } finally {",
+                "    console.log = _log; (process.stdout as any).write = _w;",
+                "  }",
                 f"  const passed_{i} = "
                 + (
                     # @Unit: compare what was printed (#107 step 5).
@@ -555,11 +563,6 @@ def _evaluate_typescript_code(
                 ),
                 f"  results.push({{passed: passed_{i}, actual: String(actual_{i})}});",
                 "} catch (e: any) {",
-                # Restore here too: a throwing case would otherwise leave
-                # console.log patched, swallowing every later case AND the
-                # final JSON result line — one bad case corrupting the
-                # whole problem's protocol.
-                "  console.log = _log; (process.stdout as any).write = _w;",
                 "  results.push({passed: false, error: String(e)});",
                 "}",
                 "",
