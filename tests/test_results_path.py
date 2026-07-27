@@ -33,14 +33,18 @@ SCRIPTS = REPO_ROOT / "scripts"
 
 class TestResultFilename:
     def test_vera_full_spec_carries_the_compiler_version(self):
-        assert result_filename(
-            "claude-fable-5", "0.0.18", vera_version="0.1.8"
-        ) == "claude-fable-5-bench-0-0-18-vera-0-1-8.jsonl"
+        assert (
+            result_filename("claude-fable-5", "0.0.18", vera_version="0.1.8")
+            == "claude-fable-5-bench-0-0-18-vera-0-1-8.jsonl"
+        )
 
     def test_spec_from_nl_is_marked(self):
-        assert result_filename(
-            "gpt-5.6-sol", "0.0.18", mode="spec-from-nl", vera_version="0.1.8"
-        ) == "gpt-5.6-sol-spec-from-nl-bench-0-0-18-vera-0-1-8.jsonl"
+        assert (
+            result_filename(
+                "gpt-5.6-sol", "0.0.18", mode="spec-from-nl", vera_version="0.1.8"
+            )
+            == "gpt-5.6-sol-spec-from-nl-bench-0-0-18-vera-0-1-8.jsonl"
+        )
 
     def test_a_slash_in_the_model_becomes_a_dash(self):
         # `moonshot/kimi-k3` cannot appear in a path segment.
@@ -67,9 +71,7 @@ class TestShellContract:
     """What the shell computes must be what Python computes."""
 
     def test_the_module_cli_prints_the_same_name(self):
-        expected = result_filename(
-            "claude-opus-5", "0.0.18", vera_version="0.1.8"
-        )
+        expected = result_filename("claude-opus-5", "0.0.18", vera_version="0.1.8")
         out = subprocess.run(
             [
                 sys.executable,

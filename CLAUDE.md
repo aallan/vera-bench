@@ -126,7 +126,13 @@ Tier 5 problems test algebraic effect handlers in Vera (`State`, `Exn`, `IO`). O
 ## Coding conventions
 
 - Python 3.11+, type hints everywhere.
-- `ruff` for linting.
+- `ruff` for linting. The CI gate is BOTH halves — run them, and read the output rather than redirecting it:
+
+```bash
+ruff check . && ruff format --check . && ruff check --select S vera_bench/
+```
+
+`ruff check` alone passes on unformatted code, which is how three separate pushes reached CI red on formatting.
 - `click` for CLI.
 - `rich` for terminal output.
 - JSONL for results files.
