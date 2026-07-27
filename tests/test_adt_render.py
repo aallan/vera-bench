@@ -794,6 +794,52 @@ class TestIdiomsThatUsedToDecline:
         )
         assert aligned == {"NoneOpt": [], "Some": ["value"]}
 
+    def test_positional_only_self_is_not_an_argument(self):
+        # `def __init__(self, /, *, head, tail)` is legal: `self` lands
+        # in posonlyargs, and slicing only `args` left it in the shape as
+        # an extra SELF — declining a correct solution (CR on #114).
+        from vera_bench.adt_render import declared_shape
+
+        src = (
+            "class List: pass\nclass Nil(List): pass\n"
+            "class Cons(List):\n"
+            '    def __init__(self: "Cons", /, *, head: int, tail: List):\n'
+            "        pass\n"
+        )
+        assert declared_shape(src, "python")["Cons"] == ("int", "SELF")
+        assert resolve_names(src, LIST, "python") == {"Nil": "Nil", "Cons": "Cons"}
+
+    def test_kwonly_alignment_uses_the_same_scalar_equivalence(self):
+        # resolve_names accepted `head: str` against a canonical String
+        # through the equivalence table, then the alignment loop's raw
+        # `==` rejected it and the problem declined anyway. One rule now
+        # serves both (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        spec = {
+            "type": "L",
+            "form": "list",
+            "empty": "Nil",
+            "cons": "Cons",
+            "constructors": [
+                {"name": "Nil", "args": [], "fields": []},
+                {"name": "Cons", "args": ["String", "L"], "fields": ["head", "tail"]},
+            ],
+        }
+        src = (
+            "from dataclasses import dataclass\nclass L: pass\n"
+            "@dataclass(kw_only=True)\nclass Nil(L): pass\n"
+            "@dataclass(kw_only=True)\nclass Cons(L):\n"
+            "    head: str\n    tail: L\n"
+        )
+        aligned = align_kwonly(
+            python_kwonly_fields(src), src, spec, {"Nil": "Nil", "Cons": "Cons"}
+        )
+        assert aligned["Cons"] == ["head", "tail"]
+        assert render(["a"], spec, "python", py_kwonly=aligned) == (
+            'Cons(head="a", tail=Nil())'
+        )
+
     def test_kw_only_dataclass_is_constructed_by_keyword(self):
         from vera_bench.adt_render import python_kwonly_fields
 

@@ -259,6 +259,24 @@ def python_kwonly_fields(source: str) -> dict[str, list[str]]:
     return out
 
 
+def _type_mismatch(declared: str, wanted: str) -> bool:
+    """Whether two normalised types genuinely disagree.
+
+    Module-level so `resolve_names` and `align_kwonly` cannot drift
+    apart: a solution whose `head: str` satisfied the shape guard used
+    to fail the alignment loop's raw `==` and decline anyway. An
+    unrecognised type name is UNVERIFIABLE everywhere rather than a
+    mismatch — comparing raw tokens would false-decline a solution whose
+    type names we simply cannot interpret.
+    """
+    if declared == wanted:
+        return False
+    if "SELF" in (declared, wanted):
+        return True
+    dk, wk = _SCALAR_EQUIV.get(declared), _SCALAR_EQUIV.get(wanted)
+    return bool(dk and wk and dk != wk)
+
+
 def align_kwonly(
     fields: dict[str, list[str]],
     source: str,
@@ -347,7 +365,12 @@ def align_kwonly(
             ordered: list[str] = []
             for want in wanted:
                 match = next(
-                    (i for i, (_, t) in enumerate(remaining) if t == want), None
+                    (
+                        i
+                        for i, (_, t) in enumerate(remaining)
+                        if not _type_mismatch(t, want)
+                    ),
+                    None,
                 )
                 if match is None:
                     ordered = []
@@ -809,8 +832,13 @@ def declared_shape(source: str, language: str) -> dict[str, tuple[str, ...]]:
                 b.id for b in node.bases if isinstance(b, ast.Name)
             }
             if init is not None:
-                params = init.args.posonlyargs + init.args.args[1:]
-                params += init.args.kwonlyargs
+                # The instance parameter is the first POSITIONAL one,
+                # which lands in posonlyargs for `def __init__(self, /,
+                # *, ...)` — a legal signature whose `self` used to be
+                # read as an extra argument, giving the constructor one
+                # too many and declining a correct solution.
+                positional = init.args.posonlyargs + init.args.args
+                params = positional[1:] + init.args.kwonlyargs
                 if all(p.annotation is not None for p in params) and params:
                     out[node.name] = tuple(
                         norm(ast.unparse(p.annotation).strip("\"'"), selfish)
@@ -921,21 +949,6 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
     kwonly = python_kwonly_fields(source) if language == "python" else {}
     type_name = spec.get("type", "")
 
-    def _mismatch(d: str, w: str) -> bool:
-        """Whether two normalised types genuinely disagree.
-
-        An unrecognised type name is UNVERIFIABLE in both the positional
-        and the keyword-only path — comparing raw tokens there would
-        false-decline a solution whose type names we simply cannot
-        interpret.
-        """
-        if d == w:
-            return False
-        if "SELF" in (d, w):
-            return True
-        dk, wk = _SCALAR_EQUIV.get(d), _SCALAR_EQUIV.get(w)
-        return bool(dk and wk and dk != wk)
-
     for want in spec.get("constructors", []):
         actual = mapping.get(want["name"])
         declared = shapes.get(actual)
@@ -956,7 +969,7 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
             )
             declared_sorted = sorted(_key(d) for d in declared)
             if len(declared_sorted) != len(wanted_sorted) or any(
-                _mismatch(d, w) for d, w in zip(declared_sorted, wanted_sorted)
+                _type_mismatch(d, w) for d, w in zip(declared_sorted, wanted_sorted)
             ):
                 raise Unsupported(
                     f"constructor {want['name']} is declared as {declared}, "
@@ -969,7 +982,7 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
         )
 
         if len(declared) != len(wanted) or any(
-            _mismatch(d, w) for d, w in zip(declared, wanted)
+            _type_mismatch(d, w) for d, w in zip(declared, wanted)
         ):
             raise Unsupported(
                 f"constructor {want['name']} is declared as {declared}, "
