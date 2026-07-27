@@ -600,7 +600,7 @@ class TestIdiomsThatUsedToDecline:
         # else must decline rather than guess.
         from vera_bench.adt_render import align_kwonly, python_kwonly_fields
 
-        def src(order, left="left", right="right"):
+        def src(order):
             fields = "".join(f"    {n}\n" for n in order)
             return (
                 "from dataclasses import dataclass\nclass Tree: pass\n"
@@ -616,6 +616,52 @@ class TestIdiomsThatUsedToDecline:
         with pytest.raises(Unsupported):
             align_kwonly(python_kwonly_fields(ambiguous), ambiguous, TREE)
 
+    def test_an_unrelated_kwonly_helper_does_not_decline_the_problem(self):
+        # align_kwonly scanned every keyword-only class, so a helper
+        # dataclass of the same arity hit the ambiguity branch and
+        # declined the whole problem (CR on #114).
+        from vera_bench.adt_render import align_kwonly, python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass Tree: pass\n"
+            "@dataclass(kw_only=True)\nclass Leaf(Tree):\n    value: int\n"
+            "@dataclass(kw_only=True)\nclass Branch(Tree):\n"
+            "    left: Tree\n    right: Tree\n"
+            "@dataclass(kw_only=True)\nclass Span:\n    lo: int\n    hi: int\n"
+        )
+        aligned = align_kwonly(python_kwonly_fields(src), src, TREE)
+        assert aligned["Branch"] == ["left", "right"]
+
+    def test_an_attribute_annotation_does_not_crash(self):
+        # `obj.attr: int` is a legal AnnAssign whose target is an
+        # Attribute; reading .id raised AttributeError (CR on #114).
+        from vera_bench.adt_render import python_kwonly_fields
+
+        src = (
+            "from dataclasses import dataclass\nclass C: pass\n"
+            "@dataclass(kw_only=True)\nclass D(C):\n"
+            "    x: int\n    obj.attr: int\n"
+        )
+        assert python_kwonly_fields(src)["D"] == ["x"]
+
+    def test_unknown_types_are_unverifiable_in_the_kwonly_path_too(self):
+        # The positional path treats an uninterpretable type name as
+        # unverifiable; the keyword-only path compared raw tokens and
+        # would false-decline (CR on #114).
+        spec = {
+            "type": "T",
+            "form": "tagged",
+            "constructors": [
+                {"name": "Node", "args": ["Widget", "Gadget"], "fields": ["a", "b"]}
+            ],
+        }
+        src = (
+            "from dataclasses import dataclass\nclass T: pass\n"
+            "@dataclass(kw_only=True)\nclass Node(T):\n"
+            "    a: Widget\n    b: Gadget\n"
+        )
+        assert resolve_names(src, spec, "python") == {"Node": "Node"}
+
     def test_scalar_shape_mismatch_is_caught(self):
         # `(String, Self)` against a canonical `(Int, Self)` used to pass
         # because neither side was SELF, and the wrapper then rendered an
@@ -626,7 +672,7 @@ class TestIdiomsThatUsedToDecline:
             )
         assert resolve_names(
             "type MyList = MyNil | MyCons(int, MyList)", LIST, "ailang"
-        )
+        ) == {"Nil": "MyNil", "Cons": "MyCons"}
 
     def test_a_languages_own_scalar_spelling_is_not_a_mismatch(self):
         # Enforcing equality must not false-decline Python's `str`

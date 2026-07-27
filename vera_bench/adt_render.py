@@ -249,8 +249,12 @@ def python_kwonly_fields(source: str) -> dict[str, list[str]]:
             for d in node.decorator_list
         )
         if kw_only:
+            # `obj.attr: int` is a legal annotated assignment whose
+            # target is an Attribute, not a Name — reading .id crashed.
             out[node.name] = [
-                n.target.id for n in node.body if isinstance(n, ast.AnnAssign)
+                n.target.id
+                for n in node.body
+                if isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name)
             ]
     return out
 
@@ -259,6 +263,7 @@ def align_kwonly(
     fields: dict[str, list[str]],
     source: str,
     spec: dict,
+    names: dict[str, str] | None = None,
 ) -> dict[str, list[str]]:
     """Reorder keyword-only field names into CANONICAL argument order.
 
@@ -274,17 +279,24 @@ def align_kwonly(
     """
     shapes = declared_shape(source, "python")
     type_name = spec.get("type", "")
+    names = names or {}
     out: dict[str, list[str]] = {}
     for ctor in spec.get("constructors", []):
-        for actual, names in fields.items():
+        # Only the class this constructor actually resolved to. Scanning
+        # every keyword-only class meant an unrelated helper dataclass
+        # of the same arity hit the ambiguity branch and declined the
+        # whole problem.
+        actual = names.get(ctor["name"], ctor["name"])
+        if actual in fields:
+            field_names = fields[actual]
             declared = shapes.get(actual)
-            if declared is None or len(declared) != len(names):
+            if declared is None or len(declared) != len(field_names):
                 continue
             wanted = [
                 "SELF" if a.lower() == type_name.lower() else a.lower()
                 for a in ctor.get("args", [])
             ]
-            if len(wanted) != len(names):
+            if len(wanted) != len(field_names):
                 continue
             canonical_fields = ctor.get("fields", [])
             if len(set(wanted)) != len(wanted):
@@ -295,15 +307,15 @@ def align_kwonly(
                 # when the solution used the canonical ones; otherwise
                 # decline, because guessing reverses the children
                 # silently.
-                if canonical_fields and set(canonical_fields) == set(names):
+                if canonical_fields and set(canonical_fields) == set(field_names):
                     out[actual] = list(canonical_fields)
                     continue
                 raise Unsupported(
-                    f"cannot align keyword-only fields {names} for "
+                    f"cannot align keyword-only fields {field_names} for "
                     f"{actual}: {len(wanted)} arguments share a type and "
                     f"the declared names do not match {canonical_fields}"
                 )
-            remaining = list(zip(names, declared))
+            remaining = list(zip(field_names, declared))
             ordered: list[str] = []
             for want in wanted:
                 match = next(
@@ -318,12 +330,12 @@ def align_kwonly(
                 # fall back to positional — that raises TypeError and is
                 # published as the model's wrong answer.
                 raise Unsupported(
-                    f"cannot align keyword-only fields {names} for {actual}"
+                    f"cannot align keyword-only fields {field_names} for {actual}"
                 )
             out[actual] = ordered
     # Nullary constructors carry no fields and need no alignment.
-    for actual, names in fields.items():
-        if not names:
+    for actual, field_names in fields.items():
+        if not field_names:
             out.setdefault(actual, [])
     return out
 
@@ -880,6 +892,22 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
     shapes = declared_shape(source, language)
     kwonly = python_kwonly_fields(source) if language == "python" else {}
     type_name = spec.get("type", "")
+
+    def _mismatch(d: str, w: str) -> bool:
+        """Whether two normalised types genuinely disagree.
+
+        An unrecognised type name is UNVERIFIABLE in both the positional
+        and the keyword-only path — comparing raw tokens there would
+        false-decline a solution whose type names we simply cannot
+        interpret.
+        """
+        if d == w:
+            return False
+        if "SELF" in (d, w):
+            return True
+        dk, wk = _SCALAR_EQUIV.get(d), _SCALAR_EQUIV.get(w)
+        return bool(dk and wk and dk != wk)
+
     for want in spec.get("constructors", []):
         actual = mapping.get(want["name"])
         declared = shapes.get(actual)
@@ -894,33 +922,23 @@ def resolve_names(source: str, spec: dict, language: str) -> dict[str, str]:
             def _key(t: str) -> str:
                 return "SELF" if t == "SELF" else _SCALAR_EQUIV.get(t, t)
 
-            wanted_set = sorted(
+            wanted_sorted = sorted(
                 _key("SELF" if a.lower() == type_name.lower() else a.lower())
                 for a in want.get("args", [])
             )
-            if sorted(_key(d) for d in declared) != wanted_set:
+            declared_sorted = sorted(_key(d) for d in declared)
+            if len(declared_sorted) != len(wanted_sorted) or any(
+                _mismatch(d, w) for d, w in zip(declared_sorted, wanted_sorted)
+            ):
                 raise Unsupported(
                     f"constructor {want['name']} is declared as {declared}, "
-                    f"expected {tuple(wanted_set)} in some order"
+                    f"expected {tuple(wanted_sorted)} in some order"
                 )
             continue
         wanted = tuple(
             "SELF" if a.lower() == type_name.lower() else a.lower()
             for a in want.get("args", [])
         )
-
-        def _mismatch(d: str, w: str) -> bool:
-            if d == w:
-                return False
-            if "SELF" in (d, w):
-                return True
-            # Both are concrete: compare through the equivalence table so
-            # Python's `str` matches a canonical `String`, while a
-            # genuine string-vs-int difference is caught. An unrecognised
-            # type name stays unverifiable rather than becoming a false
-            # decline.
-            dk, wk = _SCALAR_EQUIV.get(d), _SCALAR_EQUIV.get(w)
-            return bool(dk and wk and dk != wk)
 
         if len(declared) != len(wanted) or any(
             _mismatch(d, w) for d, w in zip(declared, wanted)
@@ -1057,7 +1075,7 @@ def adt_call(problem: dict, source: str, language: str, args: list) -> str | Non
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
     ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
     py_kwonly = (
-        align_kwonly(python_kwonly_fields(source), source, spec)
+        align_kwonly(python_kwonly_fields(source), source, spec, names)
         if language == "python"
         else None
     )
@@ -1095,7 +1113,7 @@ def adt_expected(
     ts_fields = infer_ts_fields(source) if language == "typescript" else None
     ts_disc = infer_ts_discriminant(source) if language == "typescript" else "tag"
     py_kwonly = (
-        align_kwonly(python_kwonly_fields(source), source, spec)
+        align_kwonly(python_kwonly_fields(source), source, spec, names)
         if language == "python"
         else None
     )
