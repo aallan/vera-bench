@@ -6,14 +6,16 @@ history; see [Generated, not committed](#generated-not-committed).
 
 Every score chart reports **% solved**: the model wrote code, it compiled, it
 ran, and the output matched. A refusal, a compile failure, a crash and a wrong
-answer all count alike, as not solved. `fig-coverage.png` is the exception; it
-counts problems rather than scoring them. The committed charts show the
-v0.0.16 sweep, when 36 of the 60 problems could be graded that way, so one
-problem is worth 2.8 percentage points; keep that number in mind when reading
-any gap. From v0.0.17 the graded set is 46, and charts rendered for a version
-use that version's own denominator.
+answer all count the same way, as not solved. `fig-coverage.png` is the
+exception, and counts programs rather than scoring them.
 
-## The seven README figures
+The committed charts show the v0.0.18 sweep, the first in which all 60 problems
+are graded in all five languages, so one problem is worth 1.7 percentage
+points. Keep that in mind when reading any gap. Earlier versions graded fewer,
+36 at v0.0.16 and 46 at v0.0.17, and a chart rendered for a version uses that
+version's own denominator.
+
+## The eight README figures
 
 Rendered `--bare` and transparent: no title, no subtitle, no footnote, cropped
 to the plot, so the prose around them carries what the slide versions bake in.
@@ -24,72 +26,98 @@ render, which is why they sit outside the `vera-bench_slide_*` naming that
 ### `fig-delta.png`: Vera against Python and TypeScript
 
 Vera's score minus each comparison language, one row per model, green to the
-right. Vera wins outright for four of the nine models and draws level with
-three more. The wins are not evenly spread: Claude Fable 5 and Claude Opus 5
-carry most of them, and both are models that refused to answer problems in
-Python.
+right. Against Python, Vera wins for six of the nine models by three to five
+points, draws one and loses two. Against TypeScript it wins one, draws five and
+loses three.
+
+Read the second row as a fact about TypeScript. It scores 100% for eight of the
+nine models, so there is no headroom left to win.
 
 ### `fig-vera-vs-aver.png`: a controlled comparison
 
 Comparing Vera to Python confounds design against training data: Python is
 common in every training set and Vera is absent from all of them.
 [Aver](https://github.com/jasisz/aver) is another language designed for models
-to write, and it removes that difference. The biggest design difference left is
-that Vera has no variable names, using typed slot references. Vera scores
-higher on all five models that ran both.
+to write, and it removes that difference. Both are statically typed, absent
+from every training set, and learned from a single document in the prompt. The
+biggest design difference left is that Vera has no variable names, using typed
+slot references instead.
+
+Vera scores higher on all five models that ran both, by one to ten points.
+
+### `fig-ztd.png`: all three zero-training-data languages
+
+The same comparison widened to Vera, Aver and AILANG. Every bar was earned from
+a single skill file in context. Vera averages 98.2% across the five models that
+ran all three, AILANG 96.8% and Aver 92.4%, against Python's 97.0% on the same
+five. Vera leads Aver on all five and AILANG on four, tying the fifth.
+
+This is the comparison saturation has not reached, because none of the three
+sits at the ceiling.
 
 ### `fig-generation.png`: the direction of travel
 
 Three Claude flagships across four languages. Claude Opus 4 solved fewer
-problems in Vera than in Python; Claude Opus 5 reverses that. Both Vera modes
-rise at every step, while Python and TypeScript end where they started or
-below. Only the last step is controlled; the earlier one spans a compiler, a
-standard library and a revision of the teaching document, so it measures the
-ecosystem improving alongside the models, in unknown proportion.
+problems in Vera than in Python; Claude Opus 5 reverses that. Across the line
+Vera gains 11 points and Vera NL 14, while Python gains 1 and TypeScript does
+not move.
+
+Only the last step is controlled. Claude Opus 4 was measured against an older
+compiler, an older standard library, an older skills file and a smaller set of
+graded problems, so that step measures the ecosystem improving alongside the
+model, in unknown proportion.
 
 ### `fig-reasoning.png`: reasoning mode
 
 GPT-5.6 Sol at `reasoning.mode` standard and pro, same problems, same prompt.
 Mode picks which execution path the model takes; `reasoning.effort`, a separate
 axis, controls how much reasoning it does once on that path, and this chart
-varies mode alone. Nothing moves in any of the four languages.
+varies mode alone.
+
+Vera gains two points on the pro path, Vera NL loses two, and Python and
+TypeScript do not move. Given the margins, that is effectively a null result.
 
 ### `fig-refusal.png`: refusals
 
-A model by language grid. Five refusals in the whole run, every one of them in
-Python or TypeScript and none in Vera, and in each case the same model went on
-to solve the same problem in four or five other languages. All five came from
-Claude Fable 5 and Claude Opus 5, the two models in the benchmark that ship
-cybersecurity classifiers, so these are likely false positives from those
-guardrails rather than anything to do with the problems themselves.
+A model by language grid. Four refusals in the whole run, every one of them in
+Python or TypeScript, and none in Vera, Aver or AILANG. In each case the same
+model went on to solve the same problem in four or five other languages.
 
-### `fig-coverage.png`: what the headline metric cannot see
+All four came from Claude Fable 5 and Claude Opus 5, the two models in the
+benchmark that ship cybersecurity classifiers, so these are likely false
+positives from those guardrails rather than anything to do with the problems.
 
-Which of the 60 problems are scored by comparing output, and which are not.
-In the committed v0.0.16 render, 24 are not: `vera run --fn` passes arguments
-on a command line, so a problem whose input is a list or a tree could not be
-called at all. A generated wrapper closed most of that gap in v0.0.17
-([#107](https://github.com/aallan/vera-bench/issues/107)), leaving 14: twelve
-ADT-argument problems and two IO problems whose multi-line output the
-baseline protocol cannot host. A render for a given `--version` shows that
-version's own split.
+### `fig-coverage.png`: what the contracts cannot see
+
+Where `vera check` and `vera run` disagree. This chart used to report which
+problems could not be output-graded at all;
+[#107](https://github.com/aallan/vera-bench/issues/107) closed that gap in
+v0.0.18, so it now asks a better question.
+
+One Vera program of the 540 written never compiled. Of the remaining 539, six
+compiled, satisfied their contracts, and were still wrong, and each is named
+with its cause. The figure beside them is the count of working programs the
+gate wrongly refused, which is zero.
 
 ### `fig-saturation.png`: the benchmark is saturating
 
 Every model against every language, one dot each, on a zoomed axis. The field
-sits between 92% and 100% on the core languages and all nine models reach 100%
-in at least one of them, so with 36 graded problems most gaps are one or two
-problems wide. The benchmark can still answer whether an unfamiliar language
-costs a model anything; it can no longer rank the field at the top.
+sits between 87% and 100%, and all nine models reach 100% in at least one
+language, so with 60 graded problems most gaps are one or two problems wide.
+
+The benchmark can still answer whether an unfamiliar language costs a model
+anything. It can no longer rank the field at the top.
 
 ### Regenerating them
 
 ```bash
-V=0.0.16
+V=0.0.18
 python scripts/plot_slide.py --version $V --type delta --bare \
   --background transparent --output assets/fig-delta.png
 python scripts/plot_slide.py --version $V --type ztd --ztd-modes "Vera,Aver" \
   --bare --background transparent --output assets/fig-vera-vs-aver.png
+python scripts/plot_slide.py --version $V --type ztd --bare \
+  --background transparent --output assets/fig-ztd.png
 python scripts/plot_slide.py --version $V --type reasoning --bare \
   --background transparent --output assets/fig-reasoning.png
 python scripts/plot_narrative.py --version $V --type generation --bare \
@@ -125,16 +153,16 @@ from the back of a room. `plot_slide.py` renders `delta`, `tiers`,
 `generation`, `saturation` and `coverage`.
 
 ```bash
-python scripts/plot_slide.py --version 0.0.16 --type tiers \
+python scripts/plot_slide.py --version 0.0.18 --type tiers \
   --output assets/vera-bench_slide_tiers.png
-python scripts/plot_narrative.py --version 0.0.16
+python scripts/plot_narrative.py --version 0.0.18
 ```
 
-Three have no committed counterpart. **tiers** and **all-modes** are
+Two have no committed counterpart. **tiers** and **all-modes** are
 per-capability-tier and per-mode reference views of numbers the other charts
-already carry. **ztd** is the three-language zero-training-data slide, Vera
-against Aver against AILANG; the committed `fig-vera-vs-aver.png` is the
-two-language cut of it, which is what the README argues from.
+already carry. Every other slide type has one: `fig-ztd.png` is the
+three-language zero-training-data figure and `fig-vera-vs-aver.png` the
+two-language cut of the same slide, and the README argues from both.
 
 **Historical charts.** Earlier sweeps render against the lineup that actually
 ran them, which `plot_results.py` keeps in `HISTORICAL_LINEUPS`. If a version
@@ -153,7 +181,9 @@ audit on two pairs: Vera green against Python orange at ΔE 4.4 under
 protanopia, and Vera green against AILANG magenta at ΔE 2.1 under
 deuteranopia. The first cannot be fixed by reassignment, because green against
 orange is the red-green axis and it is exactly the comparison the benchmark
-exists to make. So identity never rests on colour alone: every bar carries a
-fixed texture, every dot a fixed marker shape, and every mark its own printed
-value. The full audit and the palette table are in
+exists to make.
+
+So identity never rests on colour alone. Every bar carries a fixed texture,
+every dot a fixed marker shape, and every mark its own printed value. The full
+audit and the palette table are in
 [`scripts/README.md`](../scripts/README.md).
