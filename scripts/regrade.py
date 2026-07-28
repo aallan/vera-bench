@@ -97,6 +97,16 @@ def _same_verdict(before: dict, after: dict) -> bool:
     reports dozens of rows as changed when it has merely re-run them, and
     writing them back would replace the sweep's own message with one from
     a run that never happened.
+
+    Comparing both strings over the shorter one's length IS a prefix test,
+    and `bool(n)` is deliberate rather than a typo. An empty string is a
+    prefix of everything, so `startswith` would call a message appearing
+    or disappearing "the same verdict" — which it is not.
+
+        ma        mb        here     startswith()
+        'ab'      'abc'     True     True
+        'abc'     'abd'     False    False
+        ''        'abc'     False    True    <- must be False
     """
     ca, cb = _canonical(before), _canonical(after)
     if ca == cb:
