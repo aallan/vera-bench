@@ -51,6 +51,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bucket before any transient word is consulted. Found on the first
   full-60 sweep: Opus 4.8 wrote a `list_reverse` that passes `vera
   check` and then does not terminate.
+- **A truncation was published as a model refusal.** `sweep_status.py`
+  knew only OpenAI's `finish_reason=length`; Anthropic spells a token
+  wall `stop_reason=max_tokens`, and its message also contains "no text
+  block" — which the refusal pattern matches, and which was tested
+  first. So an Anthropic truncation was relabelled a decline: a
+  recoverable failure (raise `--max-tokens`, re-run) was kept as a real
+  verdict and counted in the published refusal figure. `LENGTH` now
+  covers both spellings and a shared `is_refusal()` excludes
+  truncations, so the sweep monitor and the refusal chart — which read
+  the same pattern through different filters, and disagreed — cannot
+  diverge again.
+- **The delta chart's legend covered the largest bar.** It was placed
+  `lower right` INSIDE the axes, which on a diverging chart is exactly
+  where the biggest positive delta ends, so the strongest Vera result
+  and its value label sat underneath a semi-transparent box. Moved
+  above the axes in both the slide and the canonical chart, where it
+  cannot collide with data at all.
+- **The generation slide asserted findings it no longer had.** Its
+  title and subtitle were hardcoded ("Three flagships, one trajectory",
+  "the Vera line rises at every step") — both true of a three-link
+  chain and false once a fourth landed. Both are now computed from the
+  plotted points. `--pair-only` now names its controlled pair explicitly
+  instead of taking the last two links, which had silently stopped being
+  controlled once the chain grew.
+- **Two slides in one deck disagreed about the same two models.** The
+  generation chain read Opus 4.8 and Opus 5 from 0.0.16 while the
+  controlled-pair slide read them from 0.0.18 — 36 graded problems
+  against 60 — so Opus 4.8 to Opus 5 in TypeScript fell 6 points on one
+  slide and rose 3 on the other. Every link that has 0.0.18 data now
+  reads it, leaving both confounds (toolchain and denominator) on the
+  single step where Opus 4 is pinned to the only release that ever swept
+  it. A model appears at one score per deck.
+- **The coverage slide outlived its premise.** It argued that pass@1
+  could not see the problems without test cases; every problem now has
+  them, so it rendered "0 of 60" beside a 0% hero stat that read as
+  Vera failing everything. It now measures where `vera check` and
+  `vera run` disagree: the programs that cleared the static gate and
+  still failed, named individually, against the count of working
+  programs wrongly refused.
 - **`rerun_failed.py` could not find its target once a second release
   existed.** It globbed the canonical name only as far as `-bench-`, so
   with 0.0.16 and 0.0.18 side by side in `results/` every repair exited

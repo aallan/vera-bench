@@ -358,11 +358,20 @@ def render_delta(
             label="vs TypeScript",
         ),
     ]
+    # Upper LEFT, stacked. "lower right" put the box over the bottom-right
+    # quadrant, which on a diverging chart is exactly where the largest
+    # POSITIVE bar ends — so the legend covered the biggest Vera win and
+    # its value label, and a semi-transparent frame made it worse rather
+    # than better: the bar showed through, so hidden data read as a
+    # rendering artefact. The negative half is the empty one (Vera loses
+    # rarely and never by much), and its top rows carry no bar at all,
+    # which makes upper-left the one corner no result reaches.
     ax.legend(
         handles=legend_handles,
-        loc="lower right",
+        loc="upper left",
+        ncol=1,
         fontsize=LEGEND_PT,
-        framealpha=0.85,
+        framealpha=0.92,
         edgecolor=BROWN_300,
     )
 

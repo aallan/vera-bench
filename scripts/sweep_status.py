@@ -36,7 +36,26 @@ import re
 # Ordered: first match wins, so length (which also says "empty content")
 # is classified as a token wall, not a transient blip.
 REFUSAL = re.compile(r"stop_reason=refusal|no text block", re.I)
-LENGTH = re.compile(r"finish_reason=length", re.I)
+#: Both provider spellings. OpenAI and Moonshot say `finish_reason=length`;
+#: Anthropic says `stop_reason=max_tokens`, and its message ALSO contains
+#: "no text block" — which REFUSAL matches. Knowing only the first spelling
+#: therefore did not merely miss a length wall, it relabelled it a refusal:
+#: a recoverable truncation (raise --max-tokens and re-run) was written off
+#: as the model declining to answer, and published in the refusal count.
+LENGTH = re.compile(r"finish_reason=length|stop_reason=max_tokens", re.I)
+
+
+def is_refusal(msg: str) -> bool:
+    """A refusal, and not a truncation wearing its wording.
+
+    Both consumers must agree: `classify` buckets rows for the sweep, and
+    `plot_narrative.find_refusals` draws the published refusal grid. They
+    read the same pattern, so the exclusion belongs here rather than in
+    either one of them.
+    """
+    return bool(REFUSAL.search(msg)) and not LENGTH.search(msg)
+
+
 TRANSIENT = re.compile(
     r"rate.?limit|429|timed out|timeout|killed by signal|connection|"
     r"overloaded|empty content|503|529|API error",
@@ -109,7 +128,7 @@ def classify(msg: str) -> str:
         # A real result — never re-run — but its own bucket, because a
         # rising decline rate is a harness gap, not a model score.
         return "declined"
-    if REFUSAL.search(msg):
+    if is_refusal(msg):
         return "refusal"
     if LENGTH.search(msg):
         return "length"

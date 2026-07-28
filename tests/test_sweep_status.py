@@ -75,6 +75,32 @@ class TestClassify:
     def test_compile_error_is_other(self):
         assert ss.classify("check failed: unexpected token") == "other"
 
+    def test_anthropic_token_wall_is_length_not_refusal(self):
+        # Anthropic spells a truncation `stop_reason=max_tokens`, and its
+        # message ALSO says "no text block" — which the refusal pattern
+        # matches. Knowing only OpenAI's `finish_reason=length` therefore
+        # relabelled a recoverable truncation as the model declining, so
+        # the sweep kept it as a real verdict instead of offering a bigger
+        # budget, and it was published in the refusal count.
+        msg = (
+            "Fix API error: Anthropic returned no text block for "
+            "model='claude-opus-5' (stop_reason=max_tokens, blocks=['thinking'])"
+        )
+        assert ss.classify(msg) == "length"
+        assert not ss.is_refusal(msg)
+
+    def test_a_genuine_refusal_survives_the_exclusion(self):
+        msg = "Anthropic returned no text block (stop_reason=refusal)"
+        assert ss.is_refusal(msg)
+        assert ss.classify(msg) == "refusal"
+
+    def test_both_provider_spellings_of_a_token_wall(self):
+        for msg in (
+            "Moonshot returned empty content (finish_reason=length)",
+            "Anthropic returned no text block (stop_reason=max_tokens)",
+        ):
+            assert ss.classify(msg) == "length", msg
+
     def test_execution_timeout_is_a_real_result_not_a_transient(self):
         # The harness's own 30s budget on the model's COMPILED code. The
         # program did not terminate, which is a wrong answer — deterministic,
