@@ -23,16 +23,9 @@ Against Python, Vera wins for six of the nine models by three to five points,
 draws one and loses two. Against TypeScript it wins one, draws five and loses
 three.
 
-The asymmetry is not a property of Vera. TypeScript scores 100% for six of the
-nine models and never drops below 97%, so there is no headroom left to win. A
-benchmark on which two languages both sit at the ceiling is measuring the
+However this says more [about the benchmark](#the-benchmark-is-saturating) itself than it does about Vera. TypeScript scores 100% for eight of the
+nine models and never drops below 97%, so there is no headroom left. Here the benchmark is measuring the
 models rather than the languages.
-
-Claude Opus 4.8 gives up five points against Python and seven against
-TypeScript, the widest gap in the field, and Claude Sonnet 5 loses a point and
-three. Both are Anthropic models, and both of the
-clear wins (Claude Opus 5, GPT-5.6 Terra, five points each) sit beside them, so
-this is not a vendor effect either way.
 
 ### Static typing is the variable
 
@@ -54,28 +47,23 @@ execution and is recorded as a wrong answer.
 
 TypeScript earns its result through its presence in every training set. Vera
 earns very nearly the same result without that, from a single skill file in
-context. The zero-training-data comparison below tests that directly, holding
+context. The [zero-training-data comparison](#all-three-zero-training-data-languages) illustrates this, holding
 exposure at zero for all three languages and varying only the design: Vera
-98.2%, AILANG 96.8%, Aver 92.4%, with Vera ahead of Python on the same five
+98.2%, AILANG 96.8%, Aver 92.4%, with Vera also ahead of Python on the same five
 models. The most constrained language scores highest.
 
-One caveat on the size of the Python gap rather than its direction. Some of it
-is ours ([#121](https://github.com/aallan/vera-bench/issues/121)). TypeScript
-is structurally typed, so the grader's test value is accepted even where the
-model's type never declared the field, and Python's constructor raises instead.
-On two problems the identical modelling choice scored solved in TypeScript and
-not solved in Python.
+> There is a caveat on the size of the Python gap. Some of it may be ours (See [#121](https://github.com/aallan/vera-bench/issues/121)). TypeScript is structurally typed, so the grader's test value is accepted even where the model's type never declared the field, and Python's constructor raises instead. On two problems the identical modelling choice scored solved in TypeScript and not solved in Python.
 
 ### Full results
 
 Each model runs the Vera problems twice, because there are two questions worth
 asking.
 
-The first hands the model a full specification, meaning the type signature and
+The first (Vera) hands the model a full specification, meaning the type signature and
 its contracts, and asks only for the body. That tests whether it can write
 Vera.
 
-The second gives it the problem in English and nothing more, so it infers the
+The second (Vera NL) gives it the problem in English and nothing more, so it infers the
 types, writes the contracts, and then writes code satisfying them. That tests
 whether it understands Vera well enough to specify a problem in it. Those are
 the first two columns; on the command line, the default and
@@ -93,11 +81,11 @@ the first two columns; on the command line, the default and
 | GPT-5.6 Terra | **100%** | 92% | 95% | **100%** |
 | Kimi K2.6 | **100%** | 93% | 97% | **100%** |
 
-Aver and AILANG ran for a five-model subset and are taken up in the two
-zero-training-data sections at the end.
+Aver and AILANG, the other two zero-training-data languages, were run for a
+five-model subset.
 
 The Vera NL column is the one with real spread. It runs from 87% to 97% while
-the other three bunch between 93% and 100%, and no model closes the gap. Writing code against a
+the other three bunch between 93% and 100%, and no model closes the gap. Unsurprisingly writing code against a
 specification someone else wrote is easier than deciding what the specification
 should say, and that distance is the only measurement here with room left to
 move.
@@ -123,17 +111,16 @@ points in Vera and 14 in Vera NL across the line while Python gains 2 and
 TypeScript loses 4.
 
 Only the last step is controlled. Claude Opus 4 was measured against an older
-compiler, an older standard library, an earlier teaching document and a smaller
+compiler, an older standard library, an older skills file and a smaller
 set of graded problems, so that step measures the ecosystem improving alongside
 the model, in unknown proportion. Claude Opus 4.8 and Claude Opus 5 were
-measured identically and move the same way. One controlled transition is
-suggestive rather than conclusive.
+measured identically and move the same way. So these results are suggestive rather than conclusive.
 
 ### Reasoning mode
 
 ![GPT-5.6 Sol at two reasoning modes, across four languages](assets/fig-reasoning.png)
 
-One model, two reasoning modes, the same problems. How the model reasons is the
+One model, two reasoning modes, the same problems. Here, how the model reasons is the
 only variable.
 
 The model is GPT-5.6 Sol. OpenAI's Responses API takes a `reasoning.mode`
@@ -150,15 +137,14 @@ Vera gains two points on the pro path, Vera NL loses two, and Python and
 TypeScript do not move. Whatever stops these models on the last one or two
 problems is not something the pro path fixes. That matters mainly because the
 pro entry is the most expensive run in the sweep, and Vera's standing does not
-depend on it. Null results on a saturated benchmark are weak evidence either
-way.
+depend on it. Given the narrow margins the results here are effectively null.
 
 ### Refusals
 
 ![Refusals by model and language](assets/fig-refusal.png)
 
 There were four refusals across the whole run, every one of them in Python or
-TypeScript and none in Vera, Aver or AILANG. The problems were unremarkable,
+TypeScript. There were no refusals for Vera, Aver or AILANG. The problems were unremarkable,
 along the lines of dividing two numbers and guarding against a zero divisor,
 and in each case the same model went on to solve the same problem in four or
 five other languages.
@@ -172,23 +158,22 @@ with the problems themselves.
 
 ![The six programs that cleared vera check and still failed](assets/fig-coverage.png)
 
-Six programs out of 539 compiled, satisfied their contracts, and were still
-wrong. That is 1.1%, and it is the price of trusting `vera check` on its own.
+Six Vera programs out of 539 compiled, satisfied their contracts, but were
+still wrong. That is 1.1%.
 
 One of the six was caught at runtime by its own postcondition, so the
 contract did its job a step later than intended. One never terminated, having
 satisfied a `decreases` clause the checker accepted. The other four ran to
-completion, kept every promise they made, and returned the wrong answer.
+completion, kept every promise they made, but still returned the wrong answer.
 Contracts bound what a program may do; they do not say everything it must do.
 
 Two of those four are the same problem, failed by two different models, and
-its contracts are `requires(true)` and `ensures(true)`. A vacuous
-specification proves nothing, and `vera check` passing against one means
-nothing either.
+its contracts are `requires(true)` and `ensures(true)`. It's likely that this result says more
+about a weak problem specification in the benchmark than about Vera, or about
+the model that wrote the program.
 
 Nothing went wrong in the other direction. No program that ran correctly was
-refused, and no program the gate refused ran correctly. Whatever the contracts
-miss, they miss it without costing anything.
+refused, and no program the gate refused ran correctly.
 
 ### The benchmark is saturating
 
@@ -197,13 +182,15 @@ miss, they miss it without costing anything.
 Every model against every language, one dot each. The whole field sits between
 87% and 100%, and all nine models reach 100% in at least one language. With 60
 graded problems a single problem moves a score by 1.7 percentage points, so
-most of the gaps discussed above are one or two problems wide.
+most of the gaps we've been discussing above are only one or two problems wide.
 
-This is the most serious limitation here. TypeScript scores 100% for six of the
-nine models and Vera for six, so at the top of the range the problems are no
-longer asking anything. The benchmark can still tell you that an unfamiliar
-language costs a model nothing, which is the question it was built to answer,
-but it can no longer rank the field. The next version needs harder problems.
+This is the most serious limitation to the current benchmark. TypeScript scores
+100% for eight of the nine models and Vera for six, so at the top of the range
+the problems are no longer asking anything. While the benchmark can still tell you that a language unfamiliar
+to the model performs as well as languages it is familiar with, which is the question it was built to answer,
+it can no longer differentiate between the languages.
+
+The benchmark is saturated, and the next version needs more and harder problems. If we extend the benchmark with harder problems we might see the current trend extend further, with models writing poorer TypeScript for the harder problems, while still being able to perform well when writing Vera, a language that constrains their choices more severely.
 
 ### A controlled comparison
 
@@ -214,35 +201,28 @@ design, and they differ enormously when it comes to training data. Python is
 common in the training data of all the models, and Vera is entirely absent.
 
 [Aver](https://github.com/jasisz/aver) is another language designed for models
-to write, and it removes the second. It is statically typed, absent from every
-training set, and learned from a single document in the prompt, exactly the
-same as Vera. [AILANG](https://ailang.sunholo.com/) is a third.
+to write. Like Vera it is statically typed, absent from every
+training set, and learned from a single document in the prompt.
 
-The biggest design difference between Vera and Aver is that Vera has no
-variable names, using typed slot references instead. Vera scores higher than
+However, the biggest design difference between Vera and Aver is that Vera has no
+variable names, using typed slot references. Vera scores higher than
 Aver on all five models that ran both, by one to ten points, and higher than or
 level with AILANG on all five.
 
 This is the strongest evidence so far that the biggest design gamble in Vera,
 the use of typed De Bruijn indexing, is doing real work. It is also the
-comparison least affected by saturation, because none of the three languages is
-at the ceiling.
+comparison least affected by saturation, because neither of these languages is
+at the benchmark ceiling.
 
 ### All three zero-training-data languages
 
 ![Vera against Aver and AILANG, five models](assets/fig-ztd.png)
 
-Widening that comparison to all three languages nobody trained on. Every bar
-here was earned from a single document in the prompt.
+Widening that comparison to all three zero-training data languages.
 
-Vera leads Aver on all five models and AILANG on four, tying the fifth. On the
+Vera leads Aver on all five models and [AILANG](https://ailang.sunholo.com/) on four, tying the fifth. On the
 five-model average Vera takes 98.2%, AILANG 96.8% and Aver 92.4%, against
-Python's 97.0% on the same five; two of the three beat Python outright.
-
-This is the only comparison in the release that saturation has not eaten. None
-of the three languages sits at the ceiling, so the gaps between them are wide
-enough to survive a problem or two moving either way, which is more than can be
-said for the Python and TypeScript columns.
+Python's 97.0% on the same five; two of the three zero-training-data languages beat Python outright.
 
 ## Overview
 
