@@ -51,6 +51,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   bucket before any transient word is consulted. Found on the first
   full-60 sweep: Opus 4.8 wrote a `list_reverse` that passes `vera
   check` and then does not terminate.
+- **A generic TypeScript entry point was never exported, and the model
+  was blamed.** The harness splices `export` onto the declaration by
+  string-matching `function name(`. A generic solution writes `function
+  listLength<T>(list: List<T>)`, which does not match — so no export was
+  added, the wrapper's import resolved to `undefined`, and every test
+  threw "is not a function". That is a WRAPPING failure recorded as the
+  model's wrong answer, and it hit 51 solutions, all in the ADT tiers
+  where generics are idiomatic. The injection now matches the
+  declaration rather than a literal call shape, and covers arrow-function
+  entry points too. Same defect class as the ADT mapper: a literal string
+  match that generics walk straight past.
 - **A truncation was published as a model refusal.** `sweep_status.py`
   knew only OpenAI's `finish_reason=length`; Anthropic spells a token
   wall `stop_reason=max_tokens`, and its message also contains "no text

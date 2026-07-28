@@ -551,7 +551,28 @@ def _evaluate_typescript_code(
         and ts_fn in code.split("export {", 1)[-1].split("}", 1)[0]
     )
     if not already_exported:
-        export_code = code.replace(f"function {ts_fn}(", f"export function {ts_fn}(")
+        # Match the declaration, not a literal `name(`. A generic entry
+        # point is written `function listLength<T>(list: List<T>)`, and a
+        # string match on `listLength(` misses it — so no export was
+        # spliced, the wrapper's import resolved to undefined, and every
+        # test threw "is not a function". That is a WRAPPING failure
+        # recorded as the model's wrong answer: it took ~30 Tier 3
+        # TypeScript solutions to 0/N and inflated Vera's measured lead
+        # over TypeScript. Arrow-function entry points (`const f = <T>(…)`)
+        # are exported the same way.
+        export_code = re.sub(
+            rf"(?m)^(\s*)(function\s+{re.escape(ts_fn)}\s*[<(])",
+            r"\1export \2",
+            code,
+            count=1,
+        )
+        if export_code == code:
+            export_code = re.sub(
+                rf"(?m)^(\s*)((?:const|let)\s+{re.escape(ts_fn)}\s*[:=])",
+                r"\1export \2",
+                code,
+                count=1,
+            )
     code_path.write_text(export_code, encoding="utf-8")
 
     # Build test wrapper — the shared implementation (ts_wrapper.py);
