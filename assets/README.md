@@ -85,11 +85,13 @@ costs a model anything; it can no longer rank the field at the top.
 ### Regenerating them
 
 ```bash
-V=0.0.16
+V=0.0.18
 python scripts/plot_slide.py --version $V --type delta --bare \
   --background transparent --output assets/fig-delta.png
 python scripts/plot_slide.py --version $V --type ztd --ztd-modes "Vera,Aver" \
   --bare --background transparent --output assets/fig-vera-vs-aver.png
+python scripts/plot_slide.py --version $V --type ztd --bare \
+  --background transparent --output assets/fig-ztd.png
 python scripts/plot_slide.py --version $V --type reasoning --bare \
   --background transparent --output assets/fig-reasoning.png
 python scripts/plot_narrative.py --version $V --type generation --bare \
