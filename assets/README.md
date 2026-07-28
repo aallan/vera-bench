@@ -8,10 +8,11 @@ Every score chart reports **% solved**: the model wrote code, it compiled, it
 ran, and the output matched. A refusal, a compile failure, a crash and a wrong
 answer all count alike, as not solved. `fig-coverage.png` is the exception; it
 counts problems rather than scoring them. The committed charts show the
-v0.0.16 sweep, when 36 of the 60 problems could be graded that way, so one
-problem is worth 2.8 percentage points; keep that number in mind when reading
-any gap. From v0.0.17 the graded set is 46, and charts rendered for a version
-use that version's own denominator.
+v0.0.18 sweep, the first in which all 60 problems are graded in all five
+languages, so one problem is worth 1.7 percentage points; keep that number in
+mind when reading any gap. Earlier versions graded fewer (36 at v0.0.16, 46 at
+v0.0.17), and charts rendered for a version use that version's own
+denominator.
 
 ## The seven README figures
 
@@ -65,21 +66,18 @@ guardrails rather than anything to do with the problems themselves.
 
 ### `fig-coverage.png`: what the headline metric cannot see
 
-Which of the 60 problems are scored by comparing output, and which are not.
-In the committed v0.0.16 render, 24 are not: `vera run --fn` passes arguments
-on a command line, so a problem whose input is a list or a tree could not be
-called at all. A generated wrapper closed most of that gap in v0.0.17
-([#107](https://github.com/aallan/vera-bench/issues/107)), leaving 14: twelve
-ADT-argument problems and two IO problems whose multi-line output the
-baseline protocol cannot host. A render for a given `--version` shows that
-version's own split.
+Where `vera check` and `vera run` disagree. This chart used to report which
+problems could not be output-graded at all; [#107](https://github.com/aallan/vera-bench/issues/107)
+closed that gap in v0.0.18, so it now asks the better question. Across 539
+graded pairs, six programs compiled, satisfied their contracts and were still
+wrong, and each is named with its cause. The number beside them is the count of
+working programs the gate wrongly refused, which is zero.
 
 ### `fig-saturation.png`: the benchmark is saturating
 
 Every model against every language, one dot each, on a zoomed axis. The field
-sits between 92% and 100% on the core languages and all nine models reach 100%
-in at least one of them, so with 36 graded problems most gaps are one or two
-problems wide. The benchmark can still answer whether an unfamiliar language
+sits between 87% and 100% and all nine models reach 100% in at least one
+language, so with 60 graded problems most gaps are one or two problems wide. The benchmark can still answer whether an unfamiliar language
 costs a model anything; it can no longer rank the field at the top.
 
 ### Regenerating them
@@ -127,16 +125,17 @@ from the back of a room. `plot_slide.py` renders `delta`, `tiers`,
 `generation`, `saturation` and `coverage`.
 
 ```bash
-python scripts/plot_slide.py --version 0.0.16 --type tiers \
+python scripts/plot_slide.py --version 0.0.18 --type tiers \
   --output assets/vera-bench_slide_tiers.png
-python scripts/plot_narrative.py --version 0.0.16
+python scripts/plot_narrative.py --version 0.0.18
 ```
 
-Three have no committed counterpart. **tiers** and **all-modes** are
+Two have no committed counterpart. **tiers** and **all-modes** are
 per-capability-tier and per-mode reference views of numbers the other charts
-already carry. **ztd** is the three-language zero-training-data slide, Vera
-against Aver against AILANG; the committed `fig-vera-vs-aver.png` is the
-two-language cut of it, which is what the README argues from.
+already carry. **ztd** does have one: `fig-ztd.png` is the three-language
+zero-training-data figure, Vera against Aver against AILANG, and
+`fig-vera-vs-aver.png` is the two-language cut of the same slide. The README
+argues from both.
 
 **Historical charts.** Earlier sweeps render against the lineup that actually
 ran them, which `plot_results.py` keeps in `HISTORICAL_LINEUPS`. If a version

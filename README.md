@@ -97,8 +97,9 @@ Aver and AILANG ran for the five-model subset only; a dash means the target was
 not run rather than scored zero.
 
 The Vera NL column is the one with real spread. It runs from 87% to 97% while
-every full-spec column bunches between 93% and 100%, and no model closes the
-gap. Writing code against a specification someone else wrote turns out to be a
+the Vera, Python and TypeScript columns bunch between 93% and 100%, and no
+model closes the gap. (Aver is the outlier at 90% to 95%, for reasons the
+zero-training-data section takes up.) Writing code against a specification someone else wrote turns out to be a
 materially easier task than deciding what the specification should say, and
 that distance is the only measurement here with room left to move.
 
