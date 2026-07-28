@@ -39,6 +39,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deleted in v0.0.16, including in the models line it prints. The gate
   reads `vera_bench/matrix.py` and always did; only the labelling was
   wrong.
+- **A model's non-terminating code was triaged as an infrastructure
+  fault.** `sweep_status.py`'s transient bucket matched a bare `timed
+  out`, which covers both a provider call failing and the harness's own
+  30s budget on the model's *compiled* code. The second is a real,
+  deterministic result — the program never returned, which is a wrong
+  answer — so the sweep retried it to its retry limit, the target read
+  `RE-RUN` forever, and `rerun_failed.py` kept re-running it without
+  progress. Per-test failures carry the harness's `test N:` prefix and
+  run locally with no network involved, so that prefix now settles the
+  bucket before any transient word is consulted. Found on the first
+  full-60 sweep: Opus 4.8 wrote a `list_reverse` that passes `vera
+  check` and then does not terminate.
+- **`rerun_failed.py` could not find its target once a second release
+  existed.** It globbed the canonical name only as far as `-bench-`, so
+  with 0.0.16 and 0.0.18 side by side in `results/` every repair exited
+  `ambiguous — 2 files match`. The prefix now pins the bench version
+  (default: installed), with `--bench-version` to reach a superseded
+  era; the compiler segment stays a wildcard, since a target's Vera
+  version is whatever produced it. Same defect class as the sweep
+  runner's hardcoded version, in the one script that only ever runs
+  after a sweep — so it failed precisely when it was needed.
 
 
 ## [0.0.18] - 2026-07-27

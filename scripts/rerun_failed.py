@@ -51,23 +51,42 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from sweep_status import classify, load_rows  # noqa: E402
 
+from vera_bench import __version__ as BENCH_VERSION  # noqa: E402
+from vera_bench.results_path import version_slug  # noqa: E402
 
-def canonical_basename_prefix(model: str, language: str, mode: str) -> str:
+
+def canonical_basename_prefix(
+    model: str, language: str, mode: str, bench_version: str
+) -> str:
     """Reconstruct the leading part of the filename cli.py builds, up to
-    (not including) the version tags — enough to glob for the one file."""
+    (not including) the COMPILER version tag — enough to glob for one file.
+
+    The bench version has to be in the prefix. `results/` accumulates every
+    release side by side, so a prefix ending at `-bench-` matches one file
+    per era and the glob goes ambiguous the moment a second release lands —
+    which is how this stopped working on 0.0.18 with 0.0.16 still on disk.
+    The compiler segment stays a wildcard because a target's Vera/Aver/
+    AILANG version is whatever produced it, not whatever is installed now.
+    """
     parts = [model.replace("/", "-")]
     if language != "vera":
         parts.append(language)
     if language == "vera" and mode != "full-spec":
         parts.append(mode)
-    return "-".join(parts) + "-bench-"
+    return "-".join(parts) + f"-bench-{version_slug(bench_version)}"
 
 
-def find_canonical(results_dir: str, model: str, language: str, mode: str) -> str:
-    prefix = canonical_basename_prefix(model, language, mode)
+def find_canonical(
+    results_dir: str, model: str, language: str, mode: str, bench_version: str
+) -> str:
+    prefix = canonical_basename_prefix(model, language, mode, bench_version)
     hits = sorted(glob.glob(os.path.join(results_dir, prefix + "*.jsonl")))
     if not hits:
-        sys.exit(f"no results file matching {prefix}* in {results_dir}/")
+        sys.exit(
+            f"no results file matching {prefix}* in {results_dir}/\n"
+            f"(bench version {bench_version} — pass --bench-version to repair "
+            f"an older era)"
+        )
     if len(hits) > 1:
         joined = "\n  ".join(os.path.basename(h) for h in hits)
         sys.exit(f"ambiguous — {len(hits)} files match {prefix}*:\n  {joined}")
@@ -195,6 +214,13 @@ def main() -> None:
     )
     ap.add_argument("--results-dir", default="results")
     ap.add_argument(
+        "--bench-version",
+        default=BENCH_VERSION,
+        help="which release's results to repair (default: installed version). "
+        "results/ holds every era side by side, so this is what keeps the "
+        "target unambiguous",
+    )
+    ap.add_argument(
         "--include-length",
         action="store_true",
         help="also re-run finish_reason=length problems (pair with --max-tokens)",
@@ -219,7 +245,9 @@ def main() -> None:
     )
     args = ap.parse_args()
 
-    canonical = find_canonical(args.results_dir, args.model, args.language, args.mode)
+    canonical = find_canonical(
+        args.results_dir, args.model, args.language, args.mode, args.bench_version
+    )
     rows = load_rows(canonical)
     print(f"target: {os.path.basename(canonical)}  ({len(rows)} rows)")
 

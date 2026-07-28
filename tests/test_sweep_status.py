@@ -75,6 +75,31 @@ class TestClassify:
     def test_compile_error_is_other(self):
         assert ss.classify("check failed: unexpected token") == "other"
 
+    def test_execution_timeout_is_a_real_result_not_a_transient(self):
+        # The harness's own 30s budget on the model's COMPILED code. The
+        # program did not terminate, which is a wrong answer — deterministic,
+        # so re-running it only reproduces it. Bucketing this transient made
+        # the sweep retry it to its limit and left the target permanently
+        # "RE-RUN", so a finished sweep could not be told from a broken one.
+        assert ss.classify("test 0: vera run timed out after 30s") == "other"
+
+    def test_execution_prefix_beats_every_transient_word(self):
+        # `test N:` marks the local per-test path — no network is involved,
+        # so no message carrying it can be an infrastructure fault, whatever
+        # words appear later.
+        for msg in (
+            "test 3: vera run timed out after 30s",
+            "test 12: connection reset while running",
+            "test 0: killed by signal 9",
+        ):
+            assert ss.classify(msg) == "other", msg
+
+    def test_api_timeout_is_still_transient(self):
+        # The regression guard for the fix above: infrastructure timeouts
+        # carry no `test N:` prefix and must keep re-running.
+        assert ss.classify("API error: request timed out") == "transient"
+        assert ss.classify("Connection error contacting provider") == "transient"
+
 
 def test_expected_problems_matches_repo():
     # The repo's real problem set — the denominator run_sweep and this tool
