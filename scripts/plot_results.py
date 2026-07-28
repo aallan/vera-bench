@@ -739,11 +739,15 @@ def plot_vera_vs_comparison(
         )
         for i, mode in enumerate(comparison_modes)
     ]
+    # Upper left, stacked: "lower right" sat where the largest positive
+    # delta ends and hid it. The negative half is the sparse one, and its
+    # top rows carry no bar at all. Same fix as plot_slide's delta slide.
     ax.legend(
         handles=legend_handles,
-        loc="lower right",
+        loc="upper left",
+        ncol=1,
         fontsize=9,
-        framealpha=0.8,
+        framealpha=0.9,
         edgecolor=BROWN_300,
     )
 

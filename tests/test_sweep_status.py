@@ -75,6 +75,57 @@ class TestClassify:
     def test_compile_error_is_other(self):
         assert ss.classify("check failed: unexpected token") == "other"
 
+    def test_anthropic_token_wall_is_length_not_refusal(self):
+        # Anthropic spells a truncation `stop_reason=max_tokens`, and its
+        # message ALSO says "no text block" — which the refusal pattern
+        # matches. Knowing only OpenAI's `finish_reason=length` therefore
+        # relabelled a recoverable truncation as the model declining, so
+        # the sweep kept it as a real verdict instead of offering a bigger
+        # budget, and it was published in the refusal count.
+        msg = (
+            "Fix API error: Anthropic returned no text block for "
+            "model='claude-opus-5' (stop_reason=max_tokens, blocks=['thinking'])"
+        )
+        assert ss.classify(msg) == "length"
+        assert not ss.is_refusal(msg)
+
+    def test_a_genuine_refusal_survives_the_exclusion(self):
+        msg = "Anthropic returned no text block (stop_reason=refusal)"
+        assert ss.is_refusal(msg)
+        assert ss.classify(msg) == "refusal"
+
+    def test_both_provider_spellings_of_a_token_wall(self):
+        for msg in (
+            "Moonshot returned empty content (finish_reason=length)",
+            "Anthropic returned no text block (stop_reason=max_tokens)",
+        ):
+            assert ss.classify(msg) == "length", msg
+
+    def test_execution_timeout_is_a_real_result_not_a_transient(self):
+        # The harness's own 30s budget on the model's COMPILED code. The
+        # program did not terminate, which is a wrong answer — deterministic,
+        # so re-running it only reproduces it. Bucketing this transient made
+        # the sweep retry it to its limit and left the target permanently
+        # "RE-RUN", so a finished sweep could not be told from a broken one.
+        assert ss.classify("test 0: vera run timed out after 30s") == "other"
+
+    def test_execution_prefix_beats_every_transient_word(self):
+        # `test N:` marks the local per-test path — no network is involved,
+        # so no message carrying it can be an infrastructure fault, whatever
+        # words appear later.
+        for msg in (
+            "test 3: vera run timed out after 30s",
+            "test 12: connection reset while running",
+            "test 0: killed by signal 9",
+        ):
+            assert ss.classify(msg) == "other", msg
+
+    def test_api_timeout_is_still_transient(self):
+        # The regression guard for the fix above: infrastructure timeouts
+        # carry no `test N:` prefix and must keep re-running.
+        assert ss.classify("API error: request timed out") == "transient"
+        assert ss.classify("Connection error contacting provider") == "transient"
+
 
 def test_expected_problems_matches_repo():
     # The repo's real problem set — the denominator run_sweep and this tool

@@ -39,6 +39,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   deleted in v0.0.16, including in the models line it prints. The gate
   reads `vera_bench/matrix.py` and always did; only the labelling was
   wrong.
+- **A model's non-terminating code was triaged as an infrastructure
+  fault.** `sweep_status.py`'s transient bucket matched a bare `timed
+  out`, which covers both a provider call failing and the harness's own
+  30s budget on the model's *compiled* code. The second is a real,
+  deterministic result — the program never returned, which is a wrong
+  answer — so the sweep retried it to its retry limit, the target read
+  `RE-RUN` forever, and `rerun_failed.py` kept re-running it without
+  progress. Per-test failures carry the harness's `test N:` prefix and
+  run locally with no network involved, so that prefix now settles the
+  bucket before any transient word is consulted. Found on the first
+  full-60 sweep: Opus 4.8 wrote a `list_reverse` that passes `vera
+  check` and then does not terminate.
+- **A generic TypeScript entry point was never exported, and the model
+  was blamed.** The harness splices `export` onto the declaration by
+  string-matching `function name(`. A generic solution writes `function
+  listLength<T>(list: List<T>)`, which does not match — so no export was
+  added, the wrapper's import resolved to `undefined`, and every test
+  threw "is not a function". That is a WRAPPING failure recorded as the
+  model's wrong answer, and it hit 51 solutions, all in the ADT tiers
+  where generics are idiomatic. The injection now matches the
+  declaration rather than a literal call shape, and covers arrow-function
+  entry points too. Same defect class as the ADT mapper: a literal string
+  match that generics walk straight past.
+- **A truncation was published as a model refusal.** `sweep_status.py`
+  knew only OpenAI's `finish_reason=length`; Anthropic spells a token
+  wall `stop_reason=max_tokens`, and its message also contains "no text
+  block" — which the refusal pattern matches, and which was tested
+  first. So an Anthropic truncation was relabelled a decline: a
+  recoverable failure (raise `--max-tokens`, re-run) was kept as a real
+  verdict and counted in the published refusal figure. `LENGTH` now
+  covers both spellings and a shared `is_refusal()` excludes
+  truncations, so the sweep monitor and the refusal chart — which read
+  the same pattern through different filters, and disagreed — cannot
+  diverge again.
+- **The delta chart's legend covered the largest bar.** It was placed
+  `lower right` INSIDE the axes, which on a diverging chart is exactly
+  where the biggest positive delta ends, so the strongest Vera result
+  and its value label sat underneath a semi-transparent box. It now sits
+  upper-left inside the axes in both the slide and the canonical chart —
+  the sparse half, since Vera loses rarely and never by much, and its
+  top rows carry no bar at all.
+- **The generation slide asserted findings it no longer had.** Its
+  title and subtitle were hardcoded ("Three flagships, one trajectory",
+  "the Vera line rises at every step") — both true of a three-link
+  chain and false once a fourth landed. Both are now computed from the
+  plotted points. `--pair-only` now names its controlled pair explicitly
+  instead of taking the last two links, which had silently stopped being
+  controlled once the chain grew.
+- **Two slides in one deck disagreed about the same two models.** The
+  generation chain read Opus 4.8 and Opus 5 from 0.0.16 while the
+  controlled-pair slide read them from 0.0.18 — 36 graded problems
+  against 60 — so Opus 4.8 to Opus 5 in TypeScript fell 6 points on one
+  slide and rose 3 on the other. Every link that has 0.0.18 data now
+  reads it, leaving both confounds (toolchain and denominator) on the
+  single step where Opus 4 is pinned to the only release that ever swept
+  it. A model appears at one score per deck.
+- **`rerun_failed.py` could reach into a neighbouring release.** Its
+  bench-version token was not terminated, so `0.0.18` also matched
+  `bench-0-0-180-...`. A lookup failure would have been harmless; this
+  one ends in a splice, so it would have written rows into the wrong
+  era's results. The glob now accepts only the two shapes a real name
+  takes after the bench segment: a compiler segment, or the extension.
+- **`rerun_failed.py` judged a file finished by counting rows.** A fix
+  attempt emits a second row for the same problem, so a file can reach
+  60 rows while problems are still missing — and the guard exists
+  precisely to stop a repair racing a sweep that is still writing. It
+  now counts unique problem ids, the denominator `sweep_status` uses.
+- **The generation chain mixed a family line with a tier jump.** Claude
+  Fable 5 was appended as a fourth link on the mistaken basis that it was
+  the newest model; it is the CEILING tier — more capable than Opus 5,
+  not later than it — so the slope into it read as generational progress
+  that never happened, and it pushed the controlled pair into the middle
+  of the chain, where the companion slide looked like a zoom on an
+  arbitrary interior segment. The chain is one family in release order
+  again, which makes the controlled pair its final step.
+- **The coverage slide outlived its premise.** It argued that pass@1
+  could not see the problems without test cases; every problem now has
+  them, so it rendered "0 of 60" beside a 0% hero stat that read as
+  Vera failing everything. It now measures where `vera check` and
+  `vera run` disagree: the programs that cleared the static gate and
+  still failed, named individually, against the count of working
+  programs wrongly refused.
+- **`rerun_failed.py` could not find its target once a second release
+  existed.** It globbed the canonical name only as far as `-bench-`, so
+  with 0.0.16 and 0.0.18 side by side in `results/` every repair exited
+  `ambiguous — 2 files match`. The prefix now pins the bench version
+  (default: installed), with `--bench-version` to reach a superseded
+  era; the compiler segment stays a wildcard, since a target's Vera
+  version is whatever produced it. Same defect class as the sweep
+  runner's hardcoded version, in the one script that only ever runs
+  after a sweep — so it failed precisely when it was needed.
 
 
 ## [0.0.18] - 2026-07-27

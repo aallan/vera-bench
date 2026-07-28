@@ -546,6 +546,24 @@ _TS_CLASS = {
 }
 
 
+def _ts_kind(t: str) -> str | None:
+    """The TS class a declared field type denotes, or None if unreadable.
+
+    Generic arguments are stripped first (`List<T>` is a List), and a name
+    the table does not know — a type variable, an alias, a union — returns
+    None rather than being forced to "object". Forcing it made every
+    generic constructor unalignable.
+    """
+    base = re.sub(r"<[^>]*>", "", t or "").strip().lower()
+    if base in _TS_CLASS.values():
+        return base
+    if base in {k.lower() for k in _TS_CLASS}:
+        return _TS_CLASS[next(k for k in _TS_CLASS if k.lower() == base)]
+    if not base or len(base) <= 2 or base[0].isupper():
+        return None
+    return "object" if base not in _TS_CLASS.values() else base
+
+
 def _fields_for(
     spec: dict,
     ctor_name: str,
@@ -580,24 +598,42 @@ def _fields_for(
             )
         if arity <= 1 or any(t is None for _, t in inferred):
             return [n for n, _ in inferred]
+        # Two passes, because a generic solution declares types this table
+        # cannot read. `type List<T> = ... | { head: T; tail: List<T> }` is
+        # ordinary TypeScript, and `T` is not a class name — collapsing it
+        # to "object" made it unable to match Int's "number", so the whole
+        # constructor declined. A type variable is UNREADABLE, not wrong:
+        # the same judgement `_type_mismatch` already makes on the Python
+        # side, where an unrecognised name is unverifiable rather than a
+        # conflict. Readable types still align by type, and only the
+        # unreadable ones fall back to declared order — so a genuine swap
+        # of two readable fields is still caught.
         remaining = list(inferred)
-        ordered: list[str] = []
-        for arg in canonical:
+        ordered: list[str | None] = [None] * arity
+        for i, arg in enumerate(canonical):
             want = _TS_CLASS.get(arg, "object")
             for idx, (n, t) in enumerate(remaining):
-                have = t.strip().lower()
-                if have not in _TS_CLASS.values():
-                    have = "object"
-                if have == want:
-                    ordered.append(n)
+                if _ts_kind(t) == want:
+                    ordered[i] = n
                     del remaining[idx]
                     break
-            else:
+        for i in range(arity):
+            if ordered[i] is not None:
+                continue
+            # Only an unreadable field may fill a gap. A leftover field
+            # whose type we CAN read did not match anything, which is a
+            # real disagreement rather than something to guess past.
+            spare = next(
+                (j for j, (_n, t) in enumerate(remaining) if _ts_kind(t) is None),
+                None,
+            )
+            if spare is None:
                 raise Unsupported(
                     f"cannot align {actual_tag!r} fields "
                     f"{[n for n, _ in inferred]} to argument types {canonical}"
                 )
-        return ordered
+            ordered[i] = remaining.pop(spare)[0]
+        return [n for n in ordered if n is not None]
     fields = next(
         c.get("fields", []) for c in spec["constructors"] if c["name"] == ctor_name
     )
@@ -815,6 +851,35 @@ def declared_shape(source: str, language: str) -> dict[str, tuple[str, ...]]:
             tree = ast.parse(src)
         except SyntaxError:
             return {}
+        # A union alias IS the ADT's name. `LinkedList: TypeAlias =
+        # Union[Nil, Cons[T]]` (and its PEP 604 spelling `Nil | Cons[T]`)
+        # is how modern Python spells a sum type, and then a recursive
+        # field is annotated `tail: LinkedList[T]` — naming the alias,
+        # which is neither the constructor's own class nor a base class.
+        # Without this the self-reference read as an ordinary type name,
+        # so the shape guard saw ('t', 'linkedlist') where it wanted
+        # ('int', 'SELF') and declined. That is not a rare style: it took
+        # all ten Tier 3 problems out of the Python and TypeScript
+        # denominators, leaving those languages scored on ~51 of 60
+        # problems while Vera kept all 60 — a cross-language comparison
+        # that was quietly not like-for-like.
+        alias_of: dict[str, set[str]] = {}
+        for stmt in tree.body:
+            if isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                name, value = stmt.target.id, stmt.value
+            elif (
+                isinstance(stmt, ast.Assign)
+                and len(stmt.targets) == 1
+                and isinstance(stmt.targets[0], ast.Name)
+            ):
+                name, value = stmt.targets[0].id, stmt.value
+            else:
+                continue
+            if value is None:
+                continue
+            for ref in ast.walk(value):
+                if isinstance(ref, ast.Name):
+                    alias_of.setdefault(ref.id, set()).add(name)
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -827,10 +892,15 @@ def declared_shape(source: str, language: str) -> dict[str, tuple[str, ...]]:
                 None,
             )
             # A Python ADT's recursive reference is the BASE class
-            # (`tail: List`), not the constructor's own class.
-            selfish = {node.name} | {
-                b.id for b in node.bases if isinstance(b, ast.Name)
-            }
+            # (`tail: List`), the union alias, or the constructor's own
+            # class. Subscripted bases are skipped deliberately: the base
+            # in `class Cons(Generic[T])` is `Generic`, which is not the
+            # ADT — the alias lookup is what recovers the real name.
+            selfish = (
+                {node.name}
+                | {b.id for b in node.bases if isinstance(b, ast.Name)}
+                | alias_of.get(node.name, set())
+            )
             if init is not None:
                 # The instance parameter is the first POSITIONAL one,
                 # which lands in posonlyargs for `def __init__(self, /,

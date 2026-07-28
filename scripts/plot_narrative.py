@@ -14,9 +14,10 @@ slides here need something that aggregate cannot express:
 - `saturation` — every (model, language) score as its own dot, to show
                  the frontier is bunched against the ceiling and that the
                  headline deltas are one or two problems wide.
-- `coverage`   — what pass@1 structurally cannot see: the problems
-                 with no test cases, and Vera's check/verify rates over
-                 the rest.
+- `coverage`   — where the static gate and the runtime disagree: the
+                 programs that cleared `vera check` and still failed,
+                 named individually, against the count that were wrongly
+                 refused.
 
 Kept out of `plot_slide.py` deliberately. That module's data path is
 `extract_data` -> tier dict of ints; threading a second, row-level path
@@ -102,28 +103,52 @@ from scripts.plot_slide import (  # noqa: E402
     _slide_rcparams,
     _style_ax,
 )
-from scripts.sweep_status import REFUSAL  # noqa: E402
+from scripts.sweep_status import is_refusal  # noqa: E402
 
 ALL_MODES = ["Vera", "Vera NL", "Python", "TypeScript", "Aver", "AILANG"]
 
 # The Anthropic flagship line, oldest first, as (bench version, display).
-# Cross-version by design: Opus 4 was only ever swept under bench 0.0.9,
-# so the trajectory cannot be read out of a single results generation.
-# The arithmetic is sound: 0.0.9 covered the same 36 graded problems and
-# every one carries a real verdict, so no score is depressed by test cases
-# that only existed later. The ATTRIBUTION is what is confounded. Three
-# things moved between the first and second links, all of them Vera-side:
-# the compiler and its stdlib (0.0.112 -> 0.1.7), SKILL.md (fetched at
-# runtime, so never pinned), and the problem definitions. That step
-# therefore measures the ecosystem improving as much as the model — and a
-# stdlib expansion lands hardest on Tier 2, which tests built-in function
-# discovery. Only the 4.8 -> 5 step is controlled: same bench version,
-# compiler, prompt and problems. Python and TypeScript touch none of the
-# Vera toolchain, which is what makes their line the control.
+# ONE family, in release order. Fable 5 does not belong here even though
+# it is the strongest model in the matrix: it is the CEILING tier, more
+# capable than Opus 5 but not later than it, so a slope into it would
+# read as generational progress that never happened. Anything added here
+# has to be a successor, not merely a bigger sibling.
+# Cross-version by design: each model is pinned to a release that actually
+# swept it — Opus 4 only ever ran under 0.0.9 — so the trajectory cannot
+# be read out of a single results generation.
+#
+# TWO confounds ride along, and both are printed on the slide rather than
+# buried here. First, ATTRIBUTION: the compiler and its stdlib
+# (0.0.112 -> 0.1.8), SKILL.md (fetched at runtime, so never pinned) and
+# the problem definitions all moved under the FIRST step, so it measures
+# the ecosystem improving as much as the model — a stdlib expansion lands
+# hardest on Tier 2, which tests built-in function discovery. Second,
+# DENOMINATOR: 0.0.9 grades 36 problems, 0.0.18 all 60. Both confounds
+# now sit on that one step; every later link shares a release, a
+# compiler and a problem set, so the rest of the line is like-for-like.
+#
+# Read the slope for direction, never for the size of any single step.
+# Python and TypeScript touch none of the Vera toolchain, which is what
+# makes their lines the control. For a step with NO confound, use
+# CONTROLLED_PAIR (--pair-only).
 GENERATION_CHAIN = [
     ("0.0.9", "Claude Opus 4"),
-    ("0.0.16", "Claude Opus 4.8"),
-    ("0.0.16", "Claude Opus 5"),
+    ("0.0.18", "Claude Opus 4.8"),
+    ("0.0.18", "Claude Opus 5"),
+]
+
+# The controlled step, named separately rather than taken as the chain's
+# last two links — those stopped coinciding once a fourth link landed.
+# It is now a genuine sub-segment of the chain: same models, same bench
+# version, same numbers. That matters because both slides go in one deck.
+# While the chain read these two from 0.0.16 and this pair read them from
+# 0.0.18, the two slides disagreed about the SAME pair — Opus 4.8 to Opus
+# 5 in TypeScript fell 6 points on one and rose 3 on the other — because
+# 0.0.16 grades 36 problems and 0.0.18 grades 60. A model appears at one
+# score per deck, so every link that HAS 0.0.18 data reads it.
+CONTROLLED_PAIR = [
+    ("0.0.18", "Claude Opus 4.8"),
+    ("0.0.18", "Claude Opus 5"),
 ]
 
 # The default mode set for every slide here. Aver and AILANG belong on
@@ -225,7 +250,7 @@ def find_refusals(
     found: list[dict] = []
     for (model, mode), best in best_cache.items():
         for pid, row in best.items():
-            if not REFUSAL.search(row.get("error_message") or ""):
+            if not is_refusal(row.get("error_message") or ""):
                 continue
             solved_in = sorted(
                 other_mode
@@ -491,7 +516,7 @@ def render_generation(
     marks with no area to misread.
     """
     wanted = modes or CORE_MODES
-    chain = GENERATION_CHAIN if span_versions else GENERATION_CHAIN[-2:]
+    chain = GENERATION_CHAIN if span_versions else CONTROLLED_PAIR
     # The chain pins its own bench version per link, because the trajectory
     # spans releases by design. --version therefore cannot steer it, and
     # saying so beats rendering the 0.0.16 chain under a 0.0.9 heading.
@@ -546,6 +571,24 @@ def render_generation(
                 zorder=2,
                 solid_capstyle="round",
             )
+        # The newest point takes the DIRECTION colour of the step into it,
+        # not the language colour. Language was the old encoding and it
+        # made green mean two unrelated things on one slide: Vera's marker
+        # was green because Vera is green, its line green because it rose
+        # — so the reader learns "green = up", then meets TypeScript's
+        # brown marker on the end of a green rising line and cannot tell
+        # which rule applies. Nothing is lost by dropping it: the x-axis
+        # already names the language, and the marker SHAPE still carries
+        # the model. One colour, one meaning.
+        last_dir = (
+            (
+                GREEN
+                if vals[-1] > vals[-2]
+                else (RED if vals[-1] < vals[-2] else BROWN_300)
+            )
+            if n_pts > 1
+            else BROWN_500
+        )
         for k, v in enumerate(vals):
             # Fill deepens along the chain, so the reading order is
             # visible without consulting the legend.
@@ -554,7 +597,7 @@ def render_generation(
                 [xi + dxs[k]],
                 [v],
                 s=460,
-                facecolor=COLORS[mode] if k == n_pts - 1 else "white",
+                facecolor=last_dir if k == n_pts - 1 else "white",
                 edgecolor=CREAM if k == n_pts - 1 else BROWN_500,
                 linewidth=2.5 if k == n_pts - 1 else 3,
                 alpha=0.35 + 0.65 * frac,
@@ -617,22 +660,38 @@ def render_generation(
     # in the body-font subtitle. Georgia has no U+2192, so the arrow must
     # not live in a FONT_HEADING string — matplotlib drops the glyph and
     # only warns.
+    # Title and subtitle DESCRIBE; they no longer assert. The old pair
+    # said "Three flagships, one trajectory" and "the Vera line rises at
+    # every step" — both true of the 3-link chain and both false the
+    # moment a fourth link landed: the count was wrong, and Fable 5 falls
+    # in three of four languages (Vera NL 100 -> 97). A caption that
+    # states a finding has to be computed from the points, or it quietly
+    # becomes a claim the chart underneath contradicts.
     ax.set_title(
         "One generation later"
         if len(points) < 3
-        else "Three flagships, one trajectory",
+        else "Three Claude flagships, oldest to newest",
         fontsize=TITLE_PT,
         fontweight="bold",
         pad=46,
         fontfamily=FONT_HEADING,
         color=BROWN_900,
     )
+
+    def _net(mode: str) -> int | None:
+        first, last = points[0][1].get(mode), points[-1][1].get(mode)
+        return None if first is None or last is None else last - first
+
+    # The model names live in the legend already; repeating them here is
+    # what pushed this line off both edges of a 16:9 canvas at four links.
+    # `modes` is the filtered set actually drawn; `wanted` is only what was
+    # asked for. Reporting a net change for a language no series was
+    # plotted for would put a number on the slide with nothing behind it.
+    moved = [f"{m} {_net(m):+d}" for m in modes if _net(m) is not None]
     ax.text(
         0.5,
         1.016,
-        " → ".join(d for d, _r, _m in points)
-        + " — the Vera line rises at every step;"
-        + " Python and TypeScript peak and fall back",
+        "net change across the whole line, in percentage points:  " + "   ".join(moved),
         transform=ax.transAxes,
         ha="center",
         va="bottom",
@@ -647,7 +706,7 @@ def render_generation(
                 marker=GENERATION_MARKERS[k % len(GENERATION_MARKERS)],
                 linestyle="none",
                 markersize=17,
-                markerfacecolor=BROWN_500 if k == len(points) - 1 else "white",
+                markerfacecolor="white",
                 markeredgecolor=CREAM if k == len(points) - 1 else BROWN_500,
                 markeredgewidth=2.5,
                 alpha=0.35 + 0.65 * (k / max(len(points) - 1, 1)),
@@ -666,18 +725,30 @@ def render_generation(
         edgecolor=BROWN_300,
     )
     if span_versions:
-        # The one confound, stated on the slide rather than in a footnote
-        # nobody reads: the Vera toolchain changed under the first link.
+        # Both confounds, stated on the slide rather than in a footnote
+        # nobody reads: the Vera toolchain changed under the first link,
+        # and the graded problem set grew under the last. The denominator
+        # is derived rather than written down, so a future release that
+        # changes it again cannot leave this caption quietly wrong.
+        counts = [len(_gradeable_ids(v)) for v, _ in chain]
+        grew = (
+            f"Only the first point is graded over {counts[0]} problems; every "
+            f"later one over {counts[-1]}, so read that first step as a change "
+            f"of base, not a gain.\n"
+            if len(set(counts)) > 1
+            else ""
+        )
         fig.text(
             0.5,
             0.028,
-            "Opus 4 ran under Vera 0.0.112, the later two under 0.1.7 — same "
-            "36 graded problems, every one with a verdict in both eras.\n"
-            "But the compiler, its stdlib and SKILL.md all moved between the "
+            "Opus 4 ran under Vera 0.0.112, every later point under 0.1.8; "
+            "every problem carries a verdict in each era.\n"
+            "The compiler, its stdlib and SKILL.md all moved between the "
             "first two points: that step measures the ecosystem improving as "
             "much as the model.\n"
-            "Opus 4.8 → Opus 5 is the controlled step — identical toolchain, "
-            "prompt and problems. Python and TypeScript use no Vera toolchain.",
+            f"{grew}"
+            "Python and TypeScript use no Vera toolchain, which is what makes "
+            "their lines the control.",
             ha="center",
             fontsize=13,
             color=BROWN_300,
@@ -856,232 +927,247 @@ def _problem_structure(version: str | None = None) -> dict[int, tuple[int, int]]
     return {t: (v[0], v[1]) for t, v in sorted(out.items())}
 
 
+def _escape_cause(row: dict) -> str:
+    """Why a program that cleared the static gate still failed.
+
+    Three outcomes, and they are not equivalent. A runtime contract firing
+    is the safety net WORKING — the prover could not discharge the
+    obligation, so it was left as a runtime check and that check caught the
+    violation. Non-termination is the gap Vera's `decreases` clause exists
+    to close, so an accepted-but-diverging program is a real miss. Everything
+    else is the honest limit of contracts-as-written: the program satisfied
+    everything it promised and still computed the wrong answer.
+    """
+    msg = row.get("error_message") or ""
+    if "condition violation" in msg.lower():
+        return "runtime contract fired"
+    if "timed out" in msg.lower():
+        return "did not terminate"
+    return "contracts satisfied, wrong output"
+
+
+#: Ordered worst-to-least-worst for display, each with the colour that
+#: carries its meaning: a fired contract is Vera working (green), a
+#: divergence is a miss (red), a wrong answer under satisfied contracts is
+#: the specification gap (brown).
+CAUSE_ORDER = [
+    ("contracts satisfied, wrong output", "BROWN"),
+    ("did not terminate", "RED"),
+    ("runtime contract fired", "GREEN"),
+]
+
+
 def render_coverage(
     results_dir: Path,
     version: str,
     output: Path,
     background: str = DEFAULT_BACKGROUND,
 ) -> None:
-    """The benchmark's blind spot, and the metric that covers it.
+    """Where the static gate and the runtime disagree.
 
-    pass@1 needs expected output to compare against, so it can only see
-    the problems that have test cases. The ones it cannot see are not a
-    random sample — they are concentrated in the tiers built around ADTs,
-    exhaustive match and effect handlers, which is precisely the machinery
-    Vera exists to check. This slide states that plainly and then shows
-    check@1 / verify, which do cover all 60.
+    This slide used to argue that pass@1 had a blind spot — the problems
+    with no test cases — which contracts and a prover covered. Closing that
+    gap retired the argument: every problem now carries test cases, so the
+    old rendering degenerated to "0 of 60" with a 0% hero stat, which reads
+    as Vera failing everything.
+
+    The successor question is sharper and this data answers it directly.
+    `vera check` and `vera run` are independent verdicts on the same
+    program, so every (model, problem) pair is a two-by-two: the gate
+    passed or not, the program was right or not. Two cells are agreement.
+    The other two are the interesting ones — an ESCAPE (the gate passed,
+    the program was still wrong) bounds what contracts miss, and a FALSE
+    ALARM (the gate refused a working program) would bound what they cost.
+    Reporting both is what keeps this honest rather than promotional: the
+    escapes are named individually, with the cause of each.
     """
-    structure = _problem_structure(version)
-    tiers_n = sorted(structure)
-    if not tiers_n:
-        print("  coverage slide: no problems found under problems/ — skipping")
-        return
     rows_by_target = load_rows(results_dir, version, ["Vera"])
-    gradeable = _gradeable_ids(version)
+    if not rows_by_target:
+        print(f"  coverage slide: no Vera results for {version} — skipping")
+        return
 
-    # Restricted to the problems pass@1 CANNOT see. Rates over all 60
-    # would merely restate the headline chart on a second axis; the claim
-    # worth making is about the invisible 24 specifically. Averaged
-    # across models, so this is "the typical frontier model".
-    check_pcts: list[float] = []
-    verify_pcts: list[float] = []
-    n_models = 0
-    for (model, mode), rows in rows_by_target.items():
+    escapes: list[tuple[str, str, str]] = []  # (model, problem, cause)
+    agree = false_alarms = graded = 0
+    for (model, mode), rows in sorted(rows_by_target.items()):
         if mode != "Vera":
             continue
-        best = best_by_problem(rows)
-        blind = {p: r for p, r in best.items() if p not in gradeable}
-        if not blind:
-            continue
-        # Only after the blind check: a target with nothing to measure
-        # contributes no percentage, so it must not enlarge the mean's
-        # reported denominator either.
-        n_models += 1
-        check_pcts.append(
-            100 * sum(1 for r in blind.values() if r.get("check_pass")) / len(blind)
-        )
-        verified = [r for r in blind.values() if r.get("verify_pass") is not None]
-        if verified:
-            verify_pcts.append(
-                100 * sum(1 for r in verified if r.get("verify_pass")) / len(verified)
-            )
-    check_avg = sum(check_pcts) / len(check_pcts) if check_pcts else 0.0
-    verify_avg = sum(verify_pcts) / len(verify_pcts) if verify_pcts else 0.0
+        for pid, r in sorted(best_by_problem(rows).items()):
+            run = r.get("run_correct")
+            if run is None:
+                # Ungraded (a harness decline) is neither agreement nor
+                # disagreement — there is no runtime verdict to compare
+                # the gate against, so it must not enter the denominator.
+                continue
+            graded += 1
+            gate = r.get("check_pass") is True
+            if gate and run is False:
+                escapes.append((model, pid, _escape_cause(r)))
+            elif not gate and run is True:
+                false_alarms += 1
+            else:
+                agree += 1
+
+    if graded == 0:
+        print("  coverage slide: no graded Vera rows — skipping")
+        return
+    esc_pct = 100 * len(escapes) / graded
 
     fig = plt.figure(figsize=(16, 9), dpi=180)
     gs = fig.add_gridspec(
         1,
         2,
-        width_ratios=[1.15, 1],
-        wspace=0.18,
-        # Axes top sits low enough that the legend — anchored just above
-        # it — clears the two-line subtitle instead of butting against it.
+        width_ratios=[1.5, 1],
+        wspace=0.10,
         top=0.60,
-        left=0.075,
-        right=0.97,
-        bottom=0.13,
+        left=0.055,
+        right=0.965,
+        bottom=0.10,
     )
 
-    # --- left: what pass@1 can and cannot see ---
+    # --- left: the escapes, named ---
+    # A list, not a chart. Six items against a 539 denominator have no
+    # plottable shape — a bar would be a sliver next to a wall, and the
+    # reader would learn less than from reading the six.
     ax = fig.add_subplot(gs[0, 0])
-    y = np.arange(len(tiers_n))
-    grad = [structure[t][1] for t in tiers_n]
-    ungr = [structure[t][0] - structure[t][1] for t in tiers_n]
-    ax.barh(
-        y,
-        grad,
-        0.62,
-        color=GREEN,
-        alpha=0.88,
-        edgecolor=CREAM,
-        linewidth=1.5,
-        label="graded by pass@1 (has test cases)",
+    ax.axis("off")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    colour = {"BROWN": BROWN_700, "RED": RED, "GREEN": GREEN}
+    ax.text(
+        0.0,
+        0.98,
+        f"The {len(escapes)} that cleared `vera check` and still failed:",
+        fontsize=SUBTITLE_PT - 4,
+        color=BROWN_900,
+        fontweight="bold",
+        va="top",
     )
-    ax.barh(
-        y,
-        ungr,
-        0.62,
-        left=grad,
-        color=BROWN_300,
-        alpha=0.55,
-        edgecolor=CREAM,
-        linewidth=1.5,
-        hatch="//",
-        label="can not be output-tested (no test cases)",
-    )
-    for yi, g, u in zip(y, grad, ungr):
+    order = {c: i for i, (c, _) in enumerate(CAUSE_ORDER)}
+    rows_sorted = sorted(escapes, key=lambda e: (order.get(e[2], 9), e[0], e[1]))
+    # Row pitch adapts to the count. At a fixed 0.125 the eighth escape
+    # landed below the panel, so a WORSE result — more programs slipping
+    # past the static gate — would have hidden the extra ones, quietly
+    # flattering the very number this slide exists to report.
+    top = 0.855
+    step = min(0.125, top / max(len(rows_sorted), 1))
+    y = top
+    for model, pid, cause in rows_sorted:
+        tag = next((k for c, k in CAUSE_ORDER if c == cause), "BROWN")
         ax.text(
-            g / 2,
-            yi,
-            str(g),
-            ha="center",
-            va="center",
-            fontsize=17,
+            0.0,
+            y,
+            pid,
+            fontsize=TICK_PT_SMALL,
+            color=BROWN_900,
             fontweight="bold",
-            color="white",
+            va="top",
+            family="monospace",
         )
-        if u:
-            ax.text(
-                g + u / 2,
-                yi,
-                str(u),
-                ha="center",
-                va="center",
-                fontsize=17,
-                fontweight="bold",
-                color=BROWN_900,
-            )
-    ax.set_yticks(y)
-    ax.set_yticklabels([f"Tier {t}" for t in tiers_n], fontsize=TICK_PT_SMALL)
-    ax.invert_yaxis()
-    ax.set_xlabel("problems", fontsize=AXIS_LABEL_PT - 2, color=BROWN_500)
-    ax.set_xlim(0, max(structure[t][0] for t in tiers_n) + 1)
-    ax.tick_params(axis="x", labelsize=TICK_PT_SMALL - 2)
-    _style_ax(ax)
-    # Above the axes, right-aligned. Inside, it lands on the shortest
-    # tier's segment labels — the numbers the panel exists to show —
-    # and below, it falls off the bottom of the canvas.
-    ax.legend(
-        loc="lower right",
-        bbox_to_anchor=(1.0, 1.01),
-        ncol=1,
-        fontsize=LEGEND_PT - 5,
-        framealpha=0.92,
-        edgecolor=BROWN_300,
-    )
+        ax.text(0.20, y, model, fontsize=TICK_PT_SMALL, color=BROWN_500, va="top")
+        # The longest string on the slide. Set one step down and started
+        # well left of the panel edge, so it cannot run under the hero
+        # number in the right-hand column.
+        ax.text(
+            0.48,
+            y,
+            cause,
+            fontsize=TICK_PT_SMALL - 2,
+            color=colour[tag],
+            va="top",
+            fontweight="bold",
+        )
+        y -= step
 
-    # --- right: hero stats on the invisible problems ---
-    # Deliberately not a chart. Every value here is ~100, and five
-    # near-identical full-height bars communicate nothing a number does
-    # not — the bar's own length stops being informative once the whole
-    # series sits on the ceiling.
+    # --- right: the two numbers that bound the claim ---
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.axis("off")
-    n_blind = sum(structure[t][0] - structure[t][1] for t in tiers_n)
+    ax2.set_xlim(0, 1)
+    ax2.set_ylim(0, 1)
     ax2.text(
-        0.5,
-        1.02,
-        f"on those {n_blind} untestable problems,\nVera still grades every one:",
-        transform=ax2.transAxes,
-        ha="center",
+        0.0,
+        0.90,
+        f"{esc_pct:.1f}%",
+        fontsize=86,
+        color=BROWN_900,
+        fontweight="bold",
         va="top",
-        fontsize=SUBTITLE_PT,
-        color=BROWN_700,
-        linespacing=1.4,
+        family=FONT_HEADING,
     )
-    for i, (val, label, sub) in enumerate(
-        (
-            (check_avg, "check@1", "compiled and passed\nits contracts"),
-            (verify_avg, "verify", "discharged by\nthe Z3 prover"),
-        )
-    ):
-        yy = 0.64 - i * 0.38
-        # Left-anchored, not centred: Georgia's '%' is far wider than a
-        # digit, so a centred number silently grows rightwards into the
-        # label column and overprints it.
-        ax2.text(
-            0.0,
-            yy,
-            f"{val:.0f}%",
-            transform=ax2.transAxes,
-            ha="left",
-            va="center",
-            fontsize=74,
-            fontweight="bold",
-            color=GREEN,
-            fontfamily=FONT_HEADING,
-        )
-        ax2.text(
-            0.60,
-            yy + 0.075,
-            f"Vera {label}",
-            transform=ax2.transAxes,
-            ha="left",
-            va="center",
-            fontsize=24,
-            fontweight="bold",
-            color=BROWN_900,
-        )
-        ax2.text(
-            0.60,
-            yy - 0.055,
-            sub,
-            transform=ax2.transAxes,
-            ha="left",
-            va="center",
-            fontsize=16,
-            color=BROWN_500,
-            linespacing=1.35,
-        )
     ax2.text(
-        0.5,
-        -0.06,
-        f"mean across {n_models} models, Vera full-spec",
-        transform=ax2.transAxes,
-        ha="center",
-        va="center",
-        fontsize=15,
-        color=BROWN_300,
+        0.0,
+        0.60,
+        "escaped the static gate",
+        fontsize=SUBTITLE_PT - 3,
+        color=BROWN_900,
+        fontweight="bold",
+        va="top",
+    )
+    ax2.text(
+        0.0,
+        0.525,
+        f"{len(escapes)} of {graded} (model, problem) pairs\n"
+        "compiled, satisfied their contracts,\nand were still wrong",
+        fontsize=TICK_PT_SMALL,
+        color=BROWN_500,
+        va="top",
+        linespacing=1.5,
+    )
+    ax2.text(
+        0.0,
+        0.30,
+        str(false_alarms),
+        fontsize=86,
+        color=GREEN if false_alarms == 0 else RED,
+        fontweight="bold",
+        va="top",
+        family=FONT_HEADING,
+    )
+    ax2.text(
+        0.0,
+        0.045,
+        "working programs rejected",
+        fontsize=SUBTITLE_PT - 3,
+        color=BROWN_900,
+        fontweight="bold",
+        va="top",
+    )
+    ax2.text(
+        0.0,
+        -0.03,
+        (
+            "the gate never refused code that ran correctly"
+            if false_alarms == 0
+            else f"{false_alarms} program(s) it refused ran correctly anyway"
+        ),
+        fontsize=TICK_PT_SMALL,
+        color=BROWN_500,
+        va="top",
     )
 
-    total = sum(structure[t][0] for t in tiers_n)
-    n_grad = sum(structure[t][1] for t in tiers_n)
-    fig.suptitle(
-        "What pass@1 cannot see",
+    fig.text(
+        0.5,
+        0.955,
+        "What the contracts cannot see",
+        ha="center",
+        va="top",
         fontsize=TITLE_PT,
-        fontweight="bold",
-        y=0.955,
-        fontfamily=FONT_HEADING,
         color=BROWN_900,
+        fontweight="bold",
+        family=FONT_HEADING,
     )
     fig.text(
         0.5,
         0.865,
-        f"{total - n_grad} of {total} problems have no test cases — not an oversight.\n"
-        "Their entry points take or produce shapes the harness cannot "
-        "yet grade through `vera run`.\n"
-        "They are the ADT, match and effect problems — exactly what "
-        "contracts and a prover are for.",
+        f"`vera check` and `vera run` are independent verdicts on the same "
+        f"program — {graded} pairs across {len(rows_by_target)} models.\n"
+        "Contracts bound what a program may do; they do not say everything "
+        "it must do, so a few satisfy them and are still wrong.\n"
+        + (
+            "The cost of that gate is the number worth watching, and it is zero."
+            if false_alarms == 0
+            else f"The cost of that gate is {false_alarms} working program(s) "
+            "it wrongly refused."
+        ),
         ha="center",
         va="top",
         fontsize=SUBTITLE_PT - 3,
