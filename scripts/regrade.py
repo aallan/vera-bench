@@ -86,6 +86,31 @@ def _canonical(v: dict) -> dict:
     return out
 
 
+def _same_verdict(before: dict, after: dict) -> bool:
+    """Whether two verdicts agree once run-specific noise is discounted.
+
+    Beyond the sandbox path itself, messages are truncated to a fixed
+    length — so a path of a different length moves the CUT, and the same
+    advice comes back ending "at compile t" instead of "at compile time."
+    Every non-message field must still match exactly; only the message is
+    allowed to be a truncation of its counterpart. Without this a re-grade
+    reports dozens of rows as changed when it has merely re-run them, and
+    writing them back would replace the sweep's own message with one from
+    a run that never happened.
+    """
+    ca, cb = _canonical(before), _canonical(after)
+    if ca == cb:
+        return True
+    if {k: v for k, v in ca.items() if k != "error_message"} != {
+        k: v for k, v in cb.items() if k != "error_message"
+    }:
+        return False
+    ma = ca.get("error_message") or ""
+    mb = cb.get("error_message") or ""
+    n = min(len(ma), len(mb))
+    return bool(n) and ma[:n] == mb[:n]
+
+
 def _load_problems() -> dict[str, dict]:
     """Every problem JSON, keyed by id — the same set the CLI loads."""
     root = Path(__file__).resolve().parent.parent
@@ -144,7 +169,7 @@ def regrade_file(
         new = dict(row)
         new.update({k: v for k, v in fresh.items() if k in VERDICT_FIELDS})
         after = {k: new.get(k) for k in VERDICT_FIELDS}
-        if _canonical(before) == _canonical(after):
+        if _same_verdict(before, after):
             # Same verdict, different sandbox path. Return the ORIGINAL row
             # so the file keeps the message the sweep actually recorded.
             tally["unchanged"] += 1
