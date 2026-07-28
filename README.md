@@ -36,63 +36,50 @@ this is not a vendor effect either way.
 
 ### Static typing is the variable
 
-Python is dynamically typed, so a type error surfaces when the code runs.
-TypeScript is statically typed and rejects the same error before anything runs.
-Vera sits on the TypeScript side of that line and goes further, adding
-contracts and a prover to the type check.
+The difference between the Python and TypeScript results is not random. Python
+is dynamically typed, so a type error surfaces when the code runs; TypeScript
+is statically typed and rejects the same error before anything runs. Vera sits
+with TypeScript and goes further, making `requires`, `ensures` and `effects`
+mandatory on every function and replacing variable names with typed slot
+references.
 
-Group the three languages that way and the ordering stops looking odd. Vera
-averages 98.7% across the nine models and TypeScript 99.7%, while Python trails
-both at 96.7%. The two languages that constrain what a model may write before
-it runs come out ahead of the one that waits until execution, and the
-zero-training-data language is in that leading group despite nobody having
-trained on it.
+Sort the three by how much they constrain the model rather than by how much of
+them it has read, and the ordering stops looking accidental: the two that
+constrain it finish ahead of the one that doesn't.
 
-The failure modes line up with the same story. Python's failures land as
-runtime wrong answers rather than compile rejections, thirteen against three
-across the sweep; TypeScript has one of each. A loose language cannot reject a
-bad program up front, so a model's mistake survives to execution and is
-recorded as a wrong answer instead of being caught and handed back.
+The failure modes agree. Python's failures land as runtime wrong answers rather
+than compile rejections, thirteen against three; TypeScript has one of each. A
+loose language cannot reject a bad program up front, so the mistake survives to
+execution and is recorded as a wrong answer.
 
-Vera is the only one of the three that no model has read. TypeScript's 99.7% is
-earned with an enormous amount of the language in every training set. Vera reaches 98.7%
-with none of it, from a single document in the prompt. Whatever the models are
-getting from familiarity with TypeScript, Vera appears to be supplying by other
-means, and the obvious candidate is the structure it imposes: mandatory
-`requires`, `ensures` and `effects` on every function, and typed slot
-references in place of names the model would otherwise have to invent and keep
-straight.
+TypeScript earns its result through its presence in every training set. Vera
+earns very nearly the same result without that, from a single skill file in
+context. The zero-training-data comparison below tests that directly, holding
+exposure at zero for all three languages and varying only the design: Vera
+98.2%, AILANG 96.8%, Aver 92.4%, with Vera ahead of Python on the same five
+models. The most constrained language scores highest.
 
-The zero-training-data comparison later on tests that directly, because it
-holds exposure at zero for all three languages and varies only the design.
-Vera takes 98.2% there against AILANG's 96.8% and Aver's 92.4%, and beats
-Python's 97.0% on the same five models. The most constrained of the three
-scores highest, which is what you would expect if constraint is doing the work
-that familiarity does elsewhere. It does not make Vera faster or better than
-TypeScript, and the delta chart says as much. It suggests the constraints are
-worth roughly what a training corpus is worth.
-
-One caution about the size of that gap rather than its direction. Some of
-Python's deficit is ours, not the models'
-([#121](https://github.com/aallan/vera-bench/issues/121)): TypeScript is
-structurally typed, so at the point where the grader builds a test value it
-silently accepts an object carrying a field the model's type never declared,
-where Python's constructor raises. On two problems the identical modelling
-choice scored solved in TypeScript and not solved in Python. The direction of
-this section holds; treat the three points as provisional until that is fixed.
+One caveat on the size of the Python gap rather than its direction. Some of it
+is ours ([#121](https://github.com/aallan/vera-bench/issues/121)). TypeScript
+is structurally typed, so the grader's test value is accepted even where the
+model's type never declared the field, and Python's constructor raises instead.
+On two problems the identical modelling choice scored solved in TypeScript and
+not solved in Python.
 
 ### Full results
 
 Each model runs the Vera problems twice, because there are two questions worth
 asking.
 
-The first run hands the model a full specification, meaning the type signature
-and its contracts, and asks only for the body. That tests whether it can write
-Vera. The second gives it the problem described in English and nothing more, so
-it has to infer the types, author the contracts, and then write code that
-satisfies them. That tests whether it understands Vera well enough to specify a
-problem in it. The two columns below are those runs, and on the command line
-they are the default and `--mode spec-from-nl`.
+The first hands the model a full specification, meaning the type signature and
+its contracts, and asks only for the body. That tests whether it can write
+Vera.
+
+The second gives it the problem in English and nothing more, so it infers the
+types, writes the contracts, and then writes code satisfying them. That tests
+whether it understands Vera well enough to specify a problem in it. Those are
+the first two columns; on the command line, the default and
+`--mode spec-from-nl`.
 
 | Model | Vera | Vera NL | Python | TypeScript |
 |---|---|---|---|---|
@@ -110,9 +97,10 @@ Aver and AILANG ran for a five-model subset and are taken up in the two
 zero-training-data sections at the end.
 
 The Vera NL column is the one with real spread. It runs from 87% to 97% while
-the other three bunch between 93% and 100%, and no model closes the gap. Writing code against a specification someone else wrote turns out to be a
-materially easier task than deciding what the specification should say, and
-that distance is the only measurement here with room left to move.
+the other three bunch between 93% and 100%, and no model closes the gap. Writing code against a
+specification someone else wrote is easier than deciding what the specification
+should say, and that distance is the only measurement here with room left to
+move.
 
 The charts below are described in [assets/README.md](assets/README.md) along
 with the command to regenerate them.
@@ -135,12 +123,11 @@ points in Vera and 14 in Vera NL across the line while Python gains 2 and
 TypeScript loses 4.
 
 Only the last step is controlled. Claude Opus 4 was measured against an older
-compiler, an older standard library, an earlier revision of the teaching
-document and a smaller set of graded problems, so that step measures the Vera
-ecosystem improving alongside the model, in unknown proportion. Claude Opus 4.8
-and Claude Opus 5 were measured identically, on the same compiler, the same
-prompt and all 60 problems, and that step moves the same way. One controlled
-transition is suggestive rather than conclusive.
+compiler, an older standard library, an earlier teaching document and a smaller
+set of graded problems, so that step measures the ecosystem improving alongside
+the model, in unknown proportion. Claude Opus 4.8 and Claude Opus 5 were
+measured identically and move the same way. One controlled transition is
+suggestive rather than conclusive.
 
 ### Reasoning mode
 
@@ -159,13 +146,12 @@ reasoning it does once it is on that path. This chart varies mode and leaves
 effort at its default, so what it measures is the more thorough execution path
 rather than simply a longer think on the same one.
 
-Vera gains two points on the pro path and Vera NL loses two; Python and
-TypeScript do not move at all. Whatever stops these models on the last one or
-two problems is not something the pro path fixes, and Vera's standing does not
-depend on the more expensive execution path, which matters because the pro
-entry is the most costly run in the sweep. Null results on a saturated
-benchmark are weak evidence: there is very little room left for anything to
-move.
+Vera gains two points on the pro path, Vera NL loses two, and Python and
+TypeScript do not move. Whatever stops these models on the last one or two
+problems is not something the pro path fixes. That matters mainly because the
+pro entry is the most expensive run in the sweep, and Vera's standing does not
+depend on it. Null results on a saturated benchmark are weak evidence either
+way.
 
 ### Refusals
 
