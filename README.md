@@ -39,6 +39,35 @@ Sonnet 5 loses a point and three. Both are Anthropic models, and both of the
 clear wins (Claude Opus 5, GPT-5.6 Terra, five points each) sit beside them, so
 this is not a vendor effect either way.
 
+### Static typing is the variable
+
+Python is dynamically typed, so a type error surfaces when the code runs.
+TypeScript is statically typed and rejects the same error before anything runs.
+Vera sits on the TypeScript side of that line and goes further, adding
+contracts and a prover to the type check.
+
+Group the three languages that way and the ordering stops looking odd. Vera
+averages 98.7% across the nine models and TypeScript 99.7%, while Python trails
+both at 96.7%. The two languages that constrain what a model may write before
+it runs come out ahead of the one that waits until execution, and the
+zero-training-data language is in that leading group despite nobody having
+trained on it.
+
+The failure modes line up with the same story. Python's failures land as
+runtime wrong answers rather than compile rejections, thirteen against three
+across the sweep; TypeScript has one of each. A loose language cannot reject a
+bad program up front, so a model's mistake survives to execution and is
+recorded as a wrong answer instead of being caught and handed back.
+
+One caution about the size of that gap rather than its direction. Some of
+Python's deficit is ours, not the models'
+([#121](https://github.com/aallan/vera-bench/issues/121)): TypeScript is
+structurally typed, so at the point where the grader builds a test value it
+silently accepts an object carrying a field the model's type never declared,
+where Python's constructor raises. On two problems the identical modelling
+choice scored solved in TypeScript and not solved in Python. The direction of
+this section holds; treat the three points as provisional until that is fixed.
+
 ### Full results
 
 Each model runs the Vera problems twice, because there are two questions worth
