@@ -26,12 +26,11 @@ three.
 The asymmetry is not a property of Vera. TypeScript scores 100% for six of the
 nine models and never drops below 97%, so there is no headroom left to win. A
 benchmark on which two languages both sit at the ceiling is measuring the
-models rather than the languages, which is the substance of the saturation
-problem discussed below.
+models rather than the languages.
 
-The losses are worth naming. Claude Opus 4.8 gives up five points against
-Python and seven against TypeScript, the widest gap in the field, and Claude
-Sonnet 5 loses a point and three. Both are Anthropic models, and both of the
+Claude Opus 4.8 gives up five points against Python and seven against
+TypeScript, the widest gap in the field, and Claude Sonnet 5 loses a point and
+three. Both are Anthropic models, and both of the
 clear wins (Claude Opus 5, GPT-5.6 Terra, five points each) sit beside them, so
 this is not a vendor effect either way.
 
@@ -55,9 +54,8 @@ across the sweep; TypeScript has one of each. A loose language cannot reject a
 bad program up front, so a model's mistake survives to execution and is
 recorded as a wrong answer instead of being caught and handed back.
 
-That grouping is what makes the Vera number interesting, because Vera is the
-only one of the three that no model has read. TypeScript's 99.7% is earned with
-an enormous amount of the language in every training set. Vera reaches 98.7%
+Vera is the only one of the three that no model has read. TypeScript's 99.7% is
+earned with an enormous amount of the language in every training set. Vera reaches 98.7%
 with none of it, from a single document in the prompt. Whatever the models are
 getting from familiarity with TypeScript, Vera appears to be supplying by other
 means, and the obvious candidate is the structure it imposes: mandatory
@@ -72,8 +70,7 @@ Python's 97.0% on the same five models. The most constrained of the three
 scores highest, which is what you would expect if constraint is doing the work
 that familiarity does elsewhere. It does not make Vera faster or better than
 TypeScript, and the delta chart says as much. It suggests the constraints are
-worth roughly what a training corpus is worth, which is a stranger and more
-useful result.
+worth roughly what a training corpus is worth.
 
 One caution about the size of that gap rather than its direction. Some of
 Python's deficit is ours, not the models'
@@ -206,8 +203,7 @@ Two of those four are the same problem, failed by two different models, and its
 contracts are `requires(true)` and `ensures(true)`. A vacuous specification
 proves nothing, and `vera check` passing against one means nothing either.
 
-The number worth watching is the other cell, and it is zero. No working program
-was refused. Nothing that ran correctly failed the static gate, and nothing
+The other cell is zero. No working program was refused. Nothing that ran correctly failed the static gate, and nothing
 that failed the gate ran correctly.
 
 ### The benchmark is saturating
