@@ -49,7 +49,7 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from sweep_status import classify, load_rows  # noqa: E402
+from sweep_status import _expected_problems, classify, load_rows  # noqa: E402
 
 from vera_bench import __version__ as BENCH_VERSION  # noqa: E402
 from vera_bench.results_path import version_slug  # noqa: E402
@@ -80,7 +80,15 @@ def find_canonical(
     results_dir: str, model: str, language: str, mode: str, bench_version: str
 ) -> str:
     prefix = canonical_basename_prefix(model, language, mode, bench_version)
-    hits = sorted(glob.glob(os.path.join(results_dir, prefix + "*.jsonl")))
+    # The version token has to end at a separator. `prefix + "*"` let
+    # 0.0.18 match `bench-0-0-180-...`, so a repair aimed at one release
+    # could splice fresh rows into a different one's file. After the
+    # bench segment a name either continues with a compiler segment or
+    # ends, so those are exactly the two shapes to accept.
+    hits = sorted(
+        set(glob.glob(os.path.join(results_dir, prefix + "-*.jsonl")))
+        | set(glob.glob(os.path.join(results_dir, prefix + ".jsonl")))
+    )
     if not hits:
         sys.exit(
             f"no results file matching {prefix}* in {results_dir}/\n"
@@ -238,7 +246,9 @@ def main() -> None:
         help="per-problem re-run timeout (s); a stall aborts before splice",
     )
     ap.add_argument(
-        "--force", action="store_true", help="splice even an in-flight (<60 row) file"
+        "--force",
+        action="store_true",
+        help="splice even a file that does not yet cover every problem",
     )
     ap.add_argument(
         "--apply", action="store_true", help="execute; without it, dry-run only"
@@ -251,9 +261,16 @@ def main() -> None:
     rows = load_rows(canonical)
     print(f"target: {os.path.basename(canonical)}  ({len(rows)} rows)")
 
-    if len(rows) < 60 and not args.force:
+    # Coverage is counted in unique problem ids, not rows: a fix attempt
+    # emits a second row for the same problem, so a file can reach 60 rows
+    # while still missing problems the sweep has not written yet. Counting
+    # rows called that finished and spliced into a file still being
+    # written. Same denominator `sweep_status.verdict` uses.
+    covered = len({r.get("problem_id") for r in rows})
+    if covered < _expected_problems() and not args.force:
         sys.exit(
-            "file has <60 rows — looks in-flight; wait for the sweep or pass --force"
+            f"file covers {covered}/{_expected_problems()} problems — looks "
+            "in-flight; wait for the sweep or pass --force"
         )
 
     pids = failed_pids(rows, args.include_length)

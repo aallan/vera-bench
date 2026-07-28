@@ -684,7 +684,10 @@ def render_generation(
 
     # The model names live in the legend already; repeating them here is
     # what pushed this line off both edges of a 16:9 canvas at four links.
-    moved = [f"{m} {_net(m):+d}" for m in (wanted or CORE_MODES) if _net(m) is not None]
+    # `modes` is the filtered set actually drawn; `wanted` is only what was
+    # asked for. Reporting a net change for a language no series was
+    # plotted for would put a number on the slide with nothing behind it.
+    moved = [f"{m} {_net(m):+d}" for m in modes if _net(m) is not None]
     ax.text(
         0.5,
         1.016,
@@ -1041,7 +1044,13 @@ def render_coverage(
     )
     order = {c: i for i, (c, _) in enumerate(CAUSE_ORDER)}
     rows_sorted = sorted(escapes, key=lambda e: (order.get(e[2], 9), e[0], e[1]))
-    y = 0.855
+    # Row pitch adapts to the count. At a fixed 0.125 the eighth escape
+    # landed below the panel, so a WORSE result — more programs slipping
+    # past the static gate — would have hidden the extra ones, quietly
+    # flattering the very number this slide exists to report.
+    top = 0.855
+    step = min(0.125, top / max(len(rows_sorted), 1))
+    y = top
     for model, pid, cause in rows_sorted:
         tag = next((k for c, k in CAUSE_ORDER if c == cause), "BROWN")
         ax.text(
@@ -1067,7 +1076,7 @@ def render_coverage(
             va="top",
             fontweight="bold",
         )
-        y -= 0.125
+        y -= step
 
     # --- right: the two numbers that bound the claim ---
     ax2 = fig.add_subplot(gs[0, 1])
@@ -1125,7 +1134,11 @@ def render_coverage(
     ax2.text(
         0.0,
         -0.03,
-        "the gate never refused code that ran correctly",
+        (
+            "the gate never refused code that ran correctly"
+            if false_alarms == 0
+            else f"{false_alarms} program(s) it refused ran correctly anyway"
+        ),
         fontsize=TICK_PT_SMALL,
         color=BROWN_500,
         va="top",
@@ -1149,7 +1162,12 @@ def render_coverage(
         f"program — {graded} pairs across {len(rows_by_target)} models.\n"
         "Contracts bound what a program may do; they do not say everything "
         "it must do, so a few satisfy them and are still wrong.\n"
-        "The cost of that gate is the number worth watching, and it is zero.",
+        + (
+            "The cost of that gate is the number worth watching, and it is zero."
+            if false_alarms == 0
+            else f"The cost of that gate is {false_alarms} working program(s) "
+            "it wrongly refused."
+        ),
         ha="center",
         va="top",
         fontsize=SUBTITLE_PT - 3,

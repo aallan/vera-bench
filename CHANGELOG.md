@@ -65,9 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The delta chart's legend covered the largest bar.** It was placed
   `lower right` INSIDE the axes, which on a diverging chart is exactly
   where the biggest positive delta ends, so the strongest Vera result
-  and its value label sat underneath a semi-transparent box. Moved
-  above the axes in both the slide and the canonical chart, where it
-  cannot collide with data at all.
+  and its value label sat underneath a semi-transparent box. It now sits
+  upper-left inside the axes in both the slide and the canonical chart —
+  the sparse half, since Vera loses rarely and never by much, and its
+  top rows carry no bar at all.
 - **The generation slide asserted findings it no longer had.** Its
   title and subtitle were hardcoded ("Three flagships, one trajectory",
   "the Vera line rises at every step") — both true of a three-link
@@ -83,6 +84,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads it, leaving both confounds (toolchain and denominator) on the
   single step where Opus 4 is pinned to the only release that ever swept
   it. A model appears at one score per deck.
+- **`rerun_failed.py` could reach into a neighbouring release.** Its
+  bench-version token was not terminated, so `0.0.18` also matched
+  `bench-0-0-180-...`. A lookup failure would have been harmless; this
+  one ends in a splice, so it would have written rows into the wrong
+  era's results. The glob now accepts only the two shapes a real name
+  takes after the bench segment: a compiler segment, or the extension.
+- **`rerun_failed.py` judged a file finished by counting rows.** A fix
+  attempt emits a second row for the same problem, so a file can reach
+  60 rows while problems are still missing — and the guard exists
+  precisely to stop a repair racing a sweep that is still writing. It
+  now counts unique problem ids, the denominator `sweep_status` uses.
 - **The generation chain mixed a family line with a tier jump.** Claude
   Fable 5 was appended as a fourth link on the mistaken basis that it was
   the newest model; it is the CEILING tier — more capable than Opus 5,
