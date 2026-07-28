@@ -108,9 +108,9 @@ with the command to regenerate them.
 ![Three Claude flagships across four languages](assets/fig-generation.png)
 
 Three consecutive Claude flagships, oldest to newest. Claude Opus 4 solved
-fewer problems in Vera than in Python; Claude Opus 5 reverses that, and adds 11
-points in Vera and 14 in Vera NL across the line while Python gains 2 and
-TypeScript loses 4.
+fewer problems in Vera than in Python; Claude Opus 5 reverses that. Across the
+line Vera gains 11 points and Vera NL 14, while Python gains 1 and TypeScript
+does not move.
 
 Only the last step is controlled. Claude Opus 4 was measured against an older
 compiler, an older standard library, an older skills file and a smaller set of
