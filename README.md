@@ -54,6 +54,26 @@ across the sweep; TypeScript has one of each. A loose language cannot reject a
 bad program up front, so a model's mistake survives to execution and is
 recorded as a wrong answer instead of being caught and handed back.
 
+That grouping is what makes the Vera number interesting, because Vera is the
+only one of the three that no model has read. TypeScript's 99.7% is earned with
+an enormous amount of the language in every training set. Vera reaches 98.7%
+with none of it, from a single document in the prompt. Whatever the models are
+getting from familiarity with TypeScript, Vera appears to be supplying by other
+means, and the obvious candidate is the structure it imposes: mandatory
+`requires`, `ensures` and `effects` on every function, and typed slot
+references in place of names the model would otherwise have to invent and keep
+straight.
+
+The zero-training-data comparison later on tests that directly, because it
+holds exposure at zero for all three languages and varies only the design.
+Vera takes 98.2% there against AILANG's 96.8% and Aver's 92.4%, and beats
+Python's 97.0% on the same five models. The most constrained of the three
+scores highest, which is what you would expect if constraint is doing the work
+that familiarity does elsewhere. It does not make Vera faster or better than
+TypeScript, and the delta chart says as much. It suggests the constraints are
+worth roughly what a training corpus is worth, which is a stranger and more
+useful result.
+
 One caution about the size of that gap rather than its direction. Some of
 Python's deficit is ours, not the models'
 ([#121](https://github.com/aallan/vera-bench/issues/121)): TypeScript is
