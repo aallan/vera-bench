@@ -161,8 +161,9 @@ with the problems themselves.
 
 ![The six programs that cleared vera check and still failed](assets/fig-coverage.png)
 
-Six Vera programs out of 539 compiled, satisfied their contracts, but were
-still wrong. That is 1.1%.
+One Vera program out of the 540 written by the models never compiled. Of the
+remaining 539 programs, six compiled, satisfied their contracts, but were still
+wrong. That is 1.1%.
 
 One of the six was caught at runtime by its own postcondition, so the contract
 did its job a step later than intended. One never terminated, having satisfied
