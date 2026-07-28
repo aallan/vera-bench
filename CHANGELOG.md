@@ -83,6 +83,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reads it, leaving both confounds (toolchain and denominator) on the
   single step where Opus 4 is pinned to the only release that ever swept
   it. A model appears at one score per deck.
+- **The generation chain mixed a family line with a tier jump.** Claude
+  Fable 5 was appended as a fourth link on the mistaken basis that it was
+  the newest model; it is the CEILING tier — more capable than Opus 5,
+  not later than it — so the slope into it read as generational progress
+  that never happened, and it pushed the controlled pair into the middle
+  of the chain, where the companion slide looked like a zoom on an
+  arbitrary interior segment. The chain is one family in release order
+  again, which makes the controlled pair its final step.
 - **The coverage slide outlived its premise.** It argued that pass@1
   could not see the problems without test cases; every problem now has
   them, so it rendered "0 of 60" beside a 0% hero stat that read as

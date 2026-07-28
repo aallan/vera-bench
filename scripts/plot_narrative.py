@@ -107,7 +107,12 @@ from scripts.sweep_status import is_refusal  # noqa: E402
 
 ALL_MODES = ["Vera", "Vera NL", "Python", "TypeScript", "Aver", "AILANG"]
 
-# The Anthropic ceiling line, oldest first, as (bench version, display).
+# The Anthropic flagship line, oldest first, as (bench version, display).
+# ONE family, in release order. Fable 5 does not belong here even though
+# it is the strongest model in the matrix: it is the CEILING tier, more
+# capable than Opus 5 but not later than it, so a slope into it would
+# read as generational progress that never happened. Anything added here
+# has to be a successor, not merely a bigger sibling.
 # Cross-version by design: each model is pinned to a release that actually
 # swept it — Opus 4 only ever ran under 0.0.9 — so the trajectory cannot
 # be read out of a single results generation.
@@ -130,7 +135,6 @@ GENERATION_CHAIN = [
     ("0.0.9", "Claude Opus 4"),
     ("0.0.18", "Claude Opus 4.8"),
     ("0.0.18", "Claude Opus 5"),
-    ("0.0.18", "Claude Fable 5"),
 ]
 
 # The controlled step, named separately rather than taken as the chain's
@@ -666,7 +670,7 @@ def render_generation(
     ax.set_title(
         "One generation later"
         if len(points) < 3
-        else "The Anthropic line, oldest to newest",
+        else "Three Claude flagships, oldest to newest",
         fontsize=TITLE_PT,
         fontweight="bold",
         pad=46,
