@@ -36,12 +36,12 @@ this is not a vendor effect either way.
 
 ### Static typing is the variable
 
-The difference between the Python and TypeScript results is not random. Python
-is dynamically typed, so a type error surfaces when the code runs; TypeScript
-is statically typed and rejects the same error before anything runs. Vera sits
-with TypeScript and goes further, making `requires`, `ensures` and `effects`
-mandatory on every function and replacing variable names with typed slot
-references.
+The difference between the Python and TypeScript results is probably not
+random. Python is dynamically typed, so a type error surfaces when the code
+runs; TypeScript is statically typed and rejects the same error before anything
+runs. Vera sits with TypeScript and goes further, making `requires`, `ensures`
+and `effects` mandatory on every function and replacing variable names with
+typed slot references.
 
 Sort the three by how much they constrain the model rather than by how much of
 them it has read, and the ordering stops looking accidental: the two that
