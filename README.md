@@ -186,25 +186,23 @@ with the problems themselves.
 
 ![The six programs that cleared vera check and still failed](assets/fig-coverage.png)
 
-`vera check` and `vera run` are independent verdicts on the same program, which
-makes every model-and-problem pair a two-by-two: the static gate passed or it
-did not, the program was right or it was not. Two of those cells are agreement.
-The other two bound what contracts buy you.
+Six programs out of 539 compiled, satisfied their contracts, and were still
+wrong. That is 1.1%, and it is the price of trusting `vera check` on its own.
 
-Across 539 graded pairs, six programs compiled, satisfied their contracts and
-were still wrong; that is 1.1%. Of those six, one was caught at runtime by its
-own postcondition, which is the safety net working rather than failing. One did
-not terminate, having satisfied a `decreases` clause the checker accepted. The
-remaining four are the honest limit: contracts bound what a program may do, and
-they do not say everything it must do, so a program can satisfy everything it
-promised and still compute the wrong answer.
+One of the six was caught at runtime by its own postcondition, so the
+contract did its job a step later than intended. One never terminated, having
+satisfied a `decreases` clause the checker accepted. The other four ran to
+completion, kept every promise they made, and returned the wrong answer.
+Contracts bound what a program may do; they do not say everything it must do.
 
-Two of those four are the same problem, failed by two different models, and its
-contracts are `requires(true)` and `ensures(true)`. A vacuous specification
-proves nothing, and `vera check` passing against one means nothing either.
+Two of those four are the same problem, failed by two different models, and
+its contracts are `requires(true)` and `ensures(true)`. A vacuous
+specification proves nothing, and `vera check` passing against one means
+nothing either.
 
-The other cell is zero. No working program was refused. Nothing that ran correctly failed the static gate, and nothing
-that failed the gate ran correctly.
+Nothing went wrong in the other direction. No program that ran correctly was
+refused, and no program the gate refused ran correctly. Whatever the contracts
+miss, they miss it without costing anything.
 
 ### The benchmark is saturating
 
