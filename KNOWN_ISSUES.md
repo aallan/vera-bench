@@ -38,6 +38,30 @@ cannot run concurrently with the sweep (both unlink/write the same file).
 **Exit condition:** [#101](https://github.com/aallan/vera-bench/issues/101) —
 fold per-problem retry into the sweep's dirty path.
 
+### `baselines` deletes its output before it has a replacement
+
+`vera-bench baselines` unlinks `results/{language}-baseline.jsonl` at startup and
+writes it at the end, so any interruption in between leaves no file. `results/` is
+gitignored, so there is no recovery except re-running. `aver-baseline.jsonl`
+vanished three times during the v0.0.18 sweep work, each time after being
+verified at 60/60. The trigger varies; the design does not.
+
+**Exit condition:** [#118](https://github.com/aallan/vera-bench/issues/118) —
+write to a temp file and `os.replace()` it into position, as
+`rerun_failed.py` and `regrade.py` already do.
+
+### A nullary Python class is read as unverifiable
+
+`declared_shape` treats a class with no `__init__` and no annotated fields as
+unverifiable rather than as arity 0, so the shape guard skips it and `adt_call`
+renders a call the class cannot accept — `class Leaf: pass` against a spec
+wanting `Leaf(Int)` fails with a raw `TypeError` instead of declining. The
+verdict is right (the model's type cannot hold the test value); the route is
+not. Nine Python Tier 3/4 rows in the v0.0.18 sweep take this path.
+
+**Exit condition:** [#119](https://github.com/aallan/vera-bench/issues/119) —
+distinguish "no annotations" (unverifiable) from "no fields at all" (arity 0).
+
 ### The test suite isn't tiered — flaky toolchain tests gate the merge
 
 CI runs the whole suite (`pytest -v`) on every push, mixing fast hermetic unit
