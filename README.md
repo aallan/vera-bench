@@ -9,9 +9,10 @@ A benchmark for evaluating LLM code generation in [Vera](https://github.com/aall
 
 ## Results
 
-Six of the nine models score 100% in Vera, a language absent from every
-training set, and they score no better in Python. Nine models, three providers,
-all 60 problems across five difficulty tiers, against
+Six of the nine models solve every problem in Vera, a language absent from
+every training set. Across the field Vera averages 98.7%, ahead of Python's
+96.7% and a point behind TypeScript's 99.7%. Nine models, three providers, all
+60 problems across five difficulty tiers, against
 [Vera v0.1.8](https://github.com/aallan/vera/releases/tag/v0.1.8).
 
 ### Vera against Python and TypeScript
