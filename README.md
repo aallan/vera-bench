@@ -14,11 +14,6 @@ training set, and they score no better in Python. Nine models, three providers,
 all 60 problems across five difficulty tiers, against
 [Vera v0.1.8](https://github.com/aallan/vera/releases/tag/v0.1.8).
 
-This is the first sweep to grade every problem in every language. Earlier
-releases could only output-grade 36 of the 60, and the missing 24 were the ADT,
-pattern-matching and effect-handler problems; precisely the ones that exercise
-what makes Vera different. Those numbers are not comparable with these.
-
 ### Vera against Python and TypeScript
 
 ![Vera minus Python and TypeScript, percentage points, per model](assets/fig-delta.png)
@@ -81,25 +76,23 @@ satisfies them. That tests whether it understands Vera well enough to specify a
 problem in it. The two columns below are those runs, and on the command line
 they are the default and `--mode spec-from-nl`.
 
-| Model | Vera | Vera NL | Python | TypeScript | Aver | AILANG |
-|---|---|---|---|---|---|---|
-| Claude Fable 5 | **100%** | 97% | 97% | 97% | 93% | 98% |
-| GPT-5.6 Sol (pro) | **100%** | 90% | 95% | **100%** | – | – |
-| Claude Opus 5 | **100%** | 95% | 95% | **100%** | 95% | 98% |
-| Claude Opus 4.8 | 93% | 93% | 98% | **100%** | 92% | 93% |
-| GPT-5.6 Sol | 98% | 92% | 95% | **100%** | 92% | 97% |
-| Kimi K3 | **100%** | 92% | **100%** | **100%** | 90% | 98% |
-| Claude Sonnet 5 | 97% | 87% | 98% | **100%** | – | – |
-| GPT-5.6 Terra | **100%** | 92% | 95% | **100%** | – | – |
-| Kimi K2.6 | **100%** | 93% | 97% | **100%** | – | – |
+| Model | Vera | Vera NL | Python | TypeScript |
+|---|---|---|---|---|
+| Claude Fable 5 | **100%** | 97% | 97% | 97% |
+| GPT-5.6 Sol (pro) | **100%** | 90% | 95% | **100%** |
+| Claude Opus 5 | **100%** | 95% | 95% | **100%** |
+| Claude Opus 4.8 | 93% | 93% | 98% | **100%** |
+| GPT-5.6 Sol | 98% | 92% | 95% | **100%** |
+| Kimi K3 | **100%** | 92% | **100%** | **100%** |
+| Claude Sonnet 5 | 97% | 87% | 98% | **100%** |
+| GPT-5.6 Terra | **100%** | 92% | 95% | **100%** |
+| Kimi K2.6 | **100%** | 93% | 97% | **100%** |
 
-Aver and AILANG ran for the five-model subset only; a dash means the target was
-not run rather than scored zero.
+Aver and AILANG ran for a five-model subset and are taken up in the two
+zero-training-data sections at the end.
 
 The Vera NL column is the one with real spread. It runs from 87% to 97% while
-the Vera, Python and TypeScript columns bunch between 93% and 100%, and no
-model closes the gap. (Aver is the outlier at 90% to 95%, for reasons the
-zero-training-data section takes up.) Writing code against a specification someone else wrote turns out to be a
+the other three bunch between 93% and 100%, and no model closes the gap. Writing code against a specification someone else wrote turns out to be a
 materially easier task than deciding what the specification should say, and
 that distance is the only measurement here with room left to move.
 
@@ -123,13 +116,13 @@ fewer problems in Vera than in Python; Claude Opus 5 reverses that, and adds 11
 points in Vera and 14 in Vera NL across the line while Python gains 2 and
 TypeScript loses 4.
 
-Only the last step is controlled. Claude Opus 4 was swept once, under bench
-v0.0.9 and Vera v0.0.112, and that step therefore spans a compiler, a standard
-library, a revision of the teaching document and a smaller graded problem set
-all at once; it measures the Vera ecosystem improving alongside the model, in
-unknown proportion. Claude Opus 4.8 and Claude Opus 5 share a release, a
-compiler, a prompt and all 60 problems, and that step moves the same way. One
-controlled transition is suggestive rather than conclusive.
+Only the last step is controlled. Claude Opus 4 was measured against an older
+compiler, an older standard library, an earlier revision of the teaching
+document and a smaller set of graded problems, so that step measures the Vera
+ecosystem improving alongside the model, in unknown proportion. Claude Opus 4.8
+and Claude Opus 5 were measured identically, on the same compiler, the same
+prompt and all 60 problems, and that step moves the same way. One controlled
+transition is suggestive rather than conclusive.
 
 ### Reasoning mode
 
@@ -205,11 +198,11 @@ Every model against every language, one dot each. The whole field sits between
 graded problems a single problem moves a score by 1.7 percentage points, so
 most of the gaps discussed above are one or two problems wide.
 
-This is the most serious limitation in this release, and the full-60 sweep has
-made it worse rather than better: TypeScript now scores 100% for six of the
-nine models. The benchmark can still tell you that an unfamiliar language costs
-a model nothing, which is the question it was built to answer, but it can no
-longer rank the field at the top. The next version needs harder problems.
+This is the most serious limitation here. TypeScript scores 100% for six of the
+nine models and Vera for six, so at the top of the range the problems are no
+longer asking anything. The benchmark can still tell you that an unfamiliar
+language costs a model nothing, which is the question it was built to answer,
+but it can no longer rank the field. The next version needs harder problems.
 
 ### A controlled comparison
 
