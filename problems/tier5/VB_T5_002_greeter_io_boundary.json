@@ -2,7 +2,7 @@
   "id": "VB-T5-002",
   "tier": 5,
   "title": "Greeter (IO Boundary)",
-  "description": "Write two functions: a pure function build_greeting that takes a non-empty String and returns 'Hello, <name>!\\n' using string_concat, and an IO function greet that calls build_greeting and prints the result with IO.print. The IO effect must be declared explicitly. Include a minimal IO effect declaration with only the print operation.",
+  "description": "Write two functions: a pure function build_greeting that takes a non-empty String and returns 'Hello, <name>!\\n' using string_concat, and an IO function greet that calls build_greeting and prints the result with IO.print. IO is a built-in effect, so it needs no declaration.",
   "description_neutral": "Write two functions: a pure function build_greeting that takes a non-empty string and returns 'Hello, <name>!\n', and a function greet that prints the result.",
   "signature": "public fn greet(@String -> @Unit)",
   "contracts": {
@@ -38,5 +38,5 @@
   ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Tests the pure/IO boundary. The agent must declare 'effect IO { op print(String -> Unit); }' and ensure build_greeting is effects(pure) while greet is effects(<IO>). String contracts fall to Tier 3."
+  "notes": "Tests the pure/IO boundary: build_greeting must be effects(pure) while greet is effects(<IO>). IO is built in, and redeclaring it is an error (E152) since vera 0.1.9. String contracts fall to Tier 3."
 }

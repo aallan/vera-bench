@@ -2,7 +2,7 @@
   "id": "VB-T5-010",
   "tier": 5,
   "title": "Safe Head",
-  "description": "Write a function that returns the first element of an array, or -1 if the array is empty. Define the Exn<E> effect with a throw operation. Write head_or_throw that throws -1 for empty arrays, and safe_head that handles the exception using handle[Exn<Int>]. safe_head should be pure.",
+  "description": "Write a function that returns the first element of an array, or -1 if the array is empty. Use the built-in Exn<E> effect and its throw operation. Write head_or_throw that throws -1 for empty arrays, and safe_head that handles the exception using handle[Exn<Int>]. safe_head should be pure.",
   "description_neutral": "Return the first element of an array, or -1 if the array is empty.",
   "signature": "public fn safe_head(@Array<Int> -> @Int)",
   "contracts": {
