@@ -1,9 +1,6 @@
 -- VeraBench VB-T5-003: Safe Division with Exceptions
 -- Division that throws on zero, with a handler that catches and returns -1.
 -- Tests: Exn<Int> effect, handle[Exn<Int>], pure/effectful boundary.
-effect Exn<E> {
-  op throw(E -> Never);
-}
 
 -- Effectful: division that throws on zero divisor
 -- Parameters: checked_div(a, b) computes a / b

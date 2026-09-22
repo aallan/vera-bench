@@ -2,7 +2,7 @@
   "id": "VB-T5-008",
   "tier": 5,
   "title": "Print Numbers",
-  "description": "Write a function that prints the numbers 1 through n, each on its own line. Declare the IO effect with a print operation. Use a pure helper to format each number as a string. The main function should have effects(<IO>) and use a recursive loop helper via a where block.",
+  "description": "Write a function that prints the numbers 1 through n, each on its own line. Use the built-in IO effect's print operation. Use a pure helper to format each number as a string. The main function should have effects(<IO>) and use a recursive loop helper via a where block.",
   "description_neutral": "Print the numbers 1 through n, each on its own line.",
   "signature": "public fn print_numbers(@Nat -> @Unit)",
   "contracts": {
@@ -51,5 +51,5 @@
   ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Tests IO effect declaration, to_string discovery, and recursive IO loop. The agent must declare effect IO { op print(String -> Unit); } and use a where block for the loop. The format_number helper must be pure."
+  "notes": "Tests the built-in IO effect, to_string discovery, and a recursive IO loop. The agent must use a where block for the loop. The format_number helper must be pure."
 }

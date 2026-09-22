@@ -1,8 +1,5 @@
 -- VeraBench VB-T5-005: Checked Index
 -- Access an array element by index, throwing an exception on out-of-bounds.
-effect Exn<E> {
-  op throw(E -> Never);
-}
 
 -- Effectful: throws if index is out of bounds
 private fn checked_get(@Array<Int>, @Nat -> @Int)

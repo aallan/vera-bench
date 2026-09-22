@@ -56,10 +56,11 @@ vera run solutions/vera/VB-T1-001_absolute_value.vera --fn absolute_value -- -42
 - **Braces are mandatory** on if/else branches: `if x then { a } else { b }`.
 - **No elif** — nest if-then-else.
 - **Recursive functions** need `decreases(expr)` or the checker rejects them.
+- **`decreases` measures run** (since vera 0.1.9, which guards them at run time), and a `Nat` subtraction that goes negative traps. A count-up loop's measure is `@Nat.1 + 1 - @Nat.0`, never `@Nat.1 - @Nat.0 + 1`: the last call has i = n + 1, so `n - i` goes negative. `vera verify` still reports the second form as Tier 1, and the trap reads as `unreachable` with a misleading hint about non-exhaustive `match`.
 - **effects(pure)** is required for functions with no side effects. Omitting it is an error.
 - **Match arms** introduce new bindings: inside `Cons(@Int, @List)`, `@Int.0` refers to the matched head, not any outer parameter.
 - **String contracts** fall to Tier 3 (runtime) — `string_length` is not SMT-verifiable. Set `vera_verify_tier1: false` for problems with string contracts.
-- **State handlers**: `put`/`get` must be inlined in the `in { ... }` block. Calling a separate function with `effects(<State<T>>)` from inside a handler body causes a WASM codegen error.
+- **Built-in effects are never declared.** `IO`, `Exn<E>`, `State<T>` and the rest of the registry are built in, and an `effect IO { ... }` block is `[E152]` since vera 0.1.9. Before 0.1.9 a bare `throw` did not resolve without `effect Exn<E>`, so no `Exn` solution compiles on both sides of that release.
 - **`Exn<String>` doesn't work** — use `Exn<Int>` for exception values.
 - **Bare `None`/`Err`** can fail type inference — use typed let bindings.
 - **`vera test` input generation** supports `Int`, `Nat`, `Bool`, `String`, and `Float64` parameters (since vera v0.0.106). ADT generation is not yet supported (issue #440). The benchmark uses `vera run`, not `vera test`.
