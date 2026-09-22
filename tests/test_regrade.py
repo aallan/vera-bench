@@ -145,12 +145,13 @@ def _target(results: pathlib.Path, name: str, language: str) -> pathlib.Path:
 def run_main(monkeypatch, tmp_path, capsys):
     """main() over a scratch results dir, with the compilers and the grading
     itself stubbed out. Returns the names regrade_file was handed, and the
-    printed output."""
+    printed output; `run.graded` holds the same list for a test that expects
+    main() to exit. `run.moved` sets how many rows each re-grade changes."""
     graded: list[str] = []
 
     def fake_regrade_file(path: pathlib.Path, *args, **kwargs):
         graded.append(path.name)
-        return [], Counter(unchanged=1)
+        return [], Counter(unchanged=1, changed=run.moved)
 
     monkeypatch.setattr(rg, "VeraRunner", _FakeVera)
     monkeypatch.setattr(rg, "installed_versions", lambda vera: dict(INSTALLED))
@@ -161,6 +162,8 @@ def run_main(monkeypatch, tmp_path, capsys):
         assert rg.main([*common, *argv]) == 0
         return graded, capsys.readouterr().out
 
+    run.graded = graded
+    run.moved = 0
     return run
 
 
@@ -208,3 +211,33 @@ class TestMain:
         assert graded == ["m-bench-0-0-18-vera-0-1-8.jsonl"]
         assert "drift allowed: graded by vera 0.1.8" in out
         assert "compiler-drift 0" in out
+
+    def test_the_opt_out_cannot_be_combined_with_apply(
+        self, run_main, tmp_path, capsys
+    ):
+        # Written back, verdicts from the installed compiler would sit under a
+        # name that still credits the old one, and every later drift check
+        # would believe it. So the combination is refused before any work.
+        path = _target(tmp_path, "m-bench-0-0-18-vera-0-1-8.jsonl", "vera")
+        before = path.read_text(encoding="utf-8")
+        with pytest.raises(SystemExit) as exc:
+            run_main("--allow-compiler-drift", "--apply")
+        assert exc.value.code == 2
+        assert "cannot be combined with --apply" in capsys.readouterr().err
+        assert run_main.graded == []
+        assert path.read_text(encoding="utf-8") == before
+
+    def test_a_drift_census_does_not_suggest_apply(self, run_main, tmp_path):
+        # The ordinary dry-run hint says "re-run with --apply", which is the
+        # one thing the opt-out refuses.
+        _target(tmp_path, "m-bench-0-0-18-vera-0-1-8.jsonl", "vera")
+        run_main.moved = 1
+        _, out = run_main("--allow-compiler-drift")
+        assert "census only" in out
+        assert "re-run with --apply" not in out
+
+    def test_a_plain_dry_run_still_suggests_apply(self, run_main, tmp_path):
+        _target(tmp_path, "m-bench-0-0-18-vera-0-1-13.jsonl", "vera")
+        run_main.moved = 1
+        _, out = run_main()
+        assert "re-run with --apply" in out

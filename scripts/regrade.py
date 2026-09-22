@@ -28,11 +28,13 @@ compiler holds too, and nothing held it. Vera 0.1.9 made redeclaring a
 built-in effect an error, where under 0.1.8 a bare `throw` needed the
 declaration, so re-grading the 0.0.18 files with 0.1.9 installed would
 fail programs that were correct when graded, and `--apply` would write
-that over published numbers. A target whose name records a compiler
-version other than the installed one is skipped and reported instead.
-`--allow-compiler-drift` grades it anyway, for a deliberate cross-version
-experiment. Python and TypeScript targets are never skipped, since no
-compiler of ours grades them.
+that over published numbers. A target is re-graded only if its name
+records the installed compiler's version; one that records a different
+version, or none at all, is skipped and reported instead.
+`--allow-compiler-drift` grades such targets anyway, for a deliberate
+cross-version experiment, but only as a dry run: written back, the
+verdicts would sit under the old compiler's name. Python and TypeScript
+targets are never skipped, since no compiler of ours grades them.
 
 Dry run by default; `--apply` writes each file atomically.
 
@@ -292,11 +294,19 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--allow-compiler-drift",
         action="store_true",
-        help="also re-grade targets that a different compiler version graded, "
-        "for a deliberate cross-version experiment",
+        help="also re-grade targets whose names record a different compiler "
+        "version, or none; a dry run only, so it cannot be combined with --apply",
     )
     ap.add_argument("--apply", action="store_true", help="execute; else dry run")
     args = ap.parse_args(argv)
+    if args.apply and args.allow_compiler_drift:
+        # Written back, verdicts from the installed compiler would sit under a
+        # name, and in rows, that still credit the old one, and every later
+        # drift check would take that provenance at its word.
+        ap.error(
+            "--allow-compiler-drift is a dry run only; it cannot be "
+            "combined with --apply"
+        )
 
     results_dir = Path(args.results_dir)
     pattern = f"*bench-{version_slug(args.bench_version)}*.jsonl"
@@ -354,13 +364,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     if total["compiler-drift"]:
         print(
-            f"\n  {total['compiler-drift']} target(s) skipped: graded by a "
-            "different compiler version than the one installed. Install that "
-            "version to re-grade them, or pass --allow-compiler-drift to grade "
-            "them with this one."
+            f"\n  {total['compiler-drift']} target(s) skipped: their names do not "
+            "record the installed compiler's version. Install the version that "
+            "graded them to re-grade them, or pass --allow-compiler-drift for a "
+            "dry-run census with this one."
         )
     if not args.apply and total["changed"]:
-        print("\n  dry run — re-run with --apply to write these verdicts")
+        if args.allow_compiler_drift:
+            print("\n  census only: --allow-compiler-drift never writes verdicts")
+        else:
+            print("\n  dry run — re-run with --apply to write these verdicts")
     return 0
 
 
