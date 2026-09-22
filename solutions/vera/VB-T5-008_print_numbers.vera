@@ -1,8 +1,5 @@
 -- VeraBench VB-T5-008: Print Numbers
 -- Print numbers from 1 to n using IO effect.
-effect IO {
-  op print(String -> Unit);
-}
 
 -- Pure helper: convert a number to a string with newline
 private fn format_number(@Int -> @String)
@@ -25,7 +22,10 @@ where {
   fn print_loop(@Nat, @Nat -> @Unit)
     requires(true)
     ensures(true)
-    decreases(@Nat.0 - @Nat.1 + 1)
+    -- Add before subtracting: the last call has current = limit + 1, where
+    -- limit - current is a negative Nat and traps now that vera checks the
+    -- measure at run time.
+    decreases(@Nat.0 + 1 - @Nat.1)
     effects(<IO>)
   {
     if @Nat.1 > @Nat.0 then {

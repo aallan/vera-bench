@@ -31,7 +31,9 @@ where {
   fn max_loop(@Nat, @Nat -> @Int)
     requires(true)
     ensures(true)
-    decreases(@Nat.1 - @Nat.0 + 1)
+    -- Add before subtracting: the last call has i = n + 1, where n - i is
+    -- a negative Nat and traps now that vera checks the measure at run time.
+    decreases(@Nat.1 + 1 - @Nat.0)
     effects(<State<Int>>)
   {
     if @Nat.0 > @Nat.1 then {

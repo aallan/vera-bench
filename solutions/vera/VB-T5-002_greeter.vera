@@ -1,9 +1,6 @@
 -- VeraBench VB-T5-002: Greeter
 -- Pure function builds the greeting, IO function prints it.
 -- Tests the effect boundary: pure vs <IO>.
-effect IO {
-  op print(String -> Unit);
-}
 
 -- Pure: build the greeting string
 private fn build_greeting(@String -> @String)

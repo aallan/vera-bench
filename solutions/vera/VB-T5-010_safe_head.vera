@@ -1,8 +1,5 @@
 -- VeraBench VB-T5-010: Safe Head
 -- Return the first element of an array, or throw if empty.
-effect Exn<E> {
-  op throw(E -> Never);
-}
 
 -- Effectful: throws -1 if array is empty
 private fn head_or_throw(@Array<Int> -> @Int)

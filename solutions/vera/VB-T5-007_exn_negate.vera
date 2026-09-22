@@ -1,8 +1,5 @@
 -- VeraBench VB-T5-007: Exception on Negative
 -- Throw an exception if the input is negative, returning 0 via the handler.
-effect Exn<E> {
-  op throw(E -> Never);
-}
 
 -- Effectful: throws the negative value as the exception
 private fn require_non_negative(@Int -> @Int)

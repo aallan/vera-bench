@@ -57,6 +57,6 @@
     }
   ],
   "vera_check_must_pass": true,
-  "vera_verify_tier1": true,
-  "notes": "Tests array_map with a closure. The closure must have its own effects(pure) annotation: fn(@Int -> @Int) effects(pure) { @Int.0 * 2 }."
+  "vera_verify_tier1": false,
+  "notes": "Tests array_map with a closure. The closure must have its own effects(pure) annotation: fn(@Int -> @Int) effects(pure) { @Int.0 * 2 }. Since vera 0.1.10 the verifier also checks arithmetic inside closures, so @Int.0 * 2 carries an int_overflow obligation; the elements are unbounded, so it is a Tier 3 runtime check."
 }
