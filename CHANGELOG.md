@@ -7,8 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Six Tier 5 problems no longer tell the model to declare a built-in
+  effect.** VB-T5-002 and VB-T5-008 asked for an `effect IO { ... }`
+  block, and VB-T5-003, 005, 007 and 010 for `effect Exn<E> { ... }`.
+  Against vera 0.1.8 that was right, since a bare `throw` did not
+  resolve without the declaration. Since vera 0.1.9 redeclaring a
+  built-in effect is an error (`E152`), so a model that followed the
+  instruction wrote a program that could not compile. The descriptions
+  now say the effect is built in. This changes the Vera prompt for those
+  six problems, so later sweeps are not like-for-like with 0.0.18 on
+  them.
+
 ### Fixed
 
+- **Nine canonical Vera solutions failed validation on vera 0.1.13.** CI
+  installs Vera from HEAD, which moved from 0.1.8 to 0.1.13 while `main`
+  went untested for eight weeks, so the first pull request to run CI
+  afterwards, a Dependabot bump, failed on code it never touched. Six
+  solutions redeclared `IO` or `Exn<E>` (see above). VB-T2-007's
+  `array_map` closure gained an `int_overflow` obligation when vera
+  0.1.10 began checking arithmetic inside closures; the elements are
+  unbounded, so it is a real runtime check, and the problem now expects
+  Tier 3.
+- **Three canonical termination measures went negative on their last
+  call.** VB-T5-004, 008 and 009 count an index up to n and wrote the
+  measure as `n - i + 1`. The final call has i = n + 1, so `n - i` is a
+  negative `Nat`, which traps. Nothing evaluated a measure at run time
+  until vera 0.1.9 added a guard for it, prompted by VB-T4-006 in the
+  0.0.18 sweep, and from then on all three trapped on every input. They
+  now add before subtracting, `n + 1 - i`: the same measure, without
+  the negative step.
 - **The sweep runner waited on a filename it would never see, and paid
   twice for every target.** `scripts/run_sweep.sh` spelled the bench
   version into its own copy of the result-filename pattern, while
