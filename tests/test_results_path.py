@@ -25,7 +25,12 @@ from pathlib import Path
 import pytest
 
 from vera_bench import __version__
-from vera_bench.results_path import result_filename, version_slug
+from vera_bench.results_path import (
+    compiler_segment,
+    recorded_compiler_version,
+    result_filename,
+    version_slug,
+)
 
 REPO_ROOT = Path(__file__).parent.parent
 SCRIPTS = REPO_ROOT / "scripts"
@@ -65,6 +70,57 @@ class TestResultFilename:
 
     def test_version_slug(self):
         assert version_slug("0.0.18") == "0-0-18"
+
+
+class TestCompilerSegment:
+    """regrade.py decides whether a target was graded by the installed
+    compiler by building that compiler's segment and checking the name ends
+    with it, so the segment must be exactly what result_filename appends."""
+
+    def test_each_graded_language_names_its_own_compiler(self):
+        assert compiler_segment("vera", "0.1.13") == "vera-0-1-13"
+        assert compiler_segment("aver", "0.27.1") == "aver-0-27-1"
+        assert compiler_segment("ailang", "0.30.0") == "ailang-0-30-0"
+
+    def test_no_segment_without_a_compiler_or_a_version(self):
+        assert compiler_segment("python", "0.1.13") is None
+        assert compiler_segment("typescript", "0.1.13") is None
+        for missing in ("unknown", "", None):
+            assert compiler_segment("vera", missing) is None
+
+    def test_a_result_name_ends_with_its_segment(self):
+        name = result_filename("m", "0.0.18", language="aver", aver_version="0.27.1")
+        assert name.endswith(f"-{compiler_segment('aver', '0.27.1')}.jsonl")
+
+
+class TestRecordedCompilerVersion:
+    def test_reads_back_what_result_filename_wrote(self):
+        for lang, version in (
+            ("vera", "0.1.8"),
+            ("aver", "0.27.1"),
+            ("ailang", "0.30.0"),
+        ):
+            name = result_filename(
+                "moonshot/kimi-k3",
+                "0.0.18",
+                language=lang,
+                **{f"{lang}_version": version},
+            )
+            assert recorded_compiler_version(name, lang) == version, name
+
+    def test_spec_from_nl_records_its_compiler_too(self):
+        name = result_filename("m", "0.0.18", mode="spec-from-nl", vera_version="0.1.8")
+        assert recorded_compiler_version(name, "vera") == "0.1.8"
+
+    def test_a_language_segment_is_not_read_as_a_compiler_version(self):
+        # An Aver name with no version still contains `-aver-`, as its
+        # language segment; that must not come back as version `bench.0.0.18`.
+        assert recorded_compiler_version("m-aver-bench-0-0-18.jsonl", "aver") is None
+        assert recorded_compiler_version("m-bench-0-0-18.jsonl", "vera") is None
+
+    def test_python_records_none(self):
+        name = "m-python-bench-0-0-18.jsonl"
+        assert recorded_compiler_version(name, "python") is None
 
 
 class TestShellContract:

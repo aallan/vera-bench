@@ -31,6 +31,47 @@ def version_slug(version: str) -> str:
     return version.replace(".", "-")
 
 
+#: The compiler that grades each language, whose version a target's name
+#: records. Python and TypeScript need no compiler of ours, so they are
+#: absent here and their names carry no compiler segment.
+GRADING_COMPILER = {"vera": "vera", "aver": "aver", "ailang": "ailang"}
+
+
+def compiler_segment(language: str, version: str | None) -> str | None:
+    """The `<compiler>-<slug>` segment that ends a `language` target's name.
+
+    None when no compiler of ours grades the language, and when the
+    version is empty or `unknown`, since an unmatchable name is worse than
+    a short one. Exposed so a reader can ask whether a file was graded by
+    a given compiler by building that compiler's segment, rather than by
+    re-parsing names it did not build.
+    """
+    compiler = GRADING_COMPILER.get(language)
+    if not compiler or not version or version == "unknown":
+        return None
+    return f"{compiler}-{version_slug(version)}"
+
+
+def recorded_compiler_version(filename: str, language: str) -> str | None:
+    """The compiler version a target's name records, for messages only.
+
+    Whether a file matches a compiler is decided by building that
+    compiler's segment and comparing (`compiler_segment`), never by this
+    read; it exists so a message can say which version graded the file.
+    None when the name records no version.
+    """
+    compiler = GRADING_COMPILER.get(language)
+    if not compiler:
+        return None
+    head, sep, slug = filename.removesuffix(".jsonl").rpartition(f"-{compiler}-")
+    # The segment comes after the bench segment. Without this check an
+    # Aver name with no version, `m-aver-bench-0-0-18`, reads its own
+    # language segment as the compiler's and reports version `bench.0.0.18`.
+    if not sep or "bench-" not in head:
+        return None
+    return slug.replace("-", ".")
+
+
 def result_filename(
     model: str,
     bench_version: str,
@@ -56,15 +97,14 @@ def result_filename(
     if language == "vera" and mode != "full-spec":
         parts.append(mode)
     parts.append(f"bench-{version_slug(bench_version)}")
-    relevant = {
-        "vera": ("vera", vera_version),
-        "aver": ("aver", aver_version),
-        "ailang": ("ailang", ailang_version),
+    version = {
+        "vera": vera_version,
+        "aver": aver_version,
+        "ailang": ailang_version,
     }.get(language)
-    if relevant:
-        label, value = relevant
-        if value and value != "unknown":
-            parts.append(f"{label}-{version_slug(value)}")
+    segment = compiler_segment(language, version)
+    if segment:
+        parts.append(segment)
     return f"{'-'.join(parts)}.jsonl"
 
 

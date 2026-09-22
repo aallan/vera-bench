@@ -21,6 +21,19 @@ identity and the code path are properties of the original run and are
 carried through untouched, so a re-graded file still reports what that
 sweep actually cost.
 
+WHY IT REFUSES A TARGET ANOTHER COMPILER GRADED:
+
+"Same code, same problems, a fixed harness" holds only while the
+compiler holds too, and nothing held it. Vera 0.1.9 made redeclaring a
+built-in effect an error, where under 0.1.8 a bare `throw` needed the
+declaration, so re-grading the 0.0.18 files with 0.1.9 installed would
+fail programs that were correct when graded, and `--apply` would write
+that over published numbers. A target whose name records a compiler
+version other than the installed one is skipped and reported instead.
+`--allow-compiler-drift` grades it anyway, for a deliberate cross-version
+experiment. Python and TypeScript targets are never skipped, since no
+compiler of ours grades them.
+
 Dry run by default; `--apply` writes each file atomically.
 
     python scripts/regrade.py                        # census, changes nothing
@@ -34,6 +47,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 from collections import Counter
@@ -43,7 +57,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from vera_bench import __version__ as BENCH_VERSION  # noqa: E402
-from vera_bench.results_path import version_slug  # noqa: E402
+from vera_bench.cli import _parse_version_banner  # noqa: E402
+from vera_bench.results_path import (  # noqa: E402
+    GRADING_COMPILER,
+    compiler_segment,
+    recorded_compiler_version,
+    version_slug,
+)
 from vera_bench.runner import (  # noqa: E402
     _evaluate_ailang_code,
     _evaluate_aver_code,
@@ -210,15 +230,73 @@ def _bucket(v: dict) -> str:
     return "ungraded"
 
 
-def main() -> int:
+def installed_versions(vera: VeraRunner) -> dict[str, str]:
+    """Each grading compiler's version, read as `vera-bench run` reads it.
+
+    That is `vera version` for Vera, and the first line of `--version`
+    through the CLI's own `_parse_version_banner` for Aver and AILANG. The
+    drift check compares against the version a filename recorded, so
+    reading it any other way could call the right compiler the wrong one.
+    A compiler that is missing, or will not say, is `unknown`.
+    """
+    versions = {"vera": vera.version()}
+    for compiler in ("aver", "ailang"):
+        try:
+            proc = subprocess.run(
+                [compiler, "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            versions[compiler] = "unknown"
+            continue
+        versions[compiler] = (
+            _parse_version_banner(proc.stdout) if proc.returncode == 0 else "unknown"
+        )
+    return versions
+
+
+def compiler_drift(
+    filename: str, language: str, installed: dict[str, str]
+) -> str | None:
+    """Why a target must not be re-graded here, or None if it may be.
+
+    A target may be re-graded only by the compiler that graded it, and its
+    name records which one that was. The check builds the segment the
+    installed compiler would have written and asks whether the name ends
+    with it, so it cannot disagree with how names are made. An installed
+    version that is `unknown` builds no segment and so never matches: a
+    re-grade that cannot name its compiler cannot claim it is the same one.
+    """
+    compiler = GRADING_COMPILER.get(language)
+    if compiler is None:
+        return None  # Python and TypeScript: no compiler of ours grades them
+    have = installed.get(compiler, "unknown")
+    segment = compiler_segment(language, have)
+    if segment and filename.endswith(f"-{segment}.jsonl"):
+        return None
+    had = recorded_compiler_version(filename, language)
+    graded = f"{compiler} {had}" if had else f"an unrecorded {compiler}"
+    return f"graded by {graded}, installed {compiler} {have}"
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--results-dir", default="results")
     ap.add_argument("--bench-version", default=BENCH_VERSION)
     ap.add_argument("--language", help="only this language's targets")
     ap.add_argument("--model", help="only targets for this model string")
     ap.add_argument("--parallel", type=int, default=8)
+    ap.add_argument(
+        "--allow-compiler-drift",
+        action="store_true",
+        help="also re-grade targets that a different compiler version graded, "
+        "for a deliberate cross-version experiment",
+    )
     ap.add_argument("--apply", action="store_true", help="execute; else dry run")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     results_dir = Path(args.results_dir)
     pattern = f"*bench-{version_slug(args.bench_version)}*.jsonl"
@@ -234,16 +312,25 @@ def main() -> int:
 
     problems = _load_problems()
     vera = VeraRunner()
+    installed = installed_versions(vera)
     total: Counter = Counter()
     print(
         f"  {len(targets)} target(s), bench {args.bench_version}"
-        f"{' — DRY RUN' if not args.apply else ''}\n"
+        f"{' — DRY RUN' if not args.apply else ''}"
     )
+    print("  installed: " + ", ".join(f"{c} {v}" for c, v in installed.items()) + "\n")
 
     for path in targets:
         head = json.loads(path.read_text().splitlines()[0])
         if args.language and head.get("language") != args.language:
             continue
+        drift = compiler_drift(path.name, head.get("language") or "vera", installed)
+        if drift and not args.allow_compiler_drift:
+            total["compiler-drift"] += 1
+            print(f"    {path.name[:64]:66} skipped: {drift}", flush=True)
+            continue
+        if drift:
+            print(f"    {path.name[:64]:66} drift allowed: {drift}", flush=True)
         rows, tally = regrade_file(path, results_dir, problems, vera, args.parallel)
         total.update(tally)
         moved = tally["changed"]
@@ -263,7 +350,15 @@ def main() -> int:
     print(
         f"\n  unchanged {total['unchanged']}   changed {total['changed']}"
         f"   no-code {total['no-code']}   grader-error {total['grader-error']}"
+        f"   compiler-drift {total['compiler-drift']}"
     )
+    if total["compiler-drift"]:
+        print(
+            f"\n  {total['compiler-drift']} target(s) skipped: graded by a "
+            "different compiler version than the one installed. Install that "
+            "version to re-grade them, or pass --allow-compiler-drift to grade "
+            "them with this one."
+        )
     if not args.apply and total["changed"]:
         print("\n  dry run — re-run with --apply to write these verdicts")
     return 0

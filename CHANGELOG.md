@@ -39,6 +39,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.0.18 sweep, and from then on all three trapped on every input. They
   now add before subtracting, `n + 1 - i`: the same measure, without
   the negative step.
+- **`scripts/regrade.py` now refuses a target that another compiler
+  graded.** A re-grade recomputes verdicts from stored code on the
+  assumption that only the harness changed, and nothing checked the
+  compiler. With vera 0.1.9 or later installed, re-grading the 0.0.18
+  results would have failed programs that were correct when graded
+  under 0.1.8, every one that declared `Exn<E>` as the 0.0.18 prompts
+  asked among them, and `--apply` would have written that over the
+  published numbers. A target whose name records a different Vera, Aver
+  or AILANG version from the installed one is now skipped, with both
+  versions named; `--allow-compiler-drift` grades it anyway. Python and
+  TypeScript targets are never skipped. The check builds the segment
+  the installed compiler would have written, through
+  `vera_bench/results_path.py`, rather than parsing names.
 - **The sweep runner waited on a filename it would never see, and paid
   twice for every target.** `scripts/run_sweep.sh` spelled the bench
   version into its own copy of the result-filename pattern, while
