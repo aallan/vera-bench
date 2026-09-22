@@ -51,5 +51,5 @@
   ],
   "vera_check_must_pass": true,
   "vera_verify_tier1": false,
-  "notes": "Tests State<Int> handler pattern with a loop. The loop helper uses a where block with effects(<State<Int>>) and calls get and put itself, from inside the handler's in-block."
+  "notes": "Tests State<Int> handler pattern with a loop. The handler defines the get and put clauses, and its in-block only calls the loop helper: a where-block function with effects(<State<Int>>) that performs get and put itself."
 }
